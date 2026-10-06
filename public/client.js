@@ -599,6 +599,7 @@ setInterval(() => {
   void fps;
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
   $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
+  if (window.VoiceChat) VoiceChat.tick(alive, lb && typeof lb.online === 'number' ? lb.online : 0); // общий голос: когда на сайте есть кто-то ещё
   if (pnShowUntil > Date.now()) showPlayerNames(); else $('pnList').classList.add('hide');
 }, 1000);
 // Нажатие на цифру внизу — на 5 секунд показать ники живых людей в игре
@@ -917,8 +918,8 @@ sb.addEventListener('pointerdown', e => e.stopPropagation());
 sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); });
 
 function showHelp() {
-  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение.'
-    : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение.'
+  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. V — говорить в голосовом чате.'
+    : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение. 🎤 вверху — говорить с игроками.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
 if (isTouch) {
