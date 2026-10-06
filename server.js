@@ -739,9 +739,10 @@ function sendLeaderboard() {
     }
   }
   const players = arr.reduce((n, s) => n + (s.bot ? 0 : 1), 0);
+  const pn = arr.filter(s => !s.bot).map(s => [s.name, Math.floor(s.mass)]); // ники живых людей — по нажатию на цифру внизу
   for (const c of clients) {
     const me = c.snake && c.snake.alive ? c.snake : null;
-    sendJSON(c, { t: 'lb', top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, online: clients.size, ...(mm ? { mm } : {}) });
+    sendJSON(c, { t: 'lb', top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}) });
   }
 }
 

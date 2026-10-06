@@ -598,7 +598,16 @@ setInterval(() => {
   void fps;
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
   $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
+  if (pnShowUntil > Date.now()) showPlayerNames(); else $('pnList').classList.add('hide');
 }, 1000);
+// Нажатие на цифру внизу — на 5 секунд показать ники живых людей в игре
+let pnShowUntil = 0;
+function showPlayerNames() {
+  const list = (lb && lb.pn) || [], el = $('pnList');
+  el.innerHTML = list.length ? list.map(([n, sc]) => `<div>${esc(n)} <span>${sc}</span></div>`).join('') : '<div>никого</div>';
+  el.classList.remove('hide');
+}
+$('ping').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = Date.now() + 5000; showPlayerNames(); });
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
