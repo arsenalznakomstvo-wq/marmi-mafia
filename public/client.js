@@ -328,7 +328,7 @@ function applyFood(upTo) {
       const f = foods.get(ev.rem[i]); if (!f) continue;
       foods.delete(f.id);
       if (ev.rem[i + 1]) eatAnims.push({ f, eater: ev.rem[i + 1], t0: performance.now() });
-      if (myId && ev.rem[i + 1] === myId) Sound.eat(f.r > 8);
+      // звук поедания выключен (владелец 06.10)
     }
     if (ev.drop.length) {
       const dropSet = new Set(ev.drop);
@@ -633,6 +633,12 @@ const PLATE_STYLE = {
   'Мафия':       { bg: '#0d0d0d', fg: '#ffffff', border: '#e8323c' },
   'Дон Мафии':   { bg: '#ffd52e', fg: '#1a1a1a', border: '#fff3a0' },
 };
+const ROLE_SKIN = {
+  'Доктор': ['#f4f6f8'],
+  'Проститутка': ['#ff5fc8'],
+  'Мафия': ['#1e1e22'],
+  'Киллер': ['#b4bcc6', '#b4bcc6', '#b4bcc6', '#141414'],
+};
 const roleFlash = new Map(); // id → { role, until } — вспышка при смене роли
 
 function star(cx, cy, R, n = 5) {
@@ -660,7 +666,7 @@ function bodyMarks(cnt, step, startDist) {
 // Под телом (до шариков): свечение Дона, «костюм» Мафии
 function drawRoleUnder(ri, cnt, r, time, view) {
   const name = (ROLES[ri] || {}).name;
-  if (ri === DON) {
+  if (false && ri === DON) { // владелец 06.10: Дон — как было, без свечения
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28 + 0.1 * Math.sin(time * 0.004);
     const halo = haloSprite('#ffd52e'), hs = r * 2 * 2.3 * SPR / (SR * 2) / 1.6;
     for (let k = 0; k < cnt; k += 3) { const x = SX[k], y = SY[k]; if (x < view.x0 - hs || x > view.x1 + hs || y < view.y0 - hs || y > view.y1 + hs) continue; ctx.drawImage(halo, x - hs / 2, y - hs / 2, hs, hs); }
@@ -674,7 +680,14 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
   const m = r * 2, inView = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
   const start = r * 6; // начинаем за табличкой на спине
   ctx.save();
-  if (name === 'Проститутка') {
+  if (name === 'Доктор') { // белый Доктор с розовыми плюсами по всему телу (владелец 06.10)
+    for (const [x, y, a] of bodyMarks(cnt, r * 2.4, r * 1.6)) {
+      if (!inView(x, y)) continue;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a); const L = r * 0.5, W = r * 0.15;
+      ctx.fillStyle = '#ff5fa8'; ctx.fillRect(-L, -W, L * 2, W * 2); ctx.fillRect(-W, -L, W * 2, L * 2);
+      ctx.restore();
+    }
+  } else if (ROLE_SKIN[name]) { /* цвет тела уже выделяет роль — без деталей */ } else if (name === 'Проститутка') {
     for (const [x, y] of bodyMarks(cnt, r * 3.2, start)) { if (!inView(x, y)) continue; const p = 1 + 0.12 * Math.sin(time * 0.008 + x * 0.05); ctx.fillStyle = 'rgba(255, 95, 200, 0.85)'; heart(x, y, r * 0.38 * p); ctx.fill(); }
   } else if (name === 'Параноик') {
     let i = 0;
@@ -728,7 +741,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
 // Головной убор: шляпа у Комиссара и Мафии, корона у Дона
 function drawRoleHat(ri, hx, hy, a, r, time) {
   const name = (ROLES[ri] || {}).name; if (!name) return;
-  if (name !== 'Комиссар' && name !== 'Мафия' && ri !== DON) return;
+  if (name !== 'Комиссар' && name !== 'Мафия') return; // Дон — без короны (как было)
   // за глазами, верх убора смотрит вперёд по ходу
   ctx.save(); ctx.translate(hx - Math.cos(a) * r * 1.15, hy - Math.sin(a) * r * 1.15); ctx.rotate(a + Math.PI / 2);
   if (ri === DON) {
@@ -768,7 +781,10 @@ const lastDrawn = new Map();   // id -> змейка, как она нарисо
 const dying = [];              // тающие тела погибших змей
 const DIE_MS = 700;
 function drawSnake(sn, meta, isMe, time, view, fade) {
-  const sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
+  let sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
+  // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Проститутка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
+  const RS = meta && !fade && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name];
+  if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
   const n = sn.idx.length;
   if (!n) return;
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
