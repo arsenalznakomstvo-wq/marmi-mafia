@@ -10,7 +10,7 @@ window.VoiceChat = (() => {
   const speaking = new Set();
   let room = null, connecting = false, micOn = false, mutedAll = false, offline = false, lowSince = 0;
   // Открытый микрофон (владелец 06.10): разрешение спрашиваем при «Играть», дальше микрофон включён сам; 🎤 / V — выключить себя
-  let micAllowed = false, wantMic = true;
+  let micAllowed = false, wantMic = true, micFailed = false;
 
   function loadSdk() {
     if (window.LivekitClient) return Promise.resolve();
@@ -50,7 +50,7 @@ window.VoiceChat = (() => {
   async function setMic(on) {
     if (!room) return;
     try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) micAllowed = true; }
-    catch (e) { micOn = false; toastMic(e); }
+    catch (e) { micOn = false; micFailed = true; toastMic(e); }
     try { await room.startAudio(); } catch (e) {}
     render();
   }
@@ -59,13 +59,23 @@ window.VoiceChat = (() => {
   // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
   async function askMic() {
     if (micAllowed || offline) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toastMic(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { micFailed = true; render(); return; }
     try {
       const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       st.getTracks().forEach(t => t.stop());
       micAllowed = true;
       if (room && wantMic) setMic(true);
-    } catch (e) { toastMic(e); }
+    } catch (e) { micFailed = true; render(); }
+  }
+  // Микрофон не дали (обычно — игра открыта внутри Telegram): одна кнопка «Открыть в браузере»
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  function openInBrowser() {
+    const url = location.origin + '/?name=' + encodeURIComponent(myName());
+    const rest = url.replace(/^https?:\/\//, '');
+    if (isIOS) location.href = 'x-safari-https://' + rest;
+    else if (/Android/i.test(navigator.userAgent))
+      location.href = 'intent://' + rest + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+    else window.open(url, '_blank');
   }
   function setMutedAll(m) { mutedAll = m; document.querySelectorAll('audio').forEach(a => { a.muted = m; }); render(); }
 
@@ -90,7 +100,7 @@ window.VoiceChat = (() => {
     $('vcBar').classList.toggle('hide', !on);
     if (!on) return;
     const n = room.remoteParticipants.size + 1;
-    $('vcMicBtn').textContent = micOn ? (isTouch ? '🎤 Вкл' : '🎤 Вкл (V)') : (isTouch ? '🔇 Выкл' : '🔇 Выкл (V)');
+    $('vcMicBtn').textContent = micFailed && isTouch ? '🎤 Открыть в браузере' : micOn ? (isTouch ? '🎤 Вкл' : '🎤 Вкл (V)') : (isTouch ? '🔇 Выкл' : '🔇 Выкл (V)');
     $('vcMicBtn').classList.toggle('on', micOn);
     $('vcMuteBtn').textContent = mutedAll ? '🔇' : '🔊';
     $('vcCount').textContent = '🎧 ' + n;
@@ -103,7 +113,7 @@ window.VoiceChat = (() => {
       if (e.code !== 'KeyV' || e.repeat || !room || document.activeElement === $('nick')) return;
       flip();
     });
-    $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
+    $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (micFailed && isTouch) openInBrowser(); else flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
     const unlock = () => { if (room) room.startAudio().catch(() => {}); };
