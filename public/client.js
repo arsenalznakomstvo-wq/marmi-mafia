@@ -211,6 +211,44 @@ function makeBg() {
   try { bgTileURL = c.toDataURL(); bgTileSize = `${w.toFixed(2)}px ${h.toFixed(2)}px`; } catch (e) {}
 }
 
+// ===== Фото владельца по всей игре (владелец 06.10): слайд-шоу в меню, постеры на карте, портрет Дона =====
+const PHOTO_N = 13, PHOTO_DON = 7, PHOTO_CENTER = 2;
+const photoImg = [];
+function photo(i) { // ленивая загрузка: картинка грузится при первом обращении
+  if (!photoImg[i]) { const im = new Image(); im.decoding = 'async'; im.src = 'photos/p' + i + '.jpg'; photoImg[i] = im; }
+  return photoImg[i];
+}
+// Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
+const POSTERS = (() => {
+  const list = [{ i: PHOTO_CENTER, x: 0, y: 0, h: 1300 }];
+  const others = []; for (let i = 1; i <= PHOTO_N; i++) if (i !== PHOTO_CENTER) others.push(i);
+  others.forEach((pi, k) => { const a = k / others.length * TAU + 0.3, d = k % 2 ? 3500 : 2300; list.push({ i: pi, x: Math.cos(a) * d, y: Math.sin(a) * d, h: 1000 }); });
+  return list;
+})();
+function drawPosters(view) {
+  for (const p of POSTERS) {
+    const im = photo(p.i); if (!im.complete || !im.naturalWidth) continue;
+    const h = p.h, w = h * im.naturalWidth / im.naturalHeight, x0 = p.x - w / 2, y0 = p.y - h / 2;
+    if (x0 > view.x1 || x0 + w < view.x0 || y0 > view.y1 || y0 + h < view.y0) continue;
+    ctx.save(); ctx.globalAlpha = 0.5;
+    ctx.drawImage(im, x0, y0, w, h);
+    ctx.globalAlpha = 0.8; ctx.lineWidth = 10; ctx.strokeStyle = p.i === PHOTO_CENTER ? '#ffd52e' : 'rgba(255,255,255,0.35)';
+    ctx.strokeRect(x0, y0, w, h);
+    ctx.restore();
+  }
+}
+// Слайд-шоу в меню: фото сменяются каждые 6 с, плавно
+let slideK = 0, slideT = 0;
+function nextSlide(first) {
+  const a = $('mpA'), b = $('mpB'); if (!a) return;
+  const show = slideK % 2 ? b : a, hide = slideK % 2 ? a : b;
+  const idx = first || ((slideK % PHOTO_N) + 1);
+  show.src = 'photos/p' + idx + '.jpg';
+  show.onload = () => { show.classList.add('on'); hide.classList.remove('on'); };
+  slideK++;
+}
+function startSlides(first) { clearInterval(slideT); nextSlide(first); slideT = setInterval(() => { if (!$('menu').classList.contains('hide')) nextSlide(); }, 6000); }
+
 // ===== Сеть =====
 let ws = null, connected = false, myId = 0, alive = false, autoJoined = false;
 const metas = new Map();     // id -> {name, sk, bot}
@@ -657,7 +695,7 @@ function showPromo(ri) {
   el.className = don ? 'don' : '';
   el.style.setProperty('--rc', R.color);
   el.innerHTML = don
-    ? `<div class="pi">👑</div><div class="pn">ДОН МАФИИ</div><div class="ps">Вы — самая большая змея на карте!</div>`
+    ? `<img class="pimg" src="photos/p${PHOTO_DON}.jpg" alt=""><div class="pi">👑</div><div class="pn">ДОН МАФИИ</div><div class="ps">Вы — самая большая змея на карте!</div>`
     : `<div class="pt">✨ НОВАЯ РОЛЬ ✨</div><div class="pn">${R.icon} ${R.name.toUpperCase()}</div><div class="ps">${esc(myName())}, так держать!</div>`;
   void el.offsetWidth; el.classList.add('show');
   clearTimeout(promoT); promoT = setTimeout(() => el.classList.remove('show'), don ? 3500 : 2600);
@@ -975,6 +1013,7 @@ function frame(time) {
   ctx.beginPath(); ctx.rect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0); ctx.arc(0, 0, MAP_R, 0, TAU);
   ctx.fillStyle = 'rgba(90, 0, 10, 0.55)'; ctx.fill('evenodd');
   ctx.beginPath(); ctx.arc(0, 0, MAP_R, 0, TAU); ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(255, 50, 70, 0.75)'; ctx.stroke();
+  drawPosters(view);
 
   // Еда
   const tt = time * 0.003;
@@ -1328,6 +1367,7 @@ function showMenu(m) {
   }
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
   document.body.classList.add('in-menu');
+  if (m) startSlides(3); // после гибели — фото старика-мафиози
 }
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
@@ -1346,6 +1386,7 @@ if (isTouch) {
 applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
+startSlides(1);
 // «Установить на телефон»: Android — системное окно установки; iPhone — короткая подсказка «Поделиться → На экран Домой»
 (() => {
   if (isApp || !isTouch) return;

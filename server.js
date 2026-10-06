@@ -633,7 +633,7 @@ function handleJSON(c, m) {
   if (m.t === 'join') {
     if (c.snake && c.snake.alive) return;
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
-    const pos = findSpawn(false);
+    const pos = process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_CENTER — только для проверок
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
     s.client = c; c.snake = s; c.inA = s.a;
     snakes.set(s.id, s);

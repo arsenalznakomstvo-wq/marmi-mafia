@@ -322,3 +322,14 @@ body.in-menu #evPill { display: none !important; } /* в меню не закр�
   #records .rcols { flex-direction: column; gap: 4px; }
   #records .rr { font-size: 11px; line-height: 1.3; }
 }
+
+/* ===== Фото владельца ===== */
+#menuPhotos { position: fixed; inset: 0; z-index: 29; pointer-events: none; overflow: hidden; background: #0b1018; } /* игра под меню не просвечивает — только фото */
+#menuPhotos img { position: absolute; left: 50%; top: 50%; height: 100%; max-width: none; transform: translate(-50%, -50%) scale(1.04);
+  opacity: 0; transition: opacity 1.4s ease, transform 7s linear; }
+#menuPhotos img.on { opacity: 0.55; transform: translate(-50%, -50%) scale(1.1); }
+body:not(.in-menu) #menuPhotos { display: none; }
+#menu { background: rgba(11, 16, 24, 0.45); }
+#promo .pimg { display: block; width: 74px; height: 74px; border-radius: 50%; object-fit: cover; object-position: center 20%;
+  margin: 0 auto 4px; border: 3px solid #ffd52e; box-shadow: 0 0 16px rgba(255, 213, 46, 0.7); }
+@media (max-height: 500px) { #promo .pimg { width: 54px; height: 54px; } }
