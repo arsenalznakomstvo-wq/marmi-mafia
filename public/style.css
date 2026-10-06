@@ -350,3 +350,7 @@ body:not(.in-menu) #menuPhotos { display: none; }
 @media (max-width: 700px) { /* телефон стоя: фото на всю половину, приглушены, чтобы кнопки читались */
   #menuPhotos img { width: 50vw; opacity: 0.45 !important; -webkit-mask-image: none; mask-image: none; }
 }
+
+/* Плашка событий — чёрная, плотная (владелец 07.10) */
+#evPill.night, #evPill.gold { background: #0a0a0c; color: #f2f2f2; border: 1px solid rgba(255, 255, 255, 0.22); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
+#evPill #evArrow { color: #f2f2f2; }
