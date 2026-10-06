@@ -835,6 +835,21 @@ function drawChecker(cnt, r, view) {
     const side = k % 2 ? 1 : -1, ox = -Math.sin(a) * side * s * 0.5, oy = Math.cos(a) * side * s * 0.5;
     ctx.save(); ctx.translate(x + ox, y + oy); ctx.rotate(a); ctx.fillRect(-s / 2, -s / 2, s, s); ctx.restore();
   }
+  roundShade(ctx, cnt, r, view);
+}
+// Объём поверх клеток (владелец 07.10: «шахматную — более круглой»): края темнеют, посередине блик — как у шарика тела
+const roundShadeSprite = () => sprite('rshade', g => {
+  const gr = g.createRadialGradient(32 - 6, 32 - 7, 1, 32, 32, SR);
+  gr.addColorStop(0, 'rgba(255,255,255,0.16)'); gr.addColorStop(0.4, 'rgba(255,255,255,0.03)'); gr.addColorStop(0.72, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.32)');
+  g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
+});
+function roundShade(g, cnt, r, view) {
+  const img = roundShadeSprite(), size = r * 2 * SPR / (SR * 2), half = size / 2, step = Math.max(1, Math.round(r * 0.7 / Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0]))));
+  for (let k = cnt - 1; k >= 0; k -= step) {
+    const x = SX[k], y = SY[k];
+    if (view && (x < view.x0 - size || x > view.x1 + size || y < view.y0 - size || y > view.y1 + size)) continue;
+    g.drawImage(img, x - half, y - half, size, size);
+  }
 }
 function drawRoleUnder(ri, cnt, r, time, view) {
   const name = (ROLES[ri] || {}).name;
@@ -1285,6 +1300,8 @@ function drawSkinPath(g, sk, pts, r) {
       while (next <= acc + L && L) { const f = (next - acc) / L, x = xs[i - 1] + dx * f, y = ys[i - 1] + dy * f, side = ++k % 2 ? 1 : -1;
         g.save(); g.translate(x - Math.sin(an) * side * sq * 0.5, y + Math.cos(an) * side * sq * 0.5); g.rotate(an); g.fillRect(-sq / 2, -sq / 2, sq, sq); g.restore(); next += sq; }
       acc += L; }
+    const img = roundShadeSprite(), size = r * 2 * SPR / (SR * 2);
+    for (let i = xs.length - 1; i >= 0; i -= 3) g.drawImage(img, xs[i] - size / 2, ys[i] - size / 2, size, size);
   }
   if (p.text) { // особый скин: золотая надпись вдоль тела и на витрине
     const unit = p.text + '  ★  ';
