@@ -261,3 +261,6 @@ body.ctrl-joy #boostBtn { left: auto; right: max(18px, env(safe-area-inset-right
 /* В меню голосовая полоска — справа внизу, чтобы не налезать на название */
 body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; transform: none;
   right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
+
+#status:empty { display: none; }
+#menu .help { display: none; }

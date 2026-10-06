@@ -230,7 +230,7 @@ function onJSON(m) {
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
       protoOk = m.proto === PROTO;
       if (protoOk) {
-        $('play').disabled = false; setStatus('Сервер на связи'); $('status').style.color = '';
+        $('play').disabled = false; setStatus(''); $('status').style.color = ''; // владелец 06.10: без лишних надписей
         // Ссылка вида ?name=Вася сразу пускает в игру
         const q = new URLSearchParams(location.search).get('name');
         if (q && !autoJoined) { autoJoined = true; $('nick').value = q.slice(0, 16); play(); }
@@ -939,7 +939,7 @@ if (isTouch) {
   $('ctrlBtn').addEventListener('click', () => { ctrlMode = ctrlMode === 'joy' ? 'finger' : 'joy'; try { localStorage.setItem('mm_ctrl', ctrlMode); } catch (e) {} Sound.click(); applyCtrlMode(); showHelp(); });
 }
 applyCtrlMode();
-showHelp();
+// showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
 
 function resize() {
