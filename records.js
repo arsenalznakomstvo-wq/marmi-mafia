@@ -54,6 +54,7 @@ function report(name, score) {
   const wasDay = today[0] ? today[0].score : 0, wasAll = allTime[0] ? allTime[0].score : 0;
   const ch1 = put(today, name, score), ch2 = put(allTime, name, score);
   if (ch1 || ch2) dirty = true;
+  if (score < 500) return null; // поздравляем только с заметным рекордом
   if (score > wasAll && allTime[0] && allTime[0].name === name && wasAll > 0) return 'all';
   if (score > wasDay && today[0] && today[0].name === name && wasDay > 0) return 'day';
   return null;

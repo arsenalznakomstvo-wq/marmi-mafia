@@ -528,7 +528,7 @@ const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
 const BACK_PLATE_MIN = 1; // владелец 06.10: табличка у всех ролей, кроме стартового «Мирного»
 const SHORT = { 'Дон Мафии': 'ДОН' };
 const swing = new Map(); // id → { ang, vel, lastA, t }
-function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol) {
+function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
   const R = ROLES[ri]; if (!R) return;
   let st = swing.get(id);
   const now = performance.now();
@@ -544,9 +544,11 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol) {
   const hang = st.ang;                                                // качание вокруг точки крепления
   const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 - r * 0.3;
   const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
-  const fs = 11 * s;
+  const fs = 11 * s, fs2 = 10 * s;
   ctx.font = `bold ${fs}px Arial, sans-serif`;
-  const w = ctx.measureText(label).width + 12 * s, h = fs * 1.7;
+  let w = ctx.measureText(label).width + 12 * s;
+  if (nick) { ctx.font = `bold ${fs2}px Arial, sans-serif`; w = Math.max(w, ctx.measureText(nick).width + 12 * s); }
+  const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7;
   // ниточка
   ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = Math.max(1, 1.4 * s);
   ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo((x + px) / 2 + Math.sin(hang) * 4 * s, (y + py) / 2 - 3 * s, px, py); ctx.stroke();
@@ -569,7 +571,10 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol) {
   }
   ctx.fillStyle = PS.fg;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, 0, h / 2 + 0.5);
+  if (nick) {
+    ctx.font = `bold ${fs}px Arial, sans-serif`; ctx.fillText(label, 0, fs * 0.82);
+    ctx.font = `bold ${fs2}px Arial, sans-serif`; ctx.globalAlpha = 0.9; ctx.fillText(nick, 0, fs * 1.45 + fs2 * 0.6); ctx.globalAlpha = 1;
+  } else { ctx.font = `bold ${fs}px Arial, sans-serif`; ctx.fillText(label, 0, h / 2 + 0.5); }
   ctx.restore();
   // кружок-крепление на спине
   ctx.fillStyle = 'rgba(30,30,30,0.9)'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 2 * s), 0, TAU); ctx.fill();
@@ -861,17 +866,16 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
-      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0));
+      const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
+      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0), meta.bot ? '' : (talkingP ? '🔊 ' : '') + meta.name);
     }
     // Имя — белое полупрозрачное под змейкой, как в оригинале
     if (meta && !fade) {
-      // Владелец 06.10: под змеёй только ник (у ботов — их роль), без таблички роли
-      const fs = 14 / cam.s;
-      ctx.font = `bold ${fs}px Arial, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillStyle = meta.bot ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.8)';
-      const talking = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name); // говорит в голосовом чате
-      ctx.fillText(talking ? '🔊 ' + meta.name : meta.name, hx, hy + r + 10 / cam.s);
+      // Владелец 06.10: ники только на табличке на спине; под головой ничего. У Мирного (без таблички) — лишь 🔊, когда говорит
+      if (!meta.bot && (meta.role || 0) < BACK_PLATE_MIN && window.VoiceChat && VoiceChat.isSpeaking(meta.name)) {
+        ctx.font = `${16 / cam.s}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText('🔊', hx, hy + r + 6 / cam.s);
+      }
     }
   }
   if (fade) ctx.globalAlpha = 1;

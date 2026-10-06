@@ -87,7 +87,8 @@ const scFor = m => Math.min(6, 1 + (sctFor(m) - 2) / SC_DIV);
 function radiusFor(m) { return 10 * scFor(m); }
 // Толщина по настоящему числу точек тела (обратное к segsFor): растёт вместе с телом, а не скачком при поедании
 function radiusForPoints(n) { const sct = (n - 1) * SEG_D / 29; return 10 * Math.min(6, 1 + Math.max(0, sct - 2) / SC_DIV); }
-function segsFor(m) { return Math.min(1300, Math.max(8, Math.round(1 + sctFor(m) * 29 / SEG_D))); }
+// Владелец 06.10: без резкого стопа — как в оригинале, тело растёт всё медленнее до 430 сегментов (≈2080 точек)
+function segsFor(m) { return Math.max(8, Math.round(1 + sctFor(m) * 29 / SEG_D)); }
 // Поворот: mamu·scang (за кадр оригинала 8 мс) → за наш шаг 33 мс; толстые разворачиваются шире
 const TURN_BOOST = 1.3; // владелец 06.10: живые игроки манёвреннее на 30%, боты — как в оригинале (менять вместе с client.js)
 function turnFor(r, bot) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * (TICK_MS / 8) * scang * (bot ? 1 : TURN_BOOST); }
