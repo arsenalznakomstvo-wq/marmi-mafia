@@ -80,11 +80,11 @@ window.Sound = (() => {
   function boost(on) {
     if (!ac) return;
     if (on && !hum && ok()) {
-      noise(0.35, 0.05, 300, 1500, 1.2);
+      noise(0.35, 0.08, 300, 1500, 1.2); // громче (владелец 07.10)
       const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
       const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 2;
       const g = ac.createGain(); g.gain.value = 0.0001;
-      g.gain.setTargetAtTime(0.025, ac.currentTime, 0.1);
+      g.gain.setTargetAtTime(0.045, ac.currentTime, 0.1);
       const lfo = ac.createOscillator(), lg = ac.createGain();
       lfo.frequency.value = 6; lg.gain.value = 90; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
       src.connect(lp); lp.connect(g); g.connect(sfx); src.start();
