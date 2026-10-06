@@ -739,6 +739,32 @@ function drawCigar(hx, hy, a, r, time) {
     ctx.beginPath(); ctx.arc(tx + Math.sin(ph * 6 + k) * r * 0.3, ty - ph * r * 3.2, rad, 0, TAU); ctx.fill();
   }
 }
+// Дон: золотые линии по бокам тела и золотые искры, поднимающиеся от тела
+const donSparks = [];
+function drawDonTrim(id, cnt, r, view, time) {
+  const m = r * 3;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#d4a73a'; ctx.lineWidth = Math.max(1.2, r * 0.1);
+  for (const side of [-1, 1]) {
+    ctx.beginPath(); let open = false;
+    for (let k = 1; k < cnt - 1; k += 2) {
+      const x = SX[k], y = SY[k];
+      if (x < view.x0 - m || x > view.x1 + m || y < view.y0 - m || y > view.y1 + m) { open = false; continue; }
+      const a = Math.atan2(SY[k - 1] - SY[k + 1], SX[k - 1] - SX[k + 1]), w = r * 0.8 * (k / cnt < 0.6 ? 1 : Math.max(0.15, 1 - (k / cnt - 0.6) / 0.4));
+      const ox = x - Math.sin(a) * w * side, oy = y + Math.cos(a) * w * side;
+      if (open) ctx.lineTo(ox, oy); else { ctx.moveTo(ox, oy); open = true; }
+    }
+    ctx.stroke();
+  }
+  if (Math.random() < 0.6 && cnt > 4) { const k = (Math.random() * cnt * 0.8) | 0; donSparks.push({ x: SX[k] + (Math.random() - 0.5) * r, y: SY[k], life: 1, r }); }
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = donSparks.length - 1; i >= 0; i--) {
+    const s = donSparks[i]; s.y -= s.r * 0.04; s.life -= 0.015;
+    if (s.life <= 0) { donSparks.splice(i, 1); continue; }
+    ctx.fillStyle = `rgba(255,213,46,${s.life * 0.8})`; ctx.beginPath(); ctx.arc(s.x + Math.sin(time * 0.003 + i) * s.r * 0.2, s.y, s.r * (0.05 + s.life * 0.08), 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  if (donSparks.length > 300) donSparks.length = 300;
+}
 let promoT = 0;
 function showPromo(ri) {
   const R = ROLES[ri]; if (!R) return;
@@ -932,6 +958,9 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   // Владелец 07.10: у людей при смене роли змея остаётся как есть (меняется только табличка); роль красит только ботов
   const RS = meta && meta.bot && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
+  // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
+  const isDon = meta && !fade && meta.role === DON;
+  if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
   const n = sn.idx.length;
   if (!n) return;
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
@@ -992,6 +1021,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
   }
 
+  if (isDon) drawDonTrim(sn.id, cnt, sn.r, view, time);
   if (roleIdx && !sk.text && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
   if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);

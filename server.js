@@ -302,6 +302,7 @@ function collisions() {
     for (let k = 0; k < dead.length; k += 2) if (dead[k] === b && dead[k + 1] === a) { j = k; break; }
     if (j < 0) continue;
     let loser;
+    if (a.hitIdx > 2 && b.hitIdx > 2) continue; // обе въехали друг другу В ТЕЛО — разбиваются обе, иначе одна «проезжала насквозь»
     if ((a.hitIdx > 2) !== (b.hitIdx > 2)) loser = a.hitIdx > 2 ? a : b;
     else {
       const dx = b.xs[0] - a.xs[0], dy = b.ys[0] - a.ys[0], d = Math.hypot(dx, dy) || 1;
