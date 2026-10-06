@@ -21,7 +21,8 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }
 // Камера как в оригинале: отдаляется по мере роста числа сегментов (формула та же, что в server.js)
 function viewScale(w, h, r) {
-  const base = clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
+  // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
+  const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.2 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
   return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857;
 }
 
