@@ -406,6 +406,7 @@ function moveJoy(x, y) {
 const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); };
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
   if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 0 || e.button === 2) mouseBoost = true; return; }
   if (ctrlMode === 'joy') {
     if (e.clientX < W / 2) { if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } }
@@ -884,11 +885,19 @@ let hiQ = load('mm_hq') !== '0';
 function showQuality() { $('qualityBtn').textContent = hiQ ? 'Высокое качество' : 'Низкое качество'; }
 $('qualityBtn').addEventListener('click', () => { hiQ = !hiQ; store('mm_hq', hiQ ? '1' : '0'); Sound.click(); showQuality(); resize(); });
 
+// Телефон: полный экран и горизонтальный поворот. Вопрос «Разрешить микрофон?» на Android выбивает из полного экрана —
+// поэтому при первом касании в игре включаем его снова (браузер разрешает это только по касанию).
+function goFullscreen() {
+  if (!isTouch) return;
+  const d = document.documentElement, lock = () => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); };
+  if (document.fullscreenElement) { lock(); return; }
+  if (d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => {});
+}
 function play() {
   if (!connected || !protoOk) return;
   Sound.init(); Sound.click();
   if (window.VoiceChat) VoiceChat.askMic(); // один раз спросить микрофон — нажатие «Играть» даёт браузеру право спросить
-  if (isTouch && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
   sendJSON({ t: 'join', name, skin, w: W, h: H });
