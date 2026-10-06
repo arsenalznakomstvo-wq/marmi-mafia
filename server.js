@@ -379,9 +379,12 @@ function findSpawn(awayFromPlayers) {
   return best;
 }
 
+const SOLID_SKINS = SKINS.map((d, i) => (d.cols && d.cols.length === 1 && !d.style && !d.text && i > 0 && d.name !== 'Чёрный' ? i : 0)).filter(Boolean);
 function randomSkin() {
-  // особые скины с надписью (Альмано, Марми) ботам не достаются
-  let id; do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text);
+  // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
+  let id;
+  if (Math.random() < 0.9) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0];
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text);
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
