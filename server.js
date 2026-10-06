@@ -52,7 +52,9 @@ function updateRoles() {
     if (!top.bot) for (const c of clients) if (c !== top.client) sendJSON(c, { t: 'don', name: top.name });
   }
 }
-const displayName = s => s.bot ? ROLES[s.role || 0].name : s.name + ' ' + ROLES[s.role || 0].name;
+// В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
+const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
+const displayName = s => s.bot ? roleShort(s.role || 0) : s.name + ' ' + roleShort(s.role || 0);
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
 const TAU = Math.PI * 2;
