@@ -887,6 +887,7 @@ $('qualityBtn').addEventListener('click', () => { hiQ = !hiQ; store('mm_hq', hiQ
 function play() {
   if (!connected || !protoOk) return;
   Sound.init(); Sound.click();
+  if (window.VoiceChat) VoiceChat.askMic(); // один раз спросить микрофон — нажатие «Играть» даёт браузеру право спросить
   if (isTouch && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
   const name = myName();
   store('mm_nick', $('nick').value.trim());
@@ -920,8 +921,8 @@ sb.addEventListener('pointerdown', e => e.stopPropagation());
 sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); });
 
 function showHelp() {
-  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. V — говорить в голосовом чате.'
-    : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение. 🎤 вверху — говорить с игроками.'
+  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. Голосовой чат включается сам; V — выключить свой микрофон.'
+    : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение. Голосовой чат включается сам; 🎤 — выключить свой микрофон.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
 if (isTouch) {

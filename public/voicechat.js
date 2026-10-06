@@ -1,6 +1,6 @@
 'use strict';
 // Марми Мафия — общий голосовой чат для всех, кто в игре, как в Counter-Strike (владелец 06.10).
-// Нажал «Играть» — слышишь всех. Говорить: компьютер — держать V, телефон — кнопка 🎤.
+// Нажал «Играть» — слышишь всех и говоришь (открытый микрофон). Выключить себя: V или кнопка 🎤.
 // Чтобы не тратить бесплатные минуты LiveKit: подключаемся, только если человек уже играл и на сайте есть ещё кто-то.
 window.VoiceChat = (() => {
   const SDK = 'https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js';
@@ -9,6 +9,8 @@ window.VoiceChat = (() => {
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const speaking = new Set();
   let room = null, connecting = false, micOn = false, mutedAll = false, offline = false, lowSince = 0;
+  // Открытый микрофон (владелец 06.10): разрешение спрашиваем при «Играть», дальше микрофон включён сам; 🎤 / V — выключить себя
+  let micAllowed = false, wantMic = true;
 
   function loadSdk() {
     if (window.LivekitClient) return Promise.resolve();
@@ -39,6 +41,7 @@ window.VoiceChat = (() => {
       await rm.connect(url, token);
       room = rm; micOn = false;
       try { await rm.startAudio(); } catch (e) {}
+      if (micAllowed && wantMic) setMic(true);
     } catch (e) { room = null; }
     connecting = false; render();
   }
@@ -46,12 +49,34 @@ window.VoiceChat = (() => {
 
   async function setMic(on) {
     if (!room) return;
-    try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; }
-    catch (e) { micOn = false; toastMic(); }
+    try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) micAllowed = true; }
+    catch (e) { micOn = false; toastMic(e); }
     try { await room.startAudio(); } catch (e) {}
     render();
   }
-  function toastMic() { const t = $('vcHint'); t.textContent = 'Разрешите микрофон в настройках браузера'; t.classList.remove('hide'); setTimeout(() => t.classList.add('hide'), 3000); }
+  // Понятная подсказка, почему микрофон не работает
+  const inApp = /Telegram|Instagram|FBAN|FBAV|Line\/|wv\)/i.test(navigator.userAgent);
+  function micProblem(e) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || inApp)
+      return 'Голос не работает внутри Telegram. Нажмите ⋮ (вверху справа) → «Открыть в браузере»';
+    const n = e && e.name;
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'Микрофон не найден на устройстве';
+    if (n === 'NotReadableError') return 'Микрофон занят другим приложением (звонок, запись)';
+    return isTouch ? 'Микрофон запрещён. Нажмите 🔒 слева от адреса сайта → Разрешения → Микрофон → Разрешить, и обновите страницу'
+                   : 'Микрофон запрещён. Нажмите 🔒 слева от адреса сайта → Микрофон → Разрешить, и обновите страницу';
+  }
+  function toastMic(e) { const t = $('vcHint'); t.textContent = micProblem(e); t.classList.remove('hide'); clearTimeout(toastMic.t); toastMic.t = setTimeout(() => t.classList.add('hide'), 8000); }
+  // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
+  async function askMic() {
+    if (micAllowed || offline) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toastMic(); return; }
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      st.getTracks().forEach(t => t.stop());
+      micAllowed = true;
+      if (room && wantMic) setMic(true);
+    } catch (e) { toastMic(e); }
+  }
   function setMutedAll(m) { mutedAll = m; document.querySelectorAll('audio').forEach(a => { a.muted = m; }); render(); }
 
   // Вызывается из игры раз в секунду. Голос держим, пока человек на странице и уже играл (в меню после смерти — тоже,
@@ -75,22 +100,20 @@ window.VoiceChat = (() => {
     $('vcBar').classList.toggle('hide', !on);
     if (!on) return;
     const n = room.remoteParticipants.size + 1;
-    $('vcMicBtn').textContent = isTouch ? (micOn ? '🎤 Говорю' : '🎤 Сказать') : (micOn ? '🎤 Говорю…' : 'V — говорить');
+    $('vcMicBtn').textContent = micOn ? (isTouch ? '🎤 Вкл' : '🎤 Вкл (V)') : (isTouch ? '🔇 Выкл' : '🔇 Выкл (V)');
     $('vcMicBtn').classList.toggle('on', micOn);
     $('vcMuteBtn').textContent = mutedAll ? '🔇' : '🔊';
     $('vcCount').textContent = '🎧 ' + n;
   }
 
   function init() {
-    // Компьютер: держать V — говорить (как в CS)
+    // V (компьютер) и кнопка 🎤 — выключить/включить свой микрофон
+    const flip = () => { wantMic = !micOn; if (wantMic && !micAllowed) askMic(); setMic(wantMic); };
     window.addEventListener('keydown', e => {
       if (e.code !== 'KeyV' || e.repeat || !room || document.activeElement === $('nick')) return;
-      setMic(true);
+      flip();
     });
-    window.addEventListener('keyup', e => { if (e.code === 'KeyV' && room && micOn) setMic(false); });
-    window.addEventListener('blur', () => { if (room && micOn && !isTouch) setMic(false); });
-    // Кнопка 🎤: на телефоне — включить/выключить, на компьютере — тоже работает кликом
-    $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMic(!micOn); });
+    $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
     const unlock = () => { if (room) room.startAudio().catch(() => {}); };
@@ -103,5 +126,5 @@ window.VoiceChat = (() => {
     if ('requestIdleCallback' in window) requestIdleCallback(pre, { timeout: 4000 }); else setTimeout(pre, 2500);
   }
 
-  return { init, tick, speaking, isSpeaking: name => speaking.has(name) };
+  return { init, tick, askMic, speaking, isSpeaking: name => speaking.has(name) };
 })();
