@@ -428,9 +428,24 @@ const endPointer = e => {
 window.addEventListener('pointerup', endPointer);
 window.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
-window.addEventListener('keydown', e => { if (e.code === 'Space' && alive) { keyBoost = true; e.preventDefault(); } });
-window.addEventListener('keyup', e => { if (e.code === 'Space') keyBoost = false; });
-window.addEventListener('blur', () => { mouseBoost = keyBoost = false; bbOff(); });
+// Клавиатура: стрелки / WASD — змейка ползёт в нажатую сторону (две клавиши — диагональ), пробел — ускорение
+const KEY_DIR = { ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
+const keysDown = new Set();
+function keyAngle() {
+  let x = 0, y = 0;
+  for (const k of keysDown) { x += KEY_DIR[k][0]; y += KEY_DIR[k][1]; }
+  if (x || y) inAngle = Math.atan2(y, x);
+}
+window.addEventListener('keydown', e => {
+  if (!alive) return;
+  if (e.code === 'Space') { keyBoost = true; e.preventDefault(); }
+  else if (KEY_DIR[e.code]) { keysDown.add(e.code); keyAngle(); e.preventDefault(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') keyBoost = false;
+  else if (KEY_DIR[e.code]) { keysDown.delete(e.code); keyAngle(); }
+});
+window.addEventListener('blur', () => { mouseBoost = keyBoost = false; keysDown.clear(); bbOff(); });
 // Кнопка ⚡ (в режиме «Палец» — настоящая кнопка; в режиме джойстика — подсказка, жмётся вся правая половина)
 bb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); boostOn(e.pointerId); bb.setPointerCapture(e.pointerId); });
 bb.addEventListener('pointerup', bbOff); bb.addEventListener('pointercancel', bbOff); bb.addEventListener('lostpointercapture', bbOff);
@@ -447,6 +462,7 @@ const MIN_BOOST = 12;
 function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * ((1000 / TICK_RATE) / 8) * scang; }
 function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 / 4.75; }
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
+window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
 function predStop() { pred.on = false; pred.trail.length = 0; }
 function predStart(srv) {
   pred.on = true; pred.x = srv.xs[0]; pred.y = srv.ys[0]; pred.a = srv.a; pred.t = performance.now();
@@ -889,7 +905,7 @@ sb.addEventListener('pointerdown', e => e.stopPropagation());
 sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); });
 
 function showHelp() {
-  $('help').innerHTML = !isTouch ? 'Мышка — направление. Левая кнопка мыши или пробел — ускорение.'
+  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение.'
     : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
