@@ -54,18 +54,8 @@ window.VoiceChat = (() => {
     try { await room.startAudio(); } catch (e) {}
     render();
   }
-  // Понятная подсказка, почему микрофон не работает
-  const inApp = /Telegram|Instagram|FBAN|FBAV|Line\/|wv\)/i.test(navigator.userAgent);
-  function micProblem(e) {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || inApp)
-      return 'Голос не работает внутри Telegram. Нажмите ⋮ (вверху справа) → «Открыть в браузере»';
-    const n = e && e.name;
-    if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'Микрофон не найден на устройстве';
-    if (n === 'NotReadableError') return 'Микрофон занят другим приложением (звонок, запись)';
-    return isTouch ? 'Микрофон запрещён. Нажмите 🔒 слева от адреса сайта → Разрешения → Микрофон → Разрешить, и обновите страницу'
-                   : 'Микрофон запрещён. Нажмите 🔒 слева от адреса сайта → Микрофон → Разрешить, и обновите страницу';
-  }
-  function toastMic(e) { const t = $('vcHint'); t.textContent = micProblem(e); t.classList.remove('hide'); clearTimeout(toastMic.t); toastMic.t = setTimeout(() => t.classList.add('hide'), 8000); }
+  // Владелец 06.10: никаких предупреждений про микрофон — если не разрешён, человек просто слушает, кнопка показывает «🔇 Выкл»
+  function toastMic() {}
   // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
   async function askMic() {
     if (micAllowed || offline) return;
