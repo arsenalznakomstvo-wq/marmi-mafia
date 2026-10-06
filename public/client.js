@@ -595,7 +595,9 @@ let fpsCount = 0, fpsT = performance.now();
 setInterval(() => {
   const now = performance.now(), fps = Math.round(fpsCount * 1000 / (now - fpsT));
   fpsCount = 0; fpsT = now;
-  $('ping').textContent = `${fps} к/с · пинг ${pingMs} мс · запас ${Math.round(interpTicks * 1000 / TICK_RATE)} мс`;
+  void fps;
+  // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
+  $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
 }, 1000);
 function frame(time) {
   requestAnimationFrame(frame);
