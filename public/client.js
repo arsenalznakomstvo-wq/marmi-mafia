@@ -243,7 +243,8 @@ function makeBg() {
 
 // ===== Фото владельца по всей игре (владелец 06.10): слайд-шоу в меню, постеры на карте, портрет Дона =====
 // Владелец 07.10: убраны машина, PREMIUM, «11 uz», парень с роботом; остальные — в исходном качестве
-const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 11, 12, 13], PHOTO_DON = 7, PHOTO_CENTER = 2;
+// 07.10: +15 фото в стиле мафии (p14–p28)
+const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28], PHOTO_DON = 7, PHOTO_CENTER = 2;
 const photoImg = [];
 function photo(i) { // ленивая загрузка: картинка грузится при первом обращении
   if (!photoImg[i]) { const im = new Image(); im.decoding = 'async'; im.src = 'photos/p' + i + '.jpg'; photoImg[i] = im; }
@@ -253,11 +254,17 @@ function photo(i) { // ленивая загрузка: картинка гру�
 const POSTERS = (() => {
   const list = [{ i: PHOTO_CENTER, x: 0, y: 0, h: 1300 }];
   const others = PHOTO_LIST.filter(i => i !== PHOTO_CENTER);
-  others.forEach((pi, k) => { const a = k / others.length * TAU + 0.3, d = k % 2 ? 3500 : 2300; list.push({ i: pi, x: Math.cos(a) * d, y: Math.sin(a) * d, h: 1000 }); });
+  // три кольца вокруг центра, чтобы постеры были по всей карте и не налезали друг на друга
+  const rings = [1900, 2900, 4000], offs = [0.3, 0.6, 0.5]; // подобрано так, чтобы постеры не налезали друг на друга (с зазором)
+  others.forEach((pi, k) => { const ring = k % 3, inRing = others.filter((_, j) => j % 3 === ring).length, a = Math.floor(k / 3) / inRing * TAU + offs[ring], d = rings[ring];
+    list.push({ i: pi, x: Math.cos(a) * d, y: Math.sin(a) * d, h: 900 }); });
   return list;
 })();
 function drawPosters(view) {
   for (const p of POSTERS) {
+    // фото грузим, только когда постер рядом (чтобы телефон не качал сразу все)
+    const near = 1500, hh = p.h;
+    if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) continue;
     const im = photo(p.i); if (!im.complete || !im.naturalWidth) continue;
     const h = p.h, w = h * im.naturalWidth / im.naturalHeight, x0 = p.x - w / 2, y0 = p.y - h / 2;
     if (x0 > view.x1 || x0 + w < view.x0 || y0 > view.y1 || y0 + h < view.y0) continue;
