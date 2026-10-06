@@ -32,15 +32,21 @@ const BOT_NICKS = ['Тимур', 'Шерзод', 'Азиз', 'Дилшод', 'К
   'Лола', 'Ислам', 'Макс', 'Артём', 'Никита', 'Влад', 'Саша', 'Нигора', 'Фарход', 'Улугбек', 'Kira', 'Shadow', 'Viper', 'Killer',
   'Ninja', 'Boss', 'Lucky', 'Tiger', 'Zeus', 'Ghost', 'Dragon', 'Toxic', 'Rocket', 'Panda', 'Sultan', 'Baron', 'Ace', 'Joker', 'Fox', 'Wolf', 'Hunter'];
 const MID_ROLES = ['Шериф', 'Бомба', 'Параноик', 'Проститутка', 'Доктор'];
-const MID_MASS = 300, BIG_MASS = 1000;
-// Роль по размеру; повышаем сразу, понижаем только когда бот стал заметно меньше — чтобы имя не прыгало
+const MID_MASS = 300;
+// Средняя роль по размеру; повышаем сразу, понижаем только когда бот стал заметно меньше — чтобы имя не прыгало
 function botName(b) {
   const ai = b.ai;
-  if (b.mass > BIG_MASS) ai.rank = 2;
-  else if (b.mass > MID_MASS && ai.rank < 1) ai.rank = 1;
-  else if (ai.rank === 2 && b.mass < BIG_MASS * 0.8) ai.rank = b.mass > MID_MASS ? 1 : 0;
-  else if (ai.rank === 1 && b.mass < MID_MASS * 0.8) ai.rank = 0;
-  return ai.rank === 2 ? 'Дон ' + ai.nick : ai.rank === 1 ? ai.role + ' ' + ai.nick : ai.nick;
+  if (b.mass > MID_MASS) ai.rank = 1;
+  else if (b.mass < MID_MASS * 0.8) ai.rank = 0;
+  return ai.rank === 1 ? ai.role + ' ' + ai.nick : ai.nick;
+}
+// Владелец 06.10: самый большой бот — «Дон», следующие 6 по размеру — «Мафия», остальные — по размеру (см. botName)
+const MAFIA_COUNT = 6;
+function renameBots() {
+  const bots = [];
+  for (const s of snakes.values()) if (s.bot) bots.push(s);
+  bots.sort((a, b) => b.mass - a.mass);
+  bots.forEach((b, i) => { b.name = i === 0 ? 'Дон ' + b.ai.nick : i <= MAFIA_COUNT ? 'Мафия ' + b.ai.nick : botName(b); });
 }
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
@@ -741,7 +747,7 @@ function step() {
   for (const s of snakes.values()) if (s.alive) eat(s);
   maintainFood();
   maintainBots();
-  if (tick % 15 === 0) for (const s of snakes.values()) if (s.bot) s.name = botName(s);
+  if (tick % 30 === 0) renameBots(); // раз в секунду
   for (const c of clients) sendState(c);
   cellEv.clear();
   diedThisTick.length = 0;
