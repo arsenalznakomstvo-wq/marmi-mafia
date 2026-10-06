@@ -11,7 +11,7 @@
     { name: 'Шериф',       icon: '⭐', color: '#3d8bff', min: 1200 },
     { name: 'Комиссар',    icon: '🕵️', color: '#2fd3f5', min: 1700 },
     { name: 'Киллер',      icon: '🔪', color: '#c0c6d0', min: 2400 },
-    { name: 'Мафия',       icon: '🔫', color: '#e8323c', min: 3300 },
+    { name: 'Мафия',       icon: '',   color: '#e8323c', min: 3300 },
     { name: 'Дон Мафии',   icon: '👑', color: '#ffd52e', min: Infinity },
   ];
   const DON = ROLES.length - 1;

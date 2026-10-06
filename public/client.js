@@ -253,17 +253,6 @@ function drawPosters(view) {
     ctx.restore();
   }
 }
-// Слайд-шоу в меню: фото сменяются каждые 6 с, плавно
-let slideK = 0, slideT = 0;
-function nextSlide(first) {
-  const a = $('mpA'), b = $('mpB'); if (!a) return;
-  const show = slideK % 2 ? b : a, hide = slideK % 2 ? a : b;
-  const idx = first || PHOTO_LIST[slideK % PHOTO_LIST.length];
-  show.src = 'photos/p' + idx + '.jpg';
-  show.onload = () => { show.classList.add('on'); hide.classList.remove('on'); };
-  slideK++;
-}
-function startSlides(first) { clearInterval(slideT); nextSlide(first); slideT = setInterval(() => { if (!$('menu').classList.contains('hide')) nextSlide(); }, 6000); }
 
 // ===== Сеть =====
 let ws = null, connected = false, myId = 0, alive = false, autoJoined = false;
@@ -629,7 +618,7 @@ function cacheCanvas(key, w, h, paint) {
 function plateSprite(ri, bodyCol, nick, s) {
   const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4;
   const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k;
-  const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
+  const label = (R.icon ? R.icon + ' ' : '') + (SHORT[R.name] || R.name.toUpperCase());
   const fs = 11 * sb, fs2 = 10 * sb;
   const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
   let w = mctx.measureText(label).width + 12 * sb;
@@ -758,7 +747,7 @@ function showPromo(ri) {
   el.style.setProperty('--rc', R.color);
   el.innerHTML = don
     ? `<img class="pimg" src="photos/p${PHOTO_DON}.jpg" alt=""><div class="pi">👑</div><div class="pn">ДОН МАФИИ</div><div class="ps">Вы — самая большая змея на карте!</div>`
-    : `<div class="pt">✨ НОВАЯ РОЛЬ ✨</div><div class="pn">${R.icon} ${R.name.toUpperCase()}</div><div class="ps">${esc(myName())}, так держать!</div>`;
+    : `<div class="pt">✨ НОВАЯ РОЛЬ ✨</div><div class="pn">${R.icon ? R.icon + ' ' : ''}${R.name.toUpperCase()}</div><div class="ps">${esc(myName())}, так держать!</div>`;
   void el.offsetWidth; el.classList.add('show');
   clearTimeout(promoT); promoT = setTimeout(() => el.classList.remove('show'), don ? 3500 : 2600);
   Sound.promo(don);
@@ -1438,7 +1427,6 @@ function showMenu(m) {
   }
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
   document.body.classList.add('in-menu');
-  if (m) startSlides(3); // после гибели — фото старика-мафиози
 }
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
@@ -1457,7 +1445,7 @@ if (isTouch) {
 applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
-startSlides(PHOTO_CENTER);
+// владелец 07.10: вместо слайд-шоу — два фото по бокам меню (index.html)
 // «Установить на телефон»: Android — системное окно установки; iPhone — короткая подсказка «Поделиться → На экран Домой»
 (() => {
   if (isApp || !isTouch) return;
