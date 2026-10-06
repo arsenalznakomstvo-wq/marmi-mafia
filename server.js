@@ -8,6 +8,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const { SKINS, MAX_PATTERN, skinCols } = require('./public/skins.js');
+const stats = require('./stats.js');
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
@@ -600,6 +601,7 @@ function handleJSON(c, m) {
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
     s.client = c; c.snake = s; c.inA = s.a;
     snakes.set(s.id, s);
+    stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
@@ -709,7 +711,13 @@ function sendState(c) {
   c.ws.send(Buffer.from(OUT.subarray(0, o)));
 }
 
+function liveCounts() {
+  let inGame = 0, bots = 0;
+  for (const s of snakes.values()) { if (s.bot) bots++; else inGame++; }
+  return { inGame, inMenu: Math.max(0, clients.size - inGame), bots };
+}
 function sendLeaderboard() {
+  { const L = liveCounts(); stats.sample(L.inGame, clients.size); }
   const arr = [];
   for (const s of snakes.values()) if (s.alive) arr.push(s);
   arr.sort((a, b) => b.mass - a.mass);
@@ -787,6 +795,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
+  if (stats.handle(req, res, url, liveCounts)) return;
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
@@ -797,10 +806,11 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096, perMessageDeflate: false });
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
   if (clients.size >= MAX_CLIENTS) { ws.close(1013, 'full'); return; }
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c);
+  stats.onConnect(c, req);
   sendJSON(c, { t: 'hello', proto: PROTO, mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   ws.on('message', (data, isBinary) => {
     const now = Date.now();
