@@ -380,7 +380,9 @@ function findSpawn(awayFromPlayers) {
 }
 
 function randomSkin() {
-  return { id: 1 + (Math.random() * (SKINS.length - 1) | 0), c1: randColor(), c2: randColor(), c3: randColor() };
+  // особые скины с надписью (Альмано, Марми) ботам не достаются
+  let id; do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text);
+  return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
 // ===== Боты =====

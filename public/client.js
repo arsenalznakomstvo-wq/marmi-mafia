@@ -102,7 +102,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '' };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '' };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -143,6 +143,7 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
   }
   const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca, cl = Math.cos(look), sl = Math.sin(look);
   if (sk.eyes === 'gold') sk = Object.assign({}, sk, { eyes: 'normal', goldEyes: true });
+  if (sk.eyes === 'shades') sk = Object.assign({}, sk, { eyes: 'normal', shades: true });
   const eye = (ex, ey, er, iris) => {
     g.fillStyle = sk.goldEyes ? '#ffd52e' : '#ffffff'; g.beginPath(); g.arc(ex, ey, er, 0, TAU); g.fill();
     g.lineWidth = Math.max(1, r * 0.06); g.strokeStyle = 'rgba(0,0,0,0.4)'; g.stroke();
@@ -163,6 +164,25 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     }
     for (const sgn of [-1, 1]) eye(hx + ca * r * 2.0 + px * sgn * r * 0.62, hy + sa * r * 2.0 + py * sgn * r * 0.62, r * 0.42);
   } else {
+    if (sk.shades) { // круглые очки-авиаторы в чёрной оправе (золото сливалось с оранжевым) (особый скин «Альмано»)
+      g.save(); g.translate(hx + ca * r * 0.3, hy + sa * r * 0.3); g.rotate(a);
+      const lr = r * 0.4, gap = r * 0.56; // радиус линзы и расстояние от центра
+      g.strokeStyle = '#111111'; g.lineCap = 'round'; g.lineWidth = r * 0.1;
+      for (const sgn of [-1, 1]) { // дужки по бокам головы
+        g.beginPath(); g.moveTo(-lr * 0.2, sgn * (gap + lr * 0.85)); g.quadraticCurveTo(-r * 0.6, sgn * (gap + lr * 1.05), -r * 1.05, sgn * (gap + lr * 0.7)); g.stroke();
+      }
+      for (const sgn of [-1, 1]) {
+        const cy = sgn * gap;
+        const gr = g.createRadialGradient(-lr * 0.3, cy - lr * 0.3, lr * 0.1, 0, cy, lr);
+        gr.addColorStop(0, '#3a3a44'); gr.addColorStop(1, '#050507');
+        g.fillStyle = gr; g.beginPath(); g.ellipse(0, cy, lr * 0.92, lr, 0, 0, TAU); g.fill();
+        g.lineWidth = r * 0.11; g.strokeStyle = '#111111'; g.stroke();
+        g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(lr * 0.25, cy - lr * 0.35, lr * 0.28, lr * 0.13, -0.6, 0, TAU); g.fill(); // блик
+      }
+      g.strokeStyle = '#111111'; g.lineWidth = r * 0.1; g.lineCap = 'round';
+      g.lineWidth = r * 0.13; g.beginPath(); g.moveTo(lr * 0.1, -gap + lr * 0.9); g.quadraticCurveTo(lr * 0.55, 0, lr * 0.1, gap - lr * 0.9); g.stroke(); // перемычка
+      g.restore();
+    } else
     for (const sgn of [-1, 1]) eye(hx + ca * r * 0.32 + px * sgn * r * 0.48, hy + sa * r * 0.32 + py * sgn * r * 0.48, r * 0.42);
   }
 }
@@ -583,7 +603,7 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
 setInterval(() => { if (swing.size > 300) swing.clear(); }, 10000);
 // Дон: надпись «ИМЯ ★ ДОН ★ …» по всему телу, буквы идут вдоль изгибов (владелец 06.10) — чтобы Дон отличался от всех.
 // SX/SY — точки тела от головы к хвосту (их уже разложил drawSnake).
-function drawBodyText(cnt, r, text, time, view, startK) {
+function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
   const unit = text + '  ★  ', fs = Math.max(8, r * 0.95), slot = fs * 0.74;
   // 1) точки-слоты вдоль тела с равным шагом (от шеи к хвосту)
   let k = Math.min(cnt - 1, Math.max(3, Math.round(r * (startK != null ? 2.2 : 5.5) / Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])))));
@@ -599,7 +619,7 @@ function drawBodyText(cnt, r, text, time, view, startK) {
   ctx.save();
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.22; ctx.strokeStyle = 'rgba(40, 25, 0, 0.9)';
+  ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.22; ctx.strokeStyle = strokeCol || 'rgba(40, 25, 0, 0.9)';
   const shine = (time * 0.0004) % 1, n = unit.length;
   const m = r * 2, x0 = view.x0 - m, x1 = view.x1 + m, y0 = view.y0 - m, y1 = view.y1 + m;
   // 2) каждое повторение надписи — отдельный кусок; если тело в этом месте идёт справа налево — кладём буквы в обратном
@@ -613,7 +633,7 @@ function drawBodyText(cnt, r, text, time, view, startK) {
       if (ch === ' ') continue;
       const x = px[i], y = py[i];
       if (x < x0 || x > x1 || y < y0 || y > y1) continue;
-      ctx.fillStyle = ((i / px.length + shine) % 1) < 0.06 ? '#fff7cc' : '#ffd52e';
+      ctx.fillStyle = ((i / px.length + shine) % 1) < 0.06 ? (fillCol ? '#9b6bff' : '#fff7cc') : (fillCol || '#ffd52e');
       ctx.save(); ctx.translate(x, y); ctx.rotate(pa[i] + (flip ? Math.PI : 0));
       ctx.strokeText(ch, 0, 0); ctx.fillText(ch, 0, 0);
       ctx.restore();
@@ -872,7 +892,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
-    else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25); // особый скин с надписью (Альмано)
+    else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
@@ -1105,9 +1125,11 @@ function drawSkinPath(g, sk, pts, r) {
   const nk = Math.min(xs.length - 2, Math.round(r * 2.6 / sp));
   const neck = nk > 1 ? [xs[nk], ys[nk], Math.atan2(ys[nk - 1] - ys[nk + 1], xs[nk - 1] - xs[nk + 1])] : null;
   if (p.text) { // особый скин: золотая надпись вдоль тела и на витрине
-    const fs = r * 0.95, slot = fs * 0.74, unit = p.text + '  ★  ';
+    const unit = p.text + '  ★  ';
+    let pathLen = 0; for (let i = 1; i < xs.length; i++) pathLen += Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
+    const fs = Math.min(r * 0.95, (pathLen - r * 2.4) / (unit.length * 0.74)), slot = fs * 0.74; // надпись целиком помещается на витрине
     g.save(); g.font = `bold ${fs}px Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineJoin = 'round'; g.lineWidth = fs * 0.22; g.strokeStyle = 'rgba(40, 25, 0, 0.9)'; g.fillStyle = '#ffd52e';
+    g.lineJoin = 'round'; g.lineWidth = fs * 0.22; g.strokeStyle = p.textStroke || 'rgba(40, 25, 0, 0.9)'; g.fillStyle = p.textColor || '#ffd52e';
     const P = []; let acc = 0, next = r * 2.2;
     for (let i = 1; i < xs.length; i++) { const L = Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]); while (next <= acc + L && L) { const f = (next - acc) / L; P.push([xs[i - 1] + (xs[i] - xs[i - 1]) * f, ys[i - 1] + (ys[i] - ys[i - 1]) * f, Math.atan2(ys[i] - ys[i - 1], xs[i] - xs[i - 1])]); next += slot; } acc += L; }
     const n = unit.length;
