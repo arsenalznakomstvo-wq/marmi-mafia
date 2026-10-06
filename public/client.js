@@ -189,12 +189,15 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
 }
 
 // ===== Фон: крупные тёмно-синие объёмные соты, как в оригинале =====
-let bgPattern = null, bgTileURL = '';
+let bgPattern = null, bgTileURL = '', bgTileSize = '';
 function makeBg() {
-  const s = 29, w = s * Math.sqrt(3), h = s * 3;
-  const c = document.createElement('canvas'); c.width = Math.round(w); c.height = Math.round(h);
+  // Владелец 06.10: соты чёткие — плитку рисуем в 4 раза детальнее и уменьшаем при заливке (раньше 50×87 точек растягивались)
+  const s = 29, w = s * Math.sqrt(3), h = s * 3, K = 4;
+  const c = document.createElement('canvas'); c.width = Math.round(w * K); c.height = Math.round(h * K);
   const g = c.getContext('2d');
-  g.fillStyle = '#0b1018'; g.fillRect(0, 0, c.width, c.height);
+  const kx = c.width / w, ky = c.height / h;
+  g.scale(kx, ky);
+  g.fillStyle = '#0b1018'; g.fillRect(0, 0, w, h);
   const hex = (cx, cy) => {
     const path = rr => { g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); };
     path(s - 7); // широкие промежутки между сотами, как в оригинале
@@ -204,7 +207,8 @@ function makeBg() {
   };
   for (const [x, y] of [[0, 0], [w, 0], [w / 2, h / 2], [0, h], [w, h]]) hex(x, y);
   bgPattern = ctx.createPattern(c, 'repeat');
-  try { bgTileURL = c.toDataURL(); } catch (e) {}
+  if (bgPattern.setTransform) bgPattern.setTransform(new DOMMatrix().scaleSelf(1 / kx, 1 / ky));
+  try { bgTileURL = c.toDataURL(); bgTileSize = `${w.toFixed(2)}px ${h.toFixed(2)}px`; } catch (e) {}
 }
 
 // ===== Сеть =====
@@ -1174,7 +1178,7 @@ function skinScreenFrame(t) {
 function openSkins() {
   Sound.click();
   if (!bgPattern) makeBg();
-  if (bgTileURL) $('skinScreen').style.backgroundImage = `url(${bgTileURL})`;
+  if (bgTileURL) { $('skinScreen').style.backgroundImage = `url(${bgTileURL})`; $('skinScreen').style.backgroundSize = bgTileSize; }
   $('skinScreen').classList.remove('hide');
   sizeSkinCanvas(); updateSkinName();
   if (!skinAnim) skinAnim = requestAnimationFrame(skinScreenFrame);
@@ -1251,7 +1255,7 @@ function buildFrame(t) {
 function openBuilder() {
   Sound.click();
   if (!bgPattern) makeBg();
-  if (bgTileURL) $('buildScreen').style.backgroundImage = `url(${bgTileURL})`;
+  if (bgTileURL) { $('buildScreen').style.backgroundImage = `url(${bgTileURL})`; $('buildScreen').style.backgroundSize = bgTileSize; }
   $('skinScreen').classList.add('hide');
   $('buildScreen').classList.remove('hide');
   sizeBuildCanvas();
