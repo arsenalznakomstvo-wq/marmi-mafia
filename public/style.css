@@ -339,3 +339,5 @@ body:not(.in-menu) #menuPhotos { display: none; }
   #records { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); top: auto; right: auto; transform: translateX(-50%); margin: 0; min-width: 300px; width: auto; }
   #records .rcols { flex-direction: row; gap: 18px; }
 }
+
+@media (pointer: coarse) { #menuPhotos img, #menuPhotos img.on { transform: translate(-50%, -50%); transition: opacity 1.2s ease; } } /* телефон: без медленного приближения — легче */

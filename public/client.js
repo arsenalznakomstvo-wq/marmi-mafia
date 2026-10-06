@@ -221,7 +221,7 @@ const photoBmp = [];
 function photo(i) {
   if (photoBmp[i] === undefined) {
     photoBmp[i] = null;
-    const im = new Image(); im.src = 'photos/p' + i + '.jpg';
+    const im = new Image(); im.src = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg'; // на телефоне — лёгкая копия (640 px)
     const H = isTouch ? 640 : 1100;
     im.decode().then(() => (window.createImageBitmap ? createImageBitmap(im, { resizeHeight: Math.min(H, im.naturalHeight), resizeQuality: 'medium' }) : im))
       .then(bmp => { photoBmp[i] = bmp; }).catch(() => {});
@@ -628,20 +628,20 @@ function cacheCanvas(key, w, h, paint) {
 // Табличка: фон в цвет змеи, рамка, 1–2 строки текста. Возвращает {img, w, h} в мировых единицах.
 function plateSprite(ri, bodyCol, nick, s) {
   const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4;
-  const key = 'pl|' + ri + '|' + bodyCol + '|' + nick + '|' + sb + '|' + k;
+  const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k;
   const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
   const fs = 11 * sb, fs2 = 10 * sb;
   const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
   let w = mctx.measureText(label).width + 12 * sb;
   if (nick) { mctx.font = `bold ${fs2}px Arial, sans-serif`; w = Math.max(w, mctx.measureText(nick).width + 12 * sb); }
-  const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7, pad = ri === DON ? 10 * sb : 2 * sb;
+  const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7, pad = 5 * sb;
   const img = cacheCanvas(key, (w + pad * 2) * k, (h + pad * 2) * k, g => {
     g.scale(k, k); g.translate(pad, pad);
-    const [cr, cg, cb] = hexToRgb(bodyCol || R.color), light = (cr * 299 + cg * 587 + cb * 114) / 1000 > 150;
-    const bg = bodyCol || R.color, fg = light ? '#1a1a1a' : '#ffffff', border = ri === DON ? '#ffd52e' : shade(bg, light ? -70 : 70), rr = 4 * sb;
+    // Владелец 07.10: все таблички в одном стиле — светлая плашка, тонкая рамка, тёмный текст
+    const bg = '#f4f5f7', fg = '#1a1d24', border = 'rgba(30, 40, 60, 0.45)', rr = 4 * sb;
     g.beginPath(); g.moveTo(rr, 0); g.arcTo(w, 0, w, h, rr); g.arcTo(w, h, 0, h, rr); g.arcTo(0, h, 0, 0, rr); g.arcTo(0, 0, w, 0, rr); g.closePath();
-    if (ri === DON) { g.shadowColor = '#ffd52e'; g.shadowBlur = 12 * sb; }
-    g.fillStyle = bg; g.fill(); g.shadowBlur = 0;
+    g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 4 * sb; g.shadowOffsetY = 1.5 * sb;
+    g.fillStyle = bg; g.fill(); g.shadowBlur = 0; g.shadowOffsetY = 0;
     g.lineWidth = Math.max(1, 1.6 * sb); g.strokeStyle = border; g.stroke();
     g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
     if (nick) {
@@ -730,6 +730,26 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
   resetWorldT();
 }
 
+// Сигара Дона: из уголка рта, тлеющий кончик и дымок вверх
+function drawCigar(hx, hy, a, r, time) {
+  const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+  const bx = hx + ca * r * 0.85 + px * r * 0.45, by = hy + sa * r * 0.85 + py * r * 0.45; // уголок рта
+  const ang = a + 0.55, L = r * 1.5, W = r * 0.24;
+  const tx = bx + Math.cos(ang) * L, ty = by + Math.sin(ang) * L;
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(ang);
+  const g = ctx.createLinearGradient(0, -W, 0, W); g.addColorStop(0, '#9a6236'); g.addColorStop(0.5, '#6b3e1f'); g.addColorStop(1, '#3a200e');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -W * 0.85); ctx.lineTo(L, -W); ctx.lineTo(L, W); ctx.lineTo(0, W * 0.85); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d4a017'; ctx.fillRect(L * 0.18, -W * 0.95, L * 0.12, W * 1.9); // золотое колечко
+  ctx.fillStyle = '#9a9a9a'; ctx.fillRect(L - W * 0.5, -W, W * 0.5, W * 2); // пепел
+  const glow = 0.6 + 0.4 * Math.sin(time * 0.006);
+  ctx.fillStyle = `rgba(255, ${Math.round(90 + 60 * glow)}, 20, ${0.75 + 0.25 * glow})`; ctx.beginPath(); ctx.arc(L, 0, W * 0.75, 0, TAU); ctx.fill();
+  ctx.restore();
+  for (let k = 0; k < 5; k++) { // дым: колечки поднимаются вверх и тают
+    const ph = ((time * 0.0005) + k / 5) % 1, rad = r * (0.18 + ph * 0.55);
+    ctx.fillStyle = `rgba(200, 205, 215, ${0.32 * (1 - ph)})`;
+    ctx.beginPath(); ctx.arc(tx + Math.sin(ph * 6 + k) * r * 0.3, ty - ph * r * 3.2, rad, 0, TAU); ctx.fill();
+  }
+}
 let promoT = 0;
 function showPromo(ri) {
   const R = ROLES[ri]; if (!R) return;
@@ -907,7 +927,8 @@ const DIE_MS = 700;
 function drawSnake(sn, meta, isMe, time, view, fade) {
   let sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
   // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Проститутка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
-  const RS = meta && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
+  // Владелец 07.10: у людей при смене роли змея остаётся как есть (меняется только табличка); роль красит только ботов
+  const RS = meta && meta.bot && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
   const n = sn.idx.length;
   if (!n) return;
@@ -944,7 +965,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
       ctx.drawImage(sh, x - ss / 2 + so, y - ss / 2 + so, ss, ss);
     }
   }
-  const roleIdx = meta && !fade ? (meta.role || 0) : 0;
+  const roleIdx = meta && meta.bot && !fade ? (meta.role || 0) : 0; // детали ролей (сердечки, звёзды, шляпы) — только у ботов
   if (!fade && sk.text) { // особый скин: мягкое золотое сияние вокруг тела
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.22 + 0.08 * Math.sin(time * 0.004);
     const halo = haloSprite('#ffc23a'), hs = r * 2 * 2.1 * SPR / (SR * 2) / 1.6;
@@ -979,6 +1000,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
+    if (meta && !fade && meta.role === DON) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
