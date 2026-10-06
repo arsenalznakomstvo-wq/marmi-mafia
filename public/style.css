@@ -202,9 +202,10 @@ body.ctrl-joy #boostBtn { left: auto; right: max(18px, env(safe-area-inset-right
   #lb .row .n { flex: 0 1 auto; max-width: 84px; }
   #lb .row .s { min-width: 30px; text-align: right; }
   /* левый верхний угол: там нет джойстика; длина и место — сразу под миникартой */
-  body.ctrl-joy #minimap { right: auto; bottom: auto; left: max(10px, env(safe-area-inset-left)); top: max(56px, env(safe-area-inset-top));
+  /* Длина и место — на самом верху, справа от кнопки звука; миникарта — под ними */
+  body.ctrl-joy #minimap { right: auto; bottom: auto; left: max(10px, env(safe-area-inset-left)); top: max(58px, env(safe-area-inset-top));
     width: 84px; height: 84px; opacity: 0.55; }
-  body.ctrl-joy #scorebox { top: calc(max(56px, env(safe-area-inset-top)) + 92px); font-size: 12px; }
+  body.ctrl-joy #scorebox { top: max(8px, env(safe-area-inset-top)); left: calc(max(8px, env(safe-area-inset-left)) + 52px); font-size: 12px; line-height: 1.35; }
   body.ctrl-joy #scorebox b { font-size: 14px; }
   body:not(.ctrl-joy) #minimap { width: 84px; height: 84px; opacity: 0.55; }
 }
@@ -214,4 +215,16 @@ body.ctrl-joy #boostBtn { left: auto; right: max(18px, env(safe-area-inset-right
   #lb .lb-title { font-size: 12px; }
   #lb .row { font-size: 10px; line-height: 1.25; gap: 6px; }
   #lb .row.sep { display: none; }
+}
+
+/* Телефон лёжа (низкий экран): конструктор и скины помещаются целиком */
+@media (max-height: 500px) {
+  #buildScreen, #skinScreen { padding-top: 10px; padding-bottom: 10px; }
+  #palette { gap: 5px; margin-bottom: 8px; max-width: 640px; }
+  .pball { width: 30px; height: 30px; }
+  #buildHint { font-size: 11px; margin-bottom: 8px; }
+  .build-btns .btn-green, #saveSkin { height: 38px; min-width: 110px; font-size: 16px; }
+  #skinName { font-size: 18px; margin-top: 6px; }
+  #skinNum { margin: 2px 0 8px; }
+  .arrow { width: 52px; height: 48px; }
 }

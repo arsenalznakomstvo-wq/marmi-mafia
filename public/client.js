@@ -757,7 +757,8 @@ function openSkins() {
 }
 function sizeSkinCanvas() {
   const cv = $('skinCanvas'), d = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.max(150, Math.min(W - 32 - (W < 600 ? 130 : 210), 620)), h = Math.round(w * 0.4);
+  // На низком экране (телефон лёжа) змейку делаем ниже, чтобы стрелки и кнопка помещались
+  const w = Math.max(150, Math.min(W - 32 - (W < 600 ? 130 : 210), 620)), h = Math.round(Math.min(w * 0.4, H * 0.32));
   cv.style.width = w + 'px'; cv.style.height = h + 'px';
   cv.width = Math.round(w * d); cv.height = Math.round(h * d);
 }
@@ -804,7 +805,7 @@ function buildPalette() {
 function toastMenu(t) { $('buildHint').textContent = t; setTimeout(() => { $('buildHint').textContent = 'Каждое нажатие красит одно колечко от головы. Нажмите цвет несколько раз — полоса станет толще'; }, 1500); }
 function sizeBuildCanvas() {
   const cv = $('buildCanvas'), d = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.max(200, Math.min(W - 32, 560)), h = Math.round(w * 0.3);
+  const w = Math.max(200, Math.min(W - 32, 560)), h = Math.round(Math.min(w * 0.3, H * 0.22));
   cv.style.width = w + 'px'; cv.style.height = h + 'px';
   cv.width = Math.round(w * d); cv.height = Math.round(h * d);
 }
