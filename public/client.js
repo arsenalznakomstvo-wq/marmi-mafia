@@ -887,8 +887,10 @@ $('qualityBtn').addEventListener('click', () => { hiQ = !hiQ; store('mm_hq', hiQ
 
 // Телефон: полный экран и горизонтальный поворот. Вопрос «Разрешить микрофон?» на Android выбивает из полного экрана —
 // поэтому при первом касании в игре включаем его снова (браузер разрешает это только по касанию).
+// Запущено с иконки на главном экране — браузерных панелей нет, полный экран не нужен (и нет сообщения Android)
+const isApp = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
 function goFullscreen() {
-  if (!isTouch) return;
+  if (!isTouch || isApp) return;
   const d = document.documentElement, lock = () => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); };
   if (document.fullscreenElement) { lock(); return; }
   if (d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => {});
@@ -941,6 +943,21 @@ if (isTouch) {
 applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
+// «Установить на телефон»: Android — системное окно установки; iPhone — короткая подсказка «Поделиться → На экран Домой»
+(() => {
+  if (isApp || !isTouch) return;
+  try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch (e) {}
+  const btn = $('installBtn'), isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.classList.remove('hide'); });
+  window.addEventListener('appinstalled', () => btn.classList.add('hide'));
+  if (isIOS) btn.classList.remove('hide');
+  btn.addEventListener('click', async () => {
+    Sound.click();
+    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; btn.classList.add('hide'); }
+    else if (isIOS) { const t = $('iosTip'); t.classList.remove('hide'); setTimeout(() => t.classList.add('hide'), 6000); }
+  });
+})();
 
 function resize() {
   // На телефоне — легче (разница на глаз почти незаметна); «низкое качество» — ещё легче, для слабых телефонов

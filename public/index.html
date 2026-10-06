@@ -10,6 +10,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Марми Мафия">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="in-menu">
@@ -42,6 +47,7 @@
   <div id="status">Подключение к серверу…</div>
   <div class="help" id="help"></div>
   <button id="ctrlBtn" class="hide"></button>
+  <button id="installBtn" class="hide">📲 Установить на телефон</button>
 
   <button id="skinBtn" title="Сменить скин"><canvas id="skinIcon" width="160" height="160"></canvas><span>Сменить скин</span></button>
   <button id="buildBtn" title="Собрать свою змейку"><canvas id="buildIcon" width="160" height="160"></canvas><span>Собрать змейку</span></button>
@@ -69,6 +75,7 @@
 
 <div id="vcBar" class="hide"><span id="vcCount"></span><button id="vcMicBtn"></button><button id="vcMuteBtn" title="Выключить звук всех"></button></div>
 <div id="vcHint" class="hide"></div>
+<div id="iosTip" class="hide">Нажмите <b>Поделиться ⬆</b> внизу экрана → <b>«На экран Домой»</b></div>
 <div id="ping"></div>
 <div id="pnList" class="hide"></div>
 <button id="soundBtn" title="Звук: всё / только звуки / тишина"></button>
