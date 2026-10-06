@@ -40,7 +40,7 @@ function botName(b) {
   const ai = b.ai;
   if (b.mass > MID_MASS) ai.rank = 1;
   else if (b.mass < MID_MASS * 0.8) ai.rank = 0;
-  return ai.rank === 1 ? ai.role + ' ' + ai.nick : ai.nick;
+  return ai.rank === 1 ? ai.role : 'Мирный'; // владелец 06.10: у ботов только роль, без имён
 }
 // Владелец 06.10: самый большой бот — «Дон», следующие 6 по размеру — «Мафия», остальные — по размеру (см. botName)
 const MAFIA_COUNT = 6;
@@ -48,7 +48,7 @@ function renameBots() {
   const bots = [];
   for (const s of snakes.values()) if (s.bot) bots.push(s);
   bots.sort((a, b) => b.mass - a.mass);
-  bots.forEach((b, i) => { b.name = i === 0 ? 'Дон ' + b.ai.nick : i <= MAFIA_COUNT ? 'Мафия ' + b.ai.nick : botName(b); });
+  bots.forEach((b, i) => { b.name = i === 0 ? 'Дон' : i <= MAFIA_COUNT ? 'Мафия' : botName(b); });
 }
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
