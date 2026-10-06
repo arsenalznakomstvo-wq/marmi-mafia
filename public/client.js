@@ -50,10 +50,15 @@ function sprite(key, paint) {
 }
 // Кружок тела как в slither.io: светлая середина, тёмный край. Кружки идут очень плотно —
 // вместе они дают гладкую «трубку» со светлой полосой посередине.
+// Владелец 07.10: реалистичнее — объём как у глянцевой резины: свет сверху-слева, тень снизу-справа, блик.
+// Шарики идут внахлёст, поэтому блики сливаются в сплошную блестящую полосу вдоль тела.
 function paintBall(g, col) {
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, SR);
-  gr.addColorStop(0, shade(col, 38)); gr.addColorStop(0.5, shade(col, 16)); gr.addColorStop(0.82, col); gr.addColorStop(1, shade(col, -45));
+  const gr = g.createRadialGradient(32 - 8, 32 - 9, 1, 32 + 2, 32 + 3, SR * 1.08);
+  gr.addColorStop(0, shade(col, 55)); gr.addColorStop(0.35, shade(col, 18)); gr.addColorStop(0.72, col); gr.addColorStop(1, shade(col, -70));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
+  const hl = g.createRadialGradient(32 - 9, 32 - 11, 0, 32 - 9, 32 - 11, SR * 0.55);
+  hl.addColorStop(0, 'rgba(255,255,255,0.42)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = hl; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
 }
 const ball = col => sprite('b' + col, g => paintBall(g, col));
 const ringBall = (col, v) => sprite('r' + col + v, g => {
@@ -143,6 +148,28 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.restore();
   }
   const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca, cl = Math.cos(look), sl = Math.sin(look);
+  if (sk.style === 'ball' || !sk.style) {
+    // Язык: раз в ~3 с на полсекунды высовывается раздвоенный красный язычок
+    const tph = ((performance.now() + (sk.cols[0].charCodeAt(1) || 0) * 97) % 3200) / 3200;
+    if (tph < 0.16) {
+      const out = Math.sin(tph / 0.16 * Math.PI), L = r * (1.1 + 0.9 * out), bx = hx + ca * r * 1.05, by = hy + sa * r * 1.05;
+      const tx = bx + ca * L, ty = by + sa * L;
+      g.strokeStyle = '#d4183c'; g.lineWidth = Math.max(1, r * 0.11); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(tx, ty);
+      g.moveTo(tx, ty); g.lineTo(tx + ca * r * 0.35 + px * r * 0.22, ty + sa * r * 0.35 + py * r * 0.22);
+      g.moveTo(tx, ty); g.lineTo(tx + ca * r * 0.35 - px * r * 0.22, ty + sa * r * 0.35 - py * r * 0.22); g.stroke();
+    }
+    // Вытянутая морда: овал вперёд по ходу, тем же глянцем, что и тело
+    const col = bandColor(sk.cols, 0), cx = hx + ca * r * 0.22, cy = hy + sa * r * 0.22;
+    g.save(); g.translate(cx, cy); g.rotate(a);
+    const hg = g.createRadialGradient(-r * 0.25, -r * 0.35, r * 0.05, r * 0.1, r * 0.1, r * 1.25);
+    hg.addColorStop(0, shade(col, 55)); hg.addColorStop(0.4, shade(col, 15)); hg.addColorStop(0.8, col); hg.addColorStop(1, shade(col, -70));
+    g.fillStyle = hg; g.beginPath(); g.ellipse(0, 0, r * 1.18, r * 1.0, 0, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.35)'; // ноздри
+    for (const sg of [-1, 1]) { g.beginPath(); g.ellipse(r * 0.95, sg * r * 0.22, r * 0.07, r * 0.045, 0, 0, TAU); g.fill(); }
+    g.restore();
+    sk = Object.assign({}, sk, { slit: true });
+  }
   if (sk.eyes === 'gold') sk = Object.assign({}, sk, { eyes: 'normal', goldEyes: true });
   if (sk.eyes === 'shades') sk = Object.assign({}, sk, { eyes: 'normal', shades: true });
   const eye = (ex, ey, er, iris) => {
@@ -150,7 +177,10 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.lineWidth = Math.max(1, r * 0.06); g.strokeStyle = 'rgba(0,0,0,0.4)'; g.stroke();
     const ox = ex + cl * er * 0.35, oy = ey + sl * er * 0.35;
     if (iris) { g.fillStyle = iris; g.beginPath(); g.arc(ox, oy, er * 0.58, 0, TAU); g.fill(); }
-    g.fillStyle = '#111111'; g.beginPath(); g.arc(ox, oy, er * (iris ? 0.32 : 0.6), 0, TAU); g.fill();
+    if (sk.slit && !iris) { // змеиный зрачок — вертикальная щёлка поперёк хода
+      g.fillStyle = sk.goldEyes ? '#3a2a00' : '#d9b84a'; g.beginPath(); g.arc(ox, oy, er * 0.72, 0, TAU); g.fill(); // радужка
+      g.fillStyle = '#111111'; g.beginPath(); g.ellipse(ox, oy, er * 0.17, er * 0.62, Math.atan2(sl, cl), 0, TAU); g.fill();
+    } else { g.fillStyle = '#111111'; g.beginPath(); g.arc(ox, oy, er * (iris ? 0.32 : 0.6), 0, TAU); g.fill(); }
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
   if (sk.eyes === 'cyclops') {
