@@ -27,6 +27,21 @@ const GRID = 80;                 // клетка сетки столкновен
 const FCELL = 250;               // клетка еды (по ним игроку досылается еда)
 const MAX_CLIENTS = 150;
 const BOT_NAME = 'Bot';
+// Имена ботов — как у людей; с ростом к имени добавляется роль из «Мафии» (решение владельца 06.10)
+const BOT_NICKS = ['Тимур', 'Шерзод', 'Азиз', 'Дилшод', 'Камила', 'Мадина', 'Рустам', 'Бобур', 'Жасур', 'Алина', 'Даня', 'Санжар',
+  'Лола', 'Ислам', 'Макс', 'Артём', 'Никита', 'Влад', 'Саша', 'Нигора', 'Фарход', 'Улугбек', 'Kira', 'Shadow', 'Viper', 'Killer',
+  'Ninja', 'Boss', 'Lucky', 'Tiger', 'Zeus', 'Ghost', 'Dragon', 'Toxic', 'Rocket', 'Panda', 'Sultan', 'Baron', 'Ace', 'Joker', 'Fox', 'Wolf', 'Hunter'];
+const MID_ROLES = ['Шериф', 'Бомба', 'Параноик', 'Проститутка', 'Доктор'];
+const MID_MASS = 300, BIG_MASS = 1000;
+// Роль по размеру; повышаем сразу, понижаем только когда бот стал заметно меньше — чтобы имя не прыгало
+function botName(b) {
+  const ai = b.ai;
+  if (b.mass > BIG_MASS) ai.rank = 2;
+  else if (b.mass > MID_MASS && ai.rank < 1) ai.rank = 1;
+  else if (ai.rank === 2 && b.mass < BIG_MASS * 0.8) ai.rank = b.mass > MID_MASS ? 1 : 0;
+  else if (ai.rank === 1 && b.mass < MID_MASS * 0.8) ai.rank = 0;
+  return ai.rank === 2 ? 'Дон ' + ai.nick : ai.rank === 1 ? ai.role + ' ' + ai.nick : ai.nick;
+}
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
 const TAU = Math.PI * 2;
@@ -350,6 +365,10 @@ function spawnBot() {
   const mass = roll < 0.45 ? rand(12, 60) : roll < 0.75 ? rand(60, 300) : roll < 0.86 ? rand(300, 1000) : rand(1500, 4000);
   const pos = findSpawn(true);
   const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
+  s.ai.nick = BOT_NICKS[Math.random() * BOT_NICKS.length | 0];
+  s.ai.role = MID_ROLES[Math.random() * MID_ROLES.length | 0];
+  s.ai.rank = 0;
+  s.name = botName(s);
   snakes.set(s.id, s);
 }
 
@@ -637,9 +656,10 @@ function sendState(c) {
     if (!nr) { o = start; continue; }
     OUT.writeUInt16LE(nr, nrPos);
     ns++;
-    if (c.known.get(t.id) !== t) {
+    const kn = c.known.get(t.id);
+    if (!kn || kn.s !== t || kn.name !== t.name) { // новая змея или у бота сменилось имя (выросла роль)
       (metas || (metas = [])).push([t.id, t.name, t.skin.id, t.skin.c1, t.skin.c2, t.skin.c3, t.bot ? 1 : 0, t.skin.pat || 0]);
-      c.known.set(t.id, t);
+      c.known.set(t.id, { s: t, name: t.name });
     }
   }
   OUT.writeUInt16LE(ns, nsPos);
@@ -721,6 +741,7 @@ function step() {
   for (const s of snakes.values()) if (s.alive) eat(s);
   maintainFood();
   maintainBots();
+  if (tick % 15 === 0) for (const s of snakes.values()) if (s.bot) s.name = botName(s);
   for (const c of clients) sendState(c);
   cellEv.clear();
   diedThisTick.length = 0;
