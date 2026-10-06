@@ -897,6 +897,7 @@ $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
 
 function hideMenu() {
   $('menu').classList.add('hide'); $('skinScreen').classList.add('hide'); $('hud').classList.remove('hide');
+  document.body.classList.remove('in-menu');
   $('boostBtn').classList.toggle('hide', !isTouch || ctrlMode === 'joy'); // с джойстиком ускорение — вся правая половина, кнопка не нужна
   $('nick').blur();
   lastSentA = 99; renderLb();
@@ -911,6 +912,7 @@ function showMenu(m) {
     $('play').textContent = 'Играть снова';
   }
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
+  document.body.classList.add('in-menu');
 }
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();

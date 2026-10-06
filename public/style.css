@@ -245,3 +245,19 @@ body.ctrl-joy #boostBtn { left: auto; right: max(18px, env(safe-area-inset-right
   body.ctrl-joy #vcBar { left: max(10px, env(safe-area-inset-left)); transform: none; top: calc(max(58px, env(safe-area-inset-top)) + 92px); }
   #vcBar button { padding: 8px 12px; font-size: 14px; }
 }
+
+/* Меню на телефоне лёжа (низкий экран): всё помещается, крупная кнопка, без лишней подсказки */
+@media (max-height: 500px) {
+  #menu { justify-content: center; padding: 6px 16px 70px; }
+  #menu .title { font-size: min(15vh, 11vw); margin: 0 0 6px; }
+  #result { font-size: 15px; margin: 0 0 8px; line-height: 1.35; }
+  #result .sub { font-size: 12px; }
+  #nick { height: 42px; font-size: 17px; margin-bottom: 10px; }
+  #play { height: 46px; font-size: 20px; }
+  #status { margin: 6px 0 2px; font-size: 11px; }
+  #menu .help { display: none; }
+  #ctrlBtn { margin-top: 4px; padding: 6px 14px; font-size: 12px; }
+}
+/* В меню голосовая полоска — справа внизу, чтобы не налезать на название */
+body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; transform: none;
+  right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
