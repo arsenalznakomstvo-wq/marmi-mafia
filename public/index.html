@@ -42,6 +42,7 @@
   <div id="status">Подключение к серверу…</div>
   <div class="help" id="help"></div>
   <button id="ctrlBtn" class="hide"></button>
+  <button id="voiceBtn">🎤 Голос с друзьями</button>
 
   <button id="skinBtn" title="Сменить скин"><canvas id="skinIcon" width="160" height="160"></canvas><span>Сменить скин</span></button>
   <button id="buildBtn" title="Собрать свою змейку"><canvas id="buildIcon" width="160" height="160"></canvas><span>Собрать змейку</span></button>
@@ -67,11 +68,31 @@
   <div class="build-btns"><button id="buildReset" class="btn-green">Сбросить</button><button id="buildSave" class="btn-green">Сохранить</button></div>
 </div>
 
+<div id="vcPanel" class="hide">
+  <div class="vc-box">
+    <button id="vcClose" aria-label="Закрыть">✕</button>
+    <div class="vc-title">🎤 Голос с друзьями</div>
+    <div id="vcInviteNote" class="hide">Вас позвали в голосовой чат 🎉</div>
+    <div class="vc-hint">Слышат только те, кто зашёл по вашей ссылке-приглашению — где бы они ни были на карте.</div>
+    <button id="vcJoin" class="btn-green">Создать голосовую комнату</button>
+    <div id="vcIn" class="hide">
+      <div class="vc-label">Ссылка для друзей:</div>
+      <input id="vcLink" readonly>
+      <div class="vc-row"><button id="vcCopy">📋 Скопировать</button><button id="vcShare">📨 Отправить</button></div>
+      <div class="vc-label">В комнате:</div>
+      <div id="vcPeople"></div>
+      <div class="vc-row"><button id="vcMic">🎤 Микрофон включён</button><button id="vcLeave">Выйти</button></div>
+    </div>
+    <div id="vcStatus"></div>
+  </div>
+</div>
+<button id="vcPill" class="hide" title="Включить/выключить микрофон"></button>
 <div id="ping"></div>
 <div id="pnList" class="hide"></div>
 <button id="soundBtn" title="Звук: всё / только звуки / тишина"></button>
 <script src="skins.js"></script>
 <script src="sound.js"></script>
+<script src="voicechat.js"></script>
 <script src="client.js"></script>
 </body>
 </html>

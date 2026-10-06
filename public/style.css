@@ -232,3 +232,30 @@ body.ctrl-joy #boostBtn { left: auto; right: max(18px, env(safe-area-inset-right
   #skinNum { margin: 2px 0 8px; }
   .arrow { width: 52px; height: 48px; }
 }
+
+/* ===== Голос с друзьями ===== */
+#voiceBtn { margin-top: 12px; background: rgba(138, 108, 208, 0.18); border: 1px solid rgba(138, 108, 208, 0.5); color: #d9ccff;
+  border-radius: 20px; padding: 9px 18px; font-size: 15px; cursor: pointer; }
+#voiceBtn.invite { background: rgba(95, 209, 122, 0.25); border-color: #5fd17a; color: #c9ffd6; animation: vcPulse 1.6s ease-in-out infinite; }
+@keyframes vcPulse { 50% { box-shadow: 0 0 18px rgba(95, 209, 122, 0.6); } }
+#vcPanel { position: fixed; inset: 0; z-index: 60; background: rgba(5, 7, 12, 0.7); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.vc-box { position: relative; width: min(420px, 100%); max-height: 100%; overflow-y: auto; background: #1f2730; border-radius: 16px; padding: 20px 18px 16px; text-align: center; }
+#vcClose { position: absolute; top: 8px; right: 10px; background: none; border: none; color: #8a93a8; font-size: 20px; cursor: pointer; }
+.vc-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+#vcInviteNote { color: #5fd17a; font-weight: bold; margin-bottom: 6px; }
+.vc-hint { font-size: 13px; color: #8a93a8; margin-bottom: 14px; }
+#vcJoin { height: 48px; font-size: 18px; }
+.vc-label { font-size: 12px; color: #8a93a8; text-align: left; margin: 10px 0 4px; }
+#vcLink { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid #2f3a46; background: #141a21; color: #e8ecf1; font-size: 13px; }
+.vc-row { display: flex; gap: 8px; margin-top: 8px; }
+.vc-row button { flex: 1; padding: 10px 6px; border-radius: 10px; border: none; background: #2b3542; color: #e8ecf1; font-size: 14px; cursor: pointer; }
+#vcLeave { background: #4a2a30; }
+#vcPeople { text-align: left; font-size: 14px; line-height: 1.7; max-height: 160px; overflow-y: auto; }
+#vcPeople .talk { color: #5fd17a; font-weight: bold; }
+#vcStatus { font-size: 13px; color: #8a93a8; margin-top: 10px; min-height: 16px; }
+#vcPill { position: fixed; z-index: 44; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  background: rgba(10, 12, 22, 0.6); border: 1px solid rgba(255,255,255,0.15); color: #e8ecf1; border-radius: 16px; padding: 5px 12px; font-size: 14px; cursor: pointer; }
+@media (pointer: coarse) {
+  /* на телефоне значок голоса — под миникартой слева, чтобы не налезать на длину и место */
+  body.ctrl-joy #vcPill { left: max(10px, env(safe-area-inset-left)); transform: none; top: calc(max(58px, env(safe-area-inset-top)) + 92px); }
+}

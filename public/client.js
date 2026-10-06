@@ -584,7 +584,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
       ctx.font = `bold ${fs}px Arial, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = meta.bot ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.8)';
-      ctx.fillText(meta.name, hx, hy + r + 10 / cam.s);
+      const talking = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name); // друг говорит в голосовом чате
+      ctx.fillText(talking ? '🔊 ' + meta.name : meta.name, hx, hy + r + 10 / cam.s);
     }
   }
   if (fade) ctx.globalAlpha = 1;
@@ -926,6 +927,7 @@ if (isTouch) {
 }
 applyCtrlMode();
 showHelp();
+if (window.VoiceChat) VoiceChat.init();
 
 function resize() {
   // На телефоне — легче (разница на глаз почти незаметна); «низкое качество» — ещё легче, для слабых телефонов

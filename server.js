@@ -9,6 +9,7 @@ const os = require('os');
 const { WebSocketServer } = require('ws');
 const { SKINS, MAX_PATTERN, skinCols } = require('./public/skins.js');
 const stats = require('./stats.js');
+const voice = require('./voice.js');
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
@@ -797,6 +798,7 @@ const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
+  if (voice.handle(req, res, url, cleanName)) return;
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
