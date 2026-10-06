@@ -516,9 +516,9 @@ function predStep(srv) {
 
 // ===== Роли: табличка на змее и поздравление =====
 const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
-// Болтающаяся табличка на спине — только у Киллера, Мафии и Дона (владелец 06.10). Висит на ниточке и качается:
+// Болтающаяся табличка на спине у всех ролей кроме Мирного (владелец 06.10). Висит на ниточке и качается:
 // сильнее на поворотах и на ускорении (простой маятник на каждую змею).
-const BACK_PLATE_MIN = ROLES.findIndex(r => r.name === 'Киллер');
+const BACK_PLATE_MIN = 1; // владелец 06.10: табличка у всех ролей, кроме стартового «Мирного»
 const SHORT = { 'Дон Мафии': 'ДОН' };
 const swing = new Map(); // id → { ang, vel, lastA, t }
 function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
@@ -557,7 +557,7 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
     g.addColorStop(Math.max(0, p - 0.15), 'rgba(255,255,255,0)'); g.addColorStop(p, 'rgba(255,255,255,0.55)'); g.addColorStop(Math.min(1, p + 0.15), 'rgba(255,255,255,0)');
     ctx.fillStyle = g; ctx.fill();
   }
-  ctx.fillStyle = ri === DON || R.name === 'Киллер' ? '#1a1a1a' : '#ffffff';
+  ctx.fillStyle = ri === DON || R.name === 'Киллер' || R.name === 'Комиссар' || R.name === 'Бомба' ? '#1a1a1a' : '#ffffff';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, 0, h / 2 + 0.5);
   ctx.restore();
