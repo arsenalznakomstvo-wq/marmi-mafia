@@ -595,6 +595,67 @@ const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
 const BACK_PLATE_MIN = 1; // владелец 06.10: табличка у всех ролей, кроме стартового «Мирного»
 const SHORT = { 'Дон Мафии': 'ДОН' };
 const swing = new Map(); // id → { ang, vel, lastA, t }
+// ===== Быстрая отрисовка надписей (06.10, «игра подвисает»): текст рисуется ОДИН раз в маленькую картинку,
+// дальше в каждом кадре только копируется — как шарики тела. Раньше текст табличек и надписей по телу
+// заново растрировался каждый кадр у каждой змеи — это и тормозило телефоны.
+const textCache = new Map();
+const PX_PER_UNIT = () => Math.max(0.5, Math.round(cam.s * DPR * 4) / 4); // чёткость заготовки = масштабу экрана (с шагом 0.25)
+function cacheCanvas(key, w, h, paint) {
+  let c = textCache.get(key);
+  if (!c) {
+    if (textCache.size > 600) textCache.clear();
+    c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+    paint(c.getContext('2d')); textCache.set(key, c);
+  }
+  return c;
+}
+// Табличка: фон в цвет змеи, рамка, 1–2 строки текста. Возвращает {img, w, h} в мировых единицах.
+function plateSprite(ri, bodyCol, nick, s) {
+  const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4;
+  const key = 'pl|' + ri + '|' + bodyCol + '|' + nick + '|' + sb + '|' + k;
+  const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
+  const fs = 11 * sb, fs2 = 10 * sb;
+  const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
+  let w = mctx.measureText(label).width + 12 * sb;
+  if (nick) { mctx.font = `bold ${fs2}px Arial, sans-serif`; w = Math.max(w, mctx.measureText(nick).width + 12 * sb); }
+  const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7, pad = ri === DON ? 10 * sb : 2 * sb;
+  const img = cacheCanvas(key, (w + pad * 2) * k, (h + pad * 2) * k, g => {
+    g.scale(k, k); g.translate(pad, pad);
+    const [cr, cg, cb] = hexToRgb(bodyCol || R.color), light = (cr * 299 + cg * 587 + cb * 114) / 1000 > 150;
+    const bg = bodyCol || R.color, fg = light ? '#1a1a1a' : '#ffffff', border = ri === DON ? '#ffd52e' : shade(bg, light ? -70 : 70), rr = 4 * sb;
+    g.beginPath(); g.moveTo(rr, 0); g.arcTo(w, 0, w, h, rr); g.arcTo(w, h, 0, h, rr); g.arcTo(0, h, 0, 0, rr); g.arcTo(0, 0, w, 0, rr); g.closePath();
+    if (ri === DON) { g.shadowColor = '#ffd52e'; g.shadowBlur = 12 * sb; }
+    g.fillStyle = bg; g.fill(); g.shadowBlur = 0;
+    g.lineWidth = Math.max(1, 1.6 * sb); g.strokeStyle = border; g.stroke();
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (nick) {
+      g.font = `bold ${fs}px Arial, sans-serif`; g.fillText(label, w / 2, fs * 0.82);
+      g.font = `bold ${fs2}px Arial, sans-serif`; g.globalAlpha = 0.9; g.fillText(nick, w / 2, fs * 1.45 + fs2 * 0.6);
+    } else { g.font = `bold ${fs}px Arial, sans-serif`; g.fillText(label, w / 2, h / 2 + 0.5); }
+  });
+  return { img, w: w + pad * 2, h: h + pad * 2, pad };
+}
+const textMeasure = document.createElement('canvas').getContext('2d');
+// Одна буква надписи по телу (с обводкой)
+function glyphSprite(ch, fs, fill, stroke) {
+  const k = PX_PER_UNIT(), fb = Math.round(fs);
+  const key = 'gl|' + ch + '|' + fb + '|' + fill + '|' + stroke + '|' + k;
+  const size = fb * 1.6;
+  return cacheCanvas(key, size * k, size * k, g => {
+    g.scale(k, k); g.font = `bold ${fb}px Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round'; g.lineWidth = fb * 0.22; g.strokeStyle = stroke; g.fillStyle = fill;
+    g.strokeText(ch, size / 2, size / 2); g.fillText(ch, size / 2, size / 2);
+  });
+}
+// Нарисовать картинку в мире с поворотом без save/restore: прямо задаём матрицу (worldT — текущий масштаб и сдвиг кадра)
+const worldT = { k: 1, tx: 0, ty: 0 };
+function drawRotated(img, x, y, ang, w, h, ox, oy) {
+  const c = Math.cos(ang) * worldT.k, s = Math.sin(ang) * worldT.k;
+  ctx.setTransform(c, s, -s, c, worldT.tx + worldT.k * x, worldT.ty + worldT.k * y);
+  ctx.drawImage(img, -ox, -oy, w, h);
+}
+function resetWorldT() { ctx.setTransform(worldT.k, 0, 0, worldT.k, worldT.tx, worldT.ty); }
+
 function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
   const R = ROLES[ri]; if (!R) return;
   let st = swing.get(id);
@@ -610,48 +671,21 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
   const L = r * 0.85, s = Math.max(0.55, r / 14);                   // длина ниточки и масштаб таблички (владелец: средний размер)
   const hang = st.ang;                                                // качание вокруг точки крепления
   const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 - r * 0.3;
-  const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
-  const fs = 11 * s, fs2 = 10 * s;
-  ctx.font = `bold ${fs}px Arial, sans-serif`;
-  let w = ctx.measureText(label).width + 12 * s;
-  if (nick) { ctx.font = `bold ${fs2}px Arial, sans-serif`; w = Math.max(w, ctx.measureText(nick).width + 12 * s); }
-  const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7;
   // ниточка
   ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = Math.max(1, 1.4 * s);
   ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo((x + px) / 2 + Math.sin(hang) * 4 * s, (y + py) / 2 - 3 * s, px, py); ctx.stroke();
-  // табличка (слегка наклонена по качанию)
-  ctx.save(); ctx.translate(px, py); ctx.rotate(hang * 0.5);
-  const x0 = -w / 2, y0 = 0, rr = 4 * s;
-  if (ri === DON) { ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = (12 + 6 * Math.sin(time * 0.006)) * s; }
-  // Владелец 06.10: табличка в цвет змеи; текст — чёрный или белый, смотря что читается лучше; у Дона — золотая рамка
-  const [cr, cg, cb] = hexToRgb(bodyCol || R.color), light = (cr * 299 + cg * 587 + cb * 114) / 1000 > 150;
-  const PS = { bg: bodyCol || R.color, fg: light ? '#1a1a1a' : '#ffffff', border: ri === DON ? '#ffd52e' : shade(bodyCol || R.color, light ? -70 : 70) };
-  ctx.fillStyle = PS.bg;
-  ctx.beginPath(); ctx.moveTo(x0 + rr, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, rr); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, rr);
-  ctx.arcTo(x0, y0 + h, x0, y0, rr); ctx.arcTo(x0, y0, x0 + w, y0, rr); ctx.closePath(); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = Math.max(1, 1.6 * s); ctx.strokeStyle = PS.border; ctx.stroke();
-  if (ri === DON) { // блик на золоте
-    const g = ctx.createLinearGradient(x0, 0, x0 + w, h); const p = (time * 0.0005) % 1;
-    g.addColorStop(Math.max(0, p - 0.15), 'rgba(255,255,255,0)'); g.addColorStop(p, 'rgba(255,255,255,0.55)'); g.addColorStop(Math.min(1, p + 0.15), 'rgba(255,255,255,0)');
-    ctx.fillStyle = g; ctx.fill();
-  }
-  ctx.fillStyle = PS.fg;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  if (nick) {
-    ctx.font = `bold ${fs}px Arial, sans-serif`; ctx.fillText(label, 0, fs * 0.82);
-    ctx.font = `bold ${fs2}px Arial, sans-serif`; ctx.globalAlpha = 0.9; ctx.fillText(nick, 0, fs * 1.45 + fs2 * 0.6); ctx.globalAlpha = 1;
-  } else { ctx.font = `bold ${fs}px Arial, sans-serif`; ctx.fillText(label, 0, h / 2 + 0.5); }
-  ctx.restore();
+  // табличка — готовая картинка, слегка наклонена по качанию
+  const P = plateSprite(ri, bodyCol, nick, s);
+  drawRotated(P.img, px, py, hang * 0.5, P.w, P.h, P.w / 2, P.pad);
+  resetWorldT();
   // кружок-крепление на спине
   ctx.fillStyle = 'rgba(30,30,30,0.9)'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 2 * s), 0, TAU); ctx.fill();
 }
 setInterval(() => { if (swing.size > 300) swing.clear(); }, 10000);
-// Дон: надпись «ИМЯ ★ ДОН ★ …» по всему телу, буквы идут вдоль изгибов (владелец 06.10) — чтобы Дон отличался от всех.
+// Дон и особые скины: надпись по всему телу, буквы идут вдоль изгибов и всегда читаются слева направо.
 // SX/SY — точки тела от головы к хвосту (их уже разложил drawSnake).
 function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
   const unit = text + '  ★  ', fs = Math.max(8, r * 0.95), slot = fs * 0.74;
-  // 1) точки-слоты вдоль тела с равным шагом (от шеи к хвосту)
   let k = Math.min(cnt - 1, Math.max(3, Math.round(r * (startK != null ? 2.2 : 5.5) / Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])))));
   const px = [], py = [], pa = [];
   let carry = slot;
@@ -662,30 +696,22 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
     while (t <= L) { px.push(SX[k] + dx * t / L); py.push(SY[k] + dy * t / L); pa.push(Math.atan2(dy, dx)); t += slot; }
     carry = t - L;
   }
-  ctx.save();
-  ctx.font = `bold ${fs}px Arial, sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.22; ctx.strokeStyle = strokeCol || 'rgba(40, 25, 0, 0.9)';
-  const shine = (time * 0.0004) % 1, n = unit.length;
+  const fill = fillCol || '#ffd52e', fillHi = fillCol ? '#9b6bff' : '#fff7cc', stroke = strokeCol || 'rgba(40, 25, 0, 0.9)';
+  const shine = (time * 0.0004) % 1, n = unit.length, gs = Math.round(fs) * 1.6;
   const m = r * 2, x0 = view.x0 - m, x1 = view.x1 + m, y0 = view.y0 - m, y1 = view.y1 + m;
-  // 2) каждое повторение надписи — отдельный кусок; если тело в этом месте идёт справа налево — кладём буквы в обратном
-  //    порядке и переворачиваем, чтобы слово читалось слева направо при любом изгибе
   for (let c0 = 0; c0 < px.length; c0 += n) {
     if (c0 + n > px.length) break; // обрезок надписи в конце хвоста не рисуем
-    const c1 = c0 + n - 1;
-    const flip = px[c1] - px[c0] < 0;
+    const c1 = c0 + n - 1, flip = px[c1] - px[c0] < 0;
     for (let i = c0; i <= c1; i++) {
       const ch = unit[flip ? (n - 1 - (i - c0)) : (i - c0)];
       if (ch === ' ') continue;
       const x = px[i], y = py[i];
       if (x < x0 || x > x1 || y < y0 || y > y1) continue;
-      ctx.fillStyle = ((i / px.length + shine) % 1) < 0.06 ? (fillCol ? '#9b6bff' : '#fff7cc') : (fillCol || '#ffd52e');
-      ctx.save(); ctx.translate(x, y); ctx.rotate(pa[i] + (flip ? Math.PI : 0));
-      ctx.strokeText(ch, 0, 0); ctx.fillText(ch, 0, 0);
-      ctx.restore();
+      const img = glyphSprite(ch, fs, ((i / px.length + shine) % 1) < 0.06 ? fillHi : fill, stroke);
+      drawRotated(img, x, y, pa[i] + (flip ? Math.PI : 0), gs, gs, gs / 2, gs / 2);
     }
   }
-  ctx.restore();
+  resetWorldT();
 }
 
 let promoT = 0;
@@ -871,7 +897,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (!n) return;
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
-  const sp = Math.max(2, sn.r * (!hiQ ? 0.6 : isTouch ? 0.42 : 0.28));
+  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 ? 0.6 : isTouch ? 0.42 : 0.28));
   let cnt = 0;
   SX[0] = sn.xs[0]; SY[0] = sn.ys[0]; SI[0] = sn.idx[0]; cnt = 1;
   let rem = sp;
@@ -927,7 +953,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
   }
 
-  if (roleIdx && !sk.text) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
+  if (roleIdx && !sk.text && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);
   if (sn.idx[0] === 0) { // голова на экране
     const hx = sn.xs[0], hy = sn.ys[0], a = sn.a;
@@ -957,9 +983,15 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
 }
 
 // Строка замеров внизу экрана: кадры в секунду, пинг, запас плавности — чтобы видеть, что тормозит
+let lowSecs = 0, autoLow = 0; // 1 — чёткость 1×, 2 — ещё и упрощённые змеи
 let fpsCount = 0, fpsT = performance.now();
 setInterval(() => {
   const now = performance.now(), fps = Math.round(fpsCount * 1000 / (now - fpsT));
+  // Авто-облегчение на телефоне: если кадров мало несколько секунд подряд — сначала снижаем чёткость, потом упрощаем змей
+  if (isTouch && alive && hiQ) {
+    if (fps < 40) lowSecs++; else lowSecs = 0;
+    if (lowSecs >= 3 && autoLow < 2) { autoLow++; lowSecs = 0; resize(); }
+  }
   fpsCount = 0; fpsT = now;
   void fps;
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
@@ -1005,6 +1037,7 @@ function frame(time) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#0b1018'; ctx.fillRect(0, 0, W, H);
   ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s), DPR * (H / 2 - cam.y * s));
+  worldT.k = DPR * s; worldT.tx = DPR * (W / 2 - cam.x * s); worldT.ty = DPR * (H / 2 - cam.y * s);
   const view = { x0: cam.x - W / 2 / s, x1: cam.x + W / 2 / s, y0: cam.y - H / 2 / s, y1: cam.y + H / 2 / s };
 
   // Фон и граница карты
@@ -1405,7 +1438,7 @@ startSlides(1);
 
 function resize() {
   // На телефоне — легче (разница на глаз почти незаметна); «низкое качество» — ещё легче, для слабых телефонов
-  DPR = hiQ ? Math.min(window.devicePixelRatio || 1, isTouch ? 1.25 : 2) : (isTouch ? 0.8 : 1);
+  DPR = hiQ ? Math.min(window.devicePixelRatio || 1, isTouch ? (autoLow ? 1 : 1.25) : 2) : (isTouch ? 0.8 : 1);
   W = innerWidth; H = innerHeight;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
