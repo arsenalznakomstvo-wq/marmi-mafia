@@ -565,6 +565,46 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
   ctx.fillStyle = 'rgba(30,30,30,0.9)'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 2 * s), 0, TAU); ctx.fill();
 }
 setInterval(() => { if (swing.size > 300) swing.clear(); }, 10000);
+// Дон: надпись «ИМЯ ★ ДОН ★ …» по всему телу, буквы идут вдоль изгибов (владелец 06.10) — чтобы Дон отличался от всех.
+// SX/SY — точки тела от головы к хвосту (их уже разложил drawSnake).
+function drawBodyText(cnt, r, text, time, view) {
+  const unit = text + '  ★  ', fs = Math.max(8, r * 0.95), slot = fs * 0.74;
+  // 1) точки-слоты вдоль тела с равным шагом (от шеи к хвосту)
+  let k = Math.min(cnt - 1, Math.max(3, Math.round(r * 5.5 / Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])))));
+  const px = [], py = [], pa = [];
+  let carry = slot;
+  for (; k < cnt - 1; k++) {
+    const dx = SX[k + 1] - SX[k], dy = SY[k + 1] - SY[k], L = Math.hypot(dx, dy);
+    if (!L) continue;
+    let t = carry;
+    while (t <= L) { px.push(SX[k] + dx * t / L); py.push(SY[k] + dy * t / L); pa.push(Math.atan2(dy, dx)); t += slot; }
+    carry = t - L;
+  }
+  ctx.save();
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.22; ctx.strokeStyle = 'rgba(40, 25, 0, 0.9)';
+  const shine = (time * 0.0004) % 1, n = unit.length;
+  const m = r * 2, x0 = view.x0 - m, x1 = view.x1 + m, y0 = view.y0 - m, y1 = view.y1 + m;
+  // 2) каждое повторение надписи — отдельный кусок; если тело в этом месте идёт справа налево — кладём буквы в обратном
+  //    порядке и переворачиваем, чтобы слово читалось слева направо при любом изгибе
+  for (let c0 = 0; c0 < px.length; c0 += n) {
+    const c1 = Math.min(px.length, c0 + n) - 1;
+    const flip = px[c1] - px[c0] < 0;
+    for (let i = c0; i <= c1; i++) {
+      const ch = unit[flip ? (n - 1 - (i - c0)) : (i - c0)];
+      if (ch === ' ') continue;
+      const x = px[i], y = py[i];
+      if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+      ctx.fillStyle = ((i / px.length + shine) % 1) < 0.06 ? '#fff7cc' : '#ffd52e';
+      ctx.save(); ctx.translate(x, y); ctx.rotate(pa[i] + (flip ? Math.PI : 0));
+      ctx.strokeText(ch, 0, 0); ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
 let promoT = 0;
 function showPromo(ri) {
   const R = ROLES[ri]; if (!R) return;
@@ -646,6 +686,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     let neck = null;
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
+    if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time);
