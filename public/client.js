@@ -237,7 +237,9 @@ function onJSON(m) {
       }
       if (!protoOk) { $('play').disabled = true; setStatus('⚠ Сервер устарел — закройте чёрное окно сервера и запустите start заново'); $('status').style.color = '#ff7070'; }
       break;
-    case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot }); break;
+    case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat, role] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot, role: role || 0 }); break;
+    case 'role': showPromo(m.r); break;
+    case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -512,6 +514,41 @@ function predStep(srv) {
   return { id: srv.id, boost: boosting, mass: srv.mass, len: srv.len, r, a: pred.a, idx, xs, ys, gap };
 }
 
+// ===== Роли: табличка на змее и поздравление =====
+const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
+// Цветная плашка «значок + РОЛЬ» с закруглёнными краями; возвращает нижний край (для ника под ней)
+function drawRolePlate(ri, x, y, time) {
+  const R = ROLES[ri] || ROLES[0], fs = (ri === DON ? 13 : 11) / cam.s;
+  const text = R.icon + ' ' + R.name.toUpperCase();
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  const w = ctx.measureText(text).width + 12 / cam.s, h = fs * 1.55, x0 = x - w / 2, rr = h / 2;
+  ctx.save();
+  if (ri === DON) { ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = (10 + 6 * Math.sin(time * 0.006)) / cam.s * DPR; }
+  ctx.globalAlpha = ri === 0 ? 0.55 : 0.92;
+  ctx.fillStyle = R.color;
+  ctx.beginPath();
+  ctx.moveTo(x0 + rr, y); ctx.arcTo(x0 + w, y, x0 + w, y + h, rr); ctx.arcTo(x0 + w, y + h, x0, y + h, rr);
+  ctx.arcTo(x0, y + h, x0, y, rr); ctx.arcTo(x0, y, x0 + w, y, rr); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = ri === DON || ri === 0 || ri === 7 ? '#1a1a1a' : '#ffffff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y + h / 2 + 0.5 / cam.s);
+  return y + h;
+}
+let promoT = 0;
+function showPromo(ri) {
+  const R = ROLES[ri]; if (!R) return;
+  const el = $('promo'), don = ri === DON;
+  el.className = don ? 'don' : '';
+  el.style.setProperty('--rc', R.color);
+  el.innerHTML = don
+    ? `<div class="pi">👑</div><div class="pn">ДОН МАФИИ</div><div class="ps">Вы — самая большая змея на карте!</div>`
+    : `<div class="pt">✨ НОВАЯ РОЛЬ ✨</div><div class="pn">${R.icon} ${R.name.toUpperCase()}</div><div class="ps">${esc(myName())}, так держать!</div>`;
+  void el.offsetWidth; el.classList.add('show');
+  clearTimeout(promoT); promoT = setTimeout(() => el.classList.remove('show'), don ? 3500 : 2600);
+  Sound.promo(don);
+}
+
 // ===== Отрисовка =====
 const cam = { x: 0, y: 0, s: 0.8 };
 const SX = [], SY = [], SI = [];
@@ -581,12 +618,16 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     // Имя — белое полупрозрачное под змейкой, как в оригинале
     if (meta && !fade) {
-      const fs = 14 / cam.s;
-      ctx.font = `bold ${fs}px Arial, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillStyle = meta.bot ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.8)';
-      const talking = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name); // друг говорит в голосовом чате
-      ctx.fillText(talking ? '🔊 ' + meta.name : meta.name, hx, hy + r + 10 / cam.s);
+      // Табличка роли (у ботов вместо имени), под ней — ник человека
+      const ry = drawRolePlate(meta.role || 0, hx, hy + r + 8 / cam.s, time);
+      if (!meta.bot) {
+        const fs = 14 / cam.s;
+        ctx.font = `bold ${fs}px Arial, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const talking = window.VoiceChat && VoiceChat.isSpeaking(meta.name); // говорит в голосовом чате
+        ctx.fillText(talking ? '🔊 ' + meta.name : meta.name, hx, ry + 3 / cam.s);
+      }
     }
   }
   if (fade) ctx.globalAlpha = 1;

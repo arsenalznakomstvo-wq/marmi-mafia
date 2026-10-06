@@ -21,7 +21,7 @@ const FOOD_TARGET = 3490;        // обычной еды на карте: в о
 const SEG_D = 6;                 // расстояние между точками тела
 const BASE_SPEED = 6;            // за шаг мира (у змейки на старте; дальше см. speedFor)
 const BOOST_SPEED = 12 * 6 / 4.75; // ускорение как в оригинале: 12 против 4,75
-const START_MASS = 10;           // в оригинале змейка стартует с длины 10
+const START_MASS = Number(process.env.TEST_START_MASS) || 10; // в оригинале змейка стартует с длины 10 (TEST_START_MASS — только для проверок)
 const MIN_BOOST_MASS = 12;       // меньше — ускоряться нельзя
 const MAX_R = 60;              // 10·sc при sc=6
 const DROP_LIFE = 90 * TICK_RATE; // еда от погибших/ускорения исчезает через 90 с
@@ -29,27 +29,30 @@ const GRID = 80;                 // клетка сетки столкновен
 const FCELL = 250;               // клетка еды (по ним игроку досылается еда)
 const MAX_CLIENTS = 150;
 const BOT_NAME = 'Bot';
-// Имена ботов — как у людей; с ростом к имени добавляется роль из «Мафии» (решение владельца 06.10)
-const BOT_NICKS = ['Тимур', 'Шерзод', 'Азиз', 'Дилшод', 'Камила', 'Мадина', 'Рустам', 'Бобур', 'Жасур', 'Алина', 'Даня', 'Санжар',
-  'Лола', 'Ислам', 'Макс', 'Артём', 'Никита', 'Влад', 'Саша', 'Нигора', 'Фарход', 'Улугбек', 'Kira', 'Shadow', 'Viper', 'Killer',
-  'Ninja', 'Boss', 'Lucky', 'Tiger', 'Zeus', 'Ghost', 'Dragon', 'Toxic', 'Rocket', 'Panda', 'Sultan', 'Baron', 'Ace', 'Joker', 'Fox', 'Wolf', 'Hunter'];
-const MID_ROLES = ['Шериф', 'Бомба', 'Параноик', 'Проститутка', 'Доктор'];
-const MID_MASS = 300;
-// Средняя роль по размеру; повышаем сразу, понижаем только когда бот стал заметно меньше — чтобы имя не прыгало
-function botName(b) {
-  const ai = b.ai;
-  if (b.mass > MID_MASS) ai.rank = 1;
-  else if (b.mass < MID_MASS * 0.8) ai.rank = 0;
-  return ai.rank === 1 ? ai.role : 'Мирный'; // владелец 06.10: у ботов только роль, без имён
+// Роли из «Мафии» по длине — для всех: людей и ботов (владелец 06.10). Дон Мафии — самая длинная змея на карте.
+const { ROLES, DON, rankFor } = require('./public/roles.js');
+let donId = 0;
+function updateRoles() {
+  let top = null;
+  for (const s of snakes.values()) if (s.alive && (!top || s.mass > top.mass)) top = s;
+  for (const s of snakes.values()) {
+    if (!s.alive) continue;
+    const prev = s.role || 0;
+    const r = s === top ? DON : rankFor(s.mass, prev === DON ? rankFor(s.mass, 0) : prev);
+    s.role = r;
+    if (s.bot) s.name = ROLES[r].name;                 // у ботов вместо имени — роль
+    else if (s.client && r > prev && s.roleShown !== r) { // человек получил новую роль — табличка-поздравление
+      s.roleShown = r;
+      sendJSON(s.client, { t: 'role', r });
+    }
+  }
+  // Новый Дон Мафии среди людей — объявляем всем
+  if (top && top.id !== donId) {
+    donId = top.id;
+    if (!top.bot) for (const c of clients) if (c !== top.client) sendJSON(c, { t: 'don', name: top.name });
+  }
 }
-// Владелец 06.10: самый большой бот — «Дон», следующие 6 по размеру — «Мафия», остальные — по размеру (см. botName)
-const MAFIA_COUNT = 6;
-function renameBots() {
-  const bots = [];
-  for (const s of snakes.values()) if (s.bot) bots.push(s);
-  bots.sort((a, b) => b.mass - a.mass);
-  bots.forEach((b, i) => { b.name = i === 0 ? 'Дон' : i <= MAFIA_COUNT ? 'Мафия' : botName(b); });
-}
+const displayName = s => s.bot ? ROLES[s.role || 0].name : s.name + ' ' + ROLES[s.role || 0].name;
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
 const TAU = Math.PI * 2;
@@ -373,10 +376,8 @@ function spawnBot() {
   const mass = roll < 0.45 ? rand(12, 60) : roll < 0.75 ? rand(60, 300) : roll < 0.86 ? rand(300, 1000) : rand(1500, 4000);
   const pos = findSpawn(true);
   const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
-  s.ai.nick = BOT_NICKS[Math.random() * BOT_NICKS.length | 0];
-  s.ai.role = MID_ROLES[Math.random() * MID_ROLES.length | 0];
-  s.ai.rank = 0;
-  s.name = botName(s);
+  s.role = rankFor(s.mass, 0);
+  s.name = ROLES[s.role].name;
   snakes.set(s.id, s);
 }
 
@@ -666,9 +667,9 @@ function sendState(c) {
     OUT.writeUInt16LE(nr, nrPos);
     ns++;
     const kn = c.known.get(t.id);
-    if (!kn || kn.s !== t || kn.name !== t.name) { // новая змея или у бота сменилось имя (выросла роль)
-      (metas || (metas = [])).push([t.id, t.name, t.skin.id, t.skin.c1, t.skin.c2, t.skin.c3, t.bot ? 1 : 0, t.skin.pat || 0]);
-      c.known.set(t.id, { s: t, name: t.name });
+    if (!kn || kn.s !== t || kn.name !== t.name || kn.role !== (t.role || 0)) { // новая змея или сменилась роль
+      (metas || (metas = [])).push([t.id, t.name, t.skin.id, t.skin.c1, t.skin.c2, t.skin.c3, t.bot ? 1 : 0, t.skin.pat || 0, t.role || 0]);
+      c.known.set(t.id, { s: t, name: t.name, role: t.role || 0 });
     }
   }
   OUT.writeUInt16LE(ns, nsPos);
@@ -722,7 +723,7 @@ function sendLeaderboard() {
   const arr = [];
   for (const s of snakes.values()) if (s.alive) arr.push(s);
   arr.sort((a, b) => b.mass - a.mass);
-  const top = arr.slice(0, 10).map(s => [s.name, Math.floor(s.mass), s.id]);
+  const top = arr.slice(0, 10).map(s => [displayName(s), Math.floor(s.mass), s.id]);
   const rank = new Map();
   arr.forEach((s, i) => rank.set(s, i + 1));
   // Миникарта как в оригинале: тело каждой змеи — короткая ломаная (до 30 точек, координаты 0..255).
@@ -757,7 +758,7 @@ function step() {
   for (const s of snakes.values()) if (s.alive) eat(s);
   maintainFood();
   maintainBots();
-  if (tick % 30 === 0) renameBots(); // раз в секунду
+  if (tick % 15 === 0) updateRoles(); // 2 раза в секунду
   for (const c of clients) sendState(c);
   cellEv.clear();
   diedThisTick.length = 0;

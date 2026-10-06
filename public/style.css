@@ -270,3 +270,17 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; trans
   border-radius: 20px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
 #iosTip { position: fixed; z-index: 61; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: #1f2730; color: #e8ecf1; border-radius: 12px; padding: 10px 14px; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); white-space: nowrap; }
+
+/* ===== Поздравление с новой ролью ===== */
+#promo { position: fixed; z-index: 50; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(0.6); opacity: 0; pointer-events: none;
+  text-align: center; padding: 14px 28px; border-radius: 18px; background: rgba(10, 12, 22, 0.82); border: 2px solid var(--rc, #fff);
+  box-shadow: 0 0 24px var(--rc, #fff); transition: transform .35s cubic-bezier(.2,1.6,.4,1), opacity .3s; white-space: nowrap; }
+#promo.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+#promo .pt { font-size: 13px; color: #c9cfd8; letter-spacing: 2px; }
+#promo .pn { font-family: 'Comfortaa', Arial, sans-serif; font-weight: 700; font-size: 30px; color: var(--rc, #fff); text-shadow: 0 0 14px var(--rc, #fff); margin: 4px 0; }
+#promo .ps { font-size: 13px; color: #c9cfd8; }
+#promo.don { padding: 18px 36px; background: radial-gradient(ellipse at center, rgba(80, 60, 0, 0.92), rgba(10, 12, 22, 0.92)); border-width: 3px; }
+#promo.don .pi { font-size: 46px; line-height: 1; animation: donCrown 1.2s ease-in-out infinite; }
+#promo.don .pn { font-size: 40px; color: #ffd52e; text-shadow: 0 0 20px #ffb300, 0 0 40px #ff8a00; }
+@keyframes donCrown { 50% { transform: translateY(-6px) scale(1.1); } }
+@media (max-height: 500px) { #promo { top: 32%; } #promo .pn { font-size: 24px; } #promo.don .pn { font-size: 30px; } #promo.don .pi { font-size: 34px; } }

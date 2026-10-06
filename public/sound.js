@@ -112,6 +112,13 @@ window.Sound = (() => {
     tone(294, 0.7, 'triangle', 0.05, t + 0.15, 110);
     noise(0.5, 0.03, 900, 120, 0.8, t);
   }
+  // Новая роль: короткий подъём нот; Дон — фанфары
+  function promo(don) {
+    if (!ok()) return;
+    const t = ac.currentTime, notes = don ? [392, 523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99];
+    notes.forEach((f, i) => { tone(f, don ? 0.4 : 0.28, 'triangle', don ? 0.07 : 0.05, t + i * (don ? 0.09 : 0.07)); tone(f * 2, 0.2, 'sine', 0.015, t + i * 0.08); });
+    if (don) [523.25, 659.25, 783.99].forEach(f => tone(f, 1.2, 'sine', 0.04, t + notes.length * 0.09));
+  }
   function click() { if (ok()) tone(660, 0.05, 'sine', 0.035, 0, 880); }
   function spawn() {
     if (!ok()) return;
@@ -191,5 +198,5 @@ window.Sound = (() => {
   window.addEventListener('pointerdown', unlock, { passive: true });
   window.addEventListener('keydown', unlock);
 
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon };
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo };
 })();
