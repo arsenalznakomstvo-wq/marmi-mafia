@@ -1181,12 +1181,17 @@ function sizeSkinCanvas() {
 }
 function updateSkinName() {
   $('skinName').textContent = SKINS[skin.id].name;
-  $('skinNum').textContent = skin.id === 0 ? (skin.pat && skin.pat.length ? 'собрана в конструкторе' : 'ещё не собрана — нажмите кнопку ниже') : skin.id + ' из ' + (SKINS.length - 1);
+  const PK = window.Skins.PICKABLE, pos = PK.indexOf(skin.id);
+  $('skinNum').textContent = skin.id === 0 ? (skin.pat && skin.pat.length ? 'собрана в конструкторе' : 'ещё не собрана — нажмите кнопку ниже') : (pos > 0 ? pos + ' из ' + (PK.length - 1) : '');
   $('customizer').classList.toggle('hide', skin.id !== 0);
 }
 function stepSkin(d) {
   Sound.click();
-  skin.id = (skin.id + d + SKINS.length) % SKINS.length;
+  // листаем только разрешённые скины (владелец 06.10)
+  const PK = window.Skins.PICKABLE;
+  let pos = PK.indexOf(skin.id);
+  if (pos < 0) { pos = 0; while (pos < PK.length - 1 && PK[pos + 1] < skin.id) pos++; if (d < 0) pos++; }
+  skin.id = PK[(pos + d + PK.length) % PK.length];
   updateSkinName();
 }
 function saveSkin() { store('mm_skin2', JSON.stringify(skin)); drawSkinIcon(); }

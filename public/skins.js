@@ -80,7 +80,11 @@
     if (Array.isArray(sk.pat) && sk.pat.length) return sk.pat;
     return [sk.c1 || '#888888', sk.c1 || '#888888', sk.c2 || '#888888', sk.c2 || '#888888', sk.c3 || '#888888', sk.c3 || '#888888'];
   }
-  const api = { SKINS, PALETTE, MAX_PATTERN, skinCols };
+  // Владелец 06.10: в выборе скинов игрокам — только эти (остальные скрыты, но не удалены: их номера хранятся у игроков и нужны ботам)
+  const SHOWN = ['Своя змейка', 'Космос', 'Скелет', 'Пришелец', 'Альмано', 'Марми', 'Лаймовый', 'Сливовый', 'Белый', 'Синий', 'Чёрный',
+    'Пчела', 'Конфета', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
+  const PICKABLE = SKINS.map((d, i) => (SHOWN.includes(d.name) ? i : -1)).filter(i => i >= 0);
+  const api = { SKINS, PALETTE, MAX_PATTERN, skinCols, PICKABLE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Skins = api;
 })(typeof window !== 'undefined' ? window : this);
