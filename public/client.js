@@ -20,10 +20,12 @@ let W = 0, H = 0, DPR = 1;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }
 // Камера как в оригинале: отдаляется по мере роста числа сегментов (формула та же, что в server.js)
-function viewScale(w, h, r) {
+// Владелец 07.10: Дону и Киллеру (и Мафии — она старше Киллера) камера выше — видно больше карты
+const ROLE_ZOOM = { 7: 0.85, 8: 0.85, 9: 0.72 }; // номера ролей: 7 Киллер, 8 Мафия, 9 Дон (см. public/roles.js)
+function viewScale(w, h, r, role) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
   const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
-  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857;
+  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1);
 }
 
 // ===== Цвета =====
@@ -103,7 +105,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '' };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -111,12 +113,20 @@ function bandColor(cols, u) {
   const n = cols.length, i = Math.floor(u);
   return cols[((i % n) + n) % n];
 }
+// Водный шарик: прозрачная середина, плотнее к краю (кромка-поверхность), блик сверху. Внахлёст даёт «толщу воды».
+const waterBall = w => sprite('w' + w.kind, g => {
+  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
+  const gr = g.createRadialGradient(32 - 5, 32 - 6, 1, 32, 32, SR);
+  gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
+  g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
+});
 function skinSprite(sk, u) {
   if (sk.once && u >= sk.cols.length) return ball('#151515'); // конструктор: незакрашенное тело — чёрное
   switch (sk.style) {
     case 'glow': return glowBall(bandColor(sk.cols, u));
     case 'space': return spaceBall(sk.cols[0], sk.cols[1], Math.floor(u) % 3);
     case 'skeleton': return ringBall(sk.cols[0], Math.floor(u) & 1);
+    case 'water': return waterBall(sk.water);
     default: return ball(bandColor(sk.cols, u));
   }
 }
@@ -765,6 +775,47 @@ function drawDonTrim(id, cnt, r, view, time) {
   ctx.globalCompositeOperation = 'source-over';
   if (donSparks.length > 300) donSparks.length = 300;
 }
+// Водные скины: бегущие волны-блики, пузырьки внутри; лёд — трещинки; мыльный пузырь — радужный перелив
+function drawWaterFx(w, cnt, r, view, time) {
+  const m = r * 2, vis = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
+  const sp = Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])), every = Math.max(1, Math.round(r * 0.55 / sp));
+  const hl = w.kind === 'ocean' ? '125, 227, 255' : '255, 255, 255';
+  for (let k = 0; k < cnt - 1; k += every) {
+    const x = SX[k], y = SY[k]; if (!vis(x, y)) continue;
+    const a = Math.atan2(SY[k] - SY[k + 1], SX[k] - SX[k + 1]);
+    if (w.kind === 'soap') { // радужный перелив
+      const hue = (Math.round((k * 6 + time * 0.08) / 30) * 30) % 360;
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18;
+      const hs = r * 2.2; ctx.drawImage(haloSprite(hslToHex(hue, 90, 60)), x - hs / 2, y - hs / 2, hs, hs);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    }
+    // волна: блик бежит от хвоста к голове
+    const wave = Math.pow(Math.max(0, Math.sin(k * 0.09 + time * 0.006)), 6);
+    if (wave > 0.05) {
+      ctx.fillStyle = `rgba(${hl}, ${0.55 * wave})`;
+      ctx.beginPath(); ctx.ellipse(x + Math.sin(a) * r * 0.35, y - Math.cos(a) * r * 0.35, r * 0.45, r * 0.13, a, 0, TAU); ctx.fill();
+    }
+  }
+  if (w.kind === 'ice') { // трещинки — на одних и тех же местах тела
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = Math.max(1, r * 0.05);
+    for (let k = every * 2; k < cnt - 1; k += every * 5) {
+      const x = SX[k], y = SY[k]; if (!vis(x, y)) continue;
+      const h = (k * 2654435761 >>> 0) / 4294967296, a = h * TAU;
+      ctx.beginPath(); ctx.moveTo(x - Math.cos(a) * r * 0.5, y - Math.sin(a) * r * 0.5); ctx.lineTo(x + Math.cos(a + 0.6) * r * 0.1, y + Math.sin(a + 0.6) * r * 0.1);
+      ctx.lineTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55); ctx.stroke();
+    }
+  } else { // пузырьки поднимаются внутри тела
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = Math.max(1, r * 0.04);
+    for (let k = every; k < cnt - 1; k += every * 3) {
+      const x = SX[k], y = SY[k]; if (!vis(x, y)) continue;
+      const h = ((k * 2654435761) >>> 0) / 4294967296, ph = (time * 0.0004 + h) % 1;
+      const bx = x + (h - 0.5) * r * 1.1, by = y + r * 0.6 - ph * r * 1.2, br = r * (0.06 + h * 0.08);
+      ctx.globalAlpha = Math.sin(ph * Math.PI);
+      ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
 let promoT = 0;
 function showPromo(ri) {
   const R = ROLES[ri]; if (!R) return;
@@ -1035,6 +1086,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
     ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
   }
+  if (sk.water && !fade) drawWaterFx(sk.water, cnt, r, view, time);
 
   if (isDon) drawDonTrim(sn.id, cnt, sn.r, view, time);
   if (roleIdx && !sk.text && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
@@ -1116,7 +1168,7 @@ function frame(time) {
     look.x += (tx - look.x) * 0.04; look.y += (ty - look.y) * 0.04;
     cam.x = me.xs[0] + look.x; cam.y = me.ys[0] + look.y;
   } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
-  const target = viewScale(W, H, me ? me.r : 10);
+  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0);
   cam.s += (target - cam.s) * 0.06;
 
   const s = cam.s;

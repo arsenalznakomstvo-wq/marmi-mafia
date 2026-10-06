@@ -70,6 +70,11 @@
     { name: 'Чёрно-оранжевый', cols: ['#1c1c1e', '#1c1c1e', '#ff8a1f', '#ff8a1f'] },
     { name: 'Чёрно-белый', cols: ['#1c1c1e', '#1c1c1e', '#f2f2f2', '#f2f2f2'] },
     { name: 'Шахматный', cols: ['#f2f2f2'], style: 'checker' },
+    // 07.10: водные скины — полупрозрачное тело, волны-блики, пузырьки (kind задаёт вариант)
+    { name: 'Вода', cols: ['#3fb7ff'], style: 'water', water: { core: '#1a7fd1', rim: '#9fe3ff', kind: 'water' } },
+    { name: 'Глубина', cols: ['#0b3d7a'], style: 'water', water: { core: '#062a5c', rim: '#2fd3f5', kind: 'ocean' } },
+    { name: 'Лёд', cols: ['#dff6ff'], style: 'water', water: { core: '#bfe9ff', rim: '#ffffff', kind: 'ice' } },
+    { name: 'Мыльный пузырь', cols: ['#ffffff'], style: 'water', water: { core: '#e8f4ff', rim: '#ffffff', kind: 'soap' } },
   ];
   // Палитра конструктора «Собрать змейку» — 40 шариков, как в оригинале
   const PALETTE = [
@@ -88,7 +93,7 @@
   }
   // Владелец 06.10: в выборе скинов игрокам — только эти (остальные скрыты, но не удалены: их номера хранятся у игроков и нужны ботам)
   const SHOWN = ['Своя змейка', 'Космос', 'Скелет', 'Пришелец', 'Альмано', 'Марми', 'Лаймовый', 'Сливовый', 'Белый', 'Синий', 'Чёрный',
-    'Пчела', 'Конфета', 'Шахматный', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
+    'Пчела', 'Конфета', 'Шахматный', 'Вода', 'Глубина', 'Лёд', 'Мыльный пузырь', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
   const PICKABLE = SKINS.map((d, i) => (SHOWN.includes(d.name) ? i : -1)).filter(i => i >= 0);
   const api = { SKINS, PALETTE, MAX_PATTERN, skinCols, PICKABLE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
