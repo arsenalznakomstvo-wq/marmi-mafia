@@ -97,6 +97,10 @@ window.VoiceChat = (() => {
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
     render();
+    // Библиотеку голоса грузим заранее, пока человек в меню: на слабом телефоне её разбор занимает 1–2 с,
+    // и если делать это посреди игры — экран замирает (замерено 06.10: кадр 2 с при подключении голоса).
+    const pre = () => { if (!offline) loadSdk().catch(() => {}); };
+    if ('requestIdleCallback' in window) requestIdleCallback(pre, { timeout: 4000 }); else setTimeout(pre, 2500);
   }
 
   return { init, tick, speaking, isSpeaking: name => speaking.has(name) };
