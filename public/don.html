@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex">
+<title>Марми Мафия — облик Дона (проба)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1018; font-family: Arial, sans-serif; touch-action: none; user-select: none; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 10px; top: 10px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 2; }
+  #ui button { background: rgba(20,26,36,0.85); color: #e8ecf1; border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+  #ui button.on { background: #6b5410; border-color: #ffd52e; color: #fff3c4; }
+  #hint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); color: #8a93a8; font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <button data-v="gold" class="on">♛ Чёрное золото</button>
+  <button data-v="wine">♛ Бордовый бархат</button>
+  <button id="big">Крупнее / мельче</button>
+</div>
+<div id="hint">Облик Дона — проба. Ведите мышкой или пальцем. В игре пока ничего не изменилось.</div>
+<canvas id="c"></canvas>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), TAU = Math.PI * 2;
+let W, H, DPR;
+function resize() { DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px'; }
+addEventListener('resize', resize); resize();
+
+const VARIANTS = {
+  gold: { base: '#141218', mid: '#2a2530', gold: ['#fff1a8', '#ffd52e', '#b8860b', '#6b4a05'], line: '#d4a73a', eye: '#ffd52e' },
+  wine: { base: '#2a0710', mid: '#4a0f1e', gold: ['#fff1a8', '#ffd52e', '#b8860b', '#6b4a05'], line: '#d4a73a', eye: '#ffd52e' },
+};
+let V = VARIANTS.gold, R = 26;
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { document.querySelectorAll('[data-v]').forEach(x => x.classList.remove('on')); b.classList.add('on'); V = VARIANTS[b.dataset.v]; });
+document.getElementById('big').onclick = () => { R = R === 26 ? 40 : 26; };
+
+// фон — соты
+const hexC = document.createElement('canvas'); (() => { const s = 36, w = s * Math.sqrt(3), h = s * 3; hexC.width = w * 2; hexC.height = h * 2; const g = hexC.getContext('2d'); g.scale(2, 2); g.fillStyle = '#0b1018'; g.fillRect(0, 0, w, h);
+  for (const [x, y] of [[0, 0], [w, 0], [w / 2, h / 2], [0, h], [w, h]]) { g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g.lineTo(x + Math.cos(a) * (s - 5), y + Math.sin(a) * (s - 5)); } g.closePath(); g.fillStyle = '#18202e'; g.fill(); } })();
+const hexP = ctx.createPattern(hexC, 'repeat'); hexP.setTransform(new DOMMatrix().scaleSelf(0.5, 0.5));
+
+// мелкая чешуя — узор для наложения
+const scaleC = document.createElement('canvas'); scaleC.width = 24; scaleC.height = 20; (() => { const g = scaleC.getContext('2d');
+  for (const [x, y] of [[0, 0], [24, 0], [12, 10], [0, 20], [24, 20]]) { const gr = g.createRadialGradient(x - 2, y - 3, 1, x, y, 11); gr.addColorStop(0, 'rgba(255,255,255,0.22)'); gr.addColorStop(0.75, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.5)');
+    g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, 12, 10, 0, 0, TAU); g.fill(); } })();
+const scaleP = ctx.createPattern(scaleC, 'repeat');
+
+// путь змеи
+const path = []; for (let i = 0; i < 400; i++) path.push([W / 2 - i * 4, H / 2]);
+let aim = 0, ang = 0;
+addEventListener('pointermove', e => { aim = Math.atan2(e.clientY - path[0][1], e.clientX - path[0][0]); });
+addEventListener('pointerdown', e => { if (e.target.tagName !== 'BUTTON') aim = Math.atan2(e.clientY - path[0][1], e.clientX - path[0][0]); });
+
+function bodyPoints(len, step) { // точки вдоль тела с равным шагом: [x, y, угол]
+  const out = [[path[0][0], path[0][1], ang]]; let acc = 0, next = step;
+  for (let i = 1; i < path.length && next <= len; i++) {
+    const [x0, y0] = path[i - 1], [x1, y1] = path[i], L = Math.hypot(x1 - x0, y1 - y0);
+    while (next <= acc + L && L && next <= len) { const f = (next - acc) / L; out.push([x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, Math.atan2(y0 - y1, x0 - x1)]); next += step; }
+    acc += L;
+  }
+  return out;
+}
+function strokeOffset(P, off, width, style) { // линия, сдвинутая вбок от оси тела
+  ctx.beginPath(); P.forEach(([x, y, a], i) => { const ox = x - Math.sin(a) * off, oy = y + Math.cos(a) * off; i ? ctx.lineTo(ox, oy) : ctx.moveTo(ox, oy); });
+  ctx.lineWidth = width; ctx.strokeStyle = style; ctx.stroke();
+}
+const sparks = [];
+function draw(t) {
+  requestAnimationFrame(draw);
+  // движение
+  let d = aim - ang; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; ang += Math.max(-0.07, Math.min(0.07, d));
+  const [hx0, hy0] = path[0]; let nx = hx0 + Math.cos(ang) * 3.2, ny = hy0 + Math.sin(ang) * 3.2;
+  if (nx < 60 || nx > W - 60 || ny < 60 || ny > H - 60) { aim = Math.atan2(H / 2 - ny, W / 2 - nx); }
+  path.unshift([nx, ny]); if (path.length > 900) path.length = 900;
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = hexP; ctx.fillRect(0, 0, W, H);
+  const len = R * 26, P = bodyPoints(len, 3);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // тень на полу
+  ctx.save(); ctx.translate(R * 0.25, R * 0.35); strokeOffset(P, 0, R * 2.1, 'rgba(0,0,0,0.45)'); ctx.restore();
+  // хвост сужается: рисуем тело кусками с уменьшающейся толщиной
+  const N = P.length, seg = 3; // мелкие куски — хвост сужается плавно, без ступенек
+  for (let s = 0; s < N - 1; s += seg) {
+    const part = P.slice(s, Math.min(N, s + seg + 1)), k = s / N, w = R * 2 * (k < 0.55 ? 1 : Math.max(0.12, 1 - (k - 0.55) / 0.45 * 0.88));
+    strokeOffset(part, 0, w, V.base);
+    strokeOffset(part, 0, w * 0.78, V.mid);
+    strokeOffset(part, -w * 0.18, w * 0.22, 'rgba(255,255,255,0.10)'); // блик сверху
+    ctx.save(); ctx.globalAlpha = 0.55; strokeOffset(part, 0, w, scaleP); ctx.restore(); // чешуя
+  }
+  // золотые линии по бокам — вторым проходом, поверх всего тела
+  for (let s = 0; s < N - 1; s += seg) {
+    const part = P.slice(s, Math.min(N, s + seg + 1)), k = s / N, w = R * 2 * (k < 0.55 ? 1 : Math.max(0.12, 1 - (k - 0.55) / 0.45 * 0.88));
+    strokeOffset(part, w * 0.40, Math.max(1, w * 0.05), V.line);
+    strokeOffset(part, -w * 0.40, Math.max(1, w * 0.05), V.line);
+  }
+  // золотые ромбы по хребту (как у королевского питона)
+  for (let i = Math.round(R * 2.2 / 3); i < N - 6; i += Math.round(R * 1.15)) {
+    const [x, y, a] = P[i], k = i / N, sz = R * 0.62 * (k < 0.55 ? 1 : Math.max(0.2, 1 - (k - 0.55) / 0.45));
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    const gr = ctx.createLinearGradient(-sz, -sz, sz, sz); gr.addColorStop(0, V.gold[0]); gr.addColorStop(0.4, V.gold[1]); gr.addColorStop(0.8, V.gold[2]); gr.addColorStop(1, V.gold[3]);
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(sz * 1.1, 0); ctx.lineTo(0, sz * 0.62); ctx.lineTo(-sz * 1.1, 0); ctx.lineTo(0, -sz * 0.62); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(40,25,0,0.8)'; ctx.lineWidth = Math.max(1, sz * 0.08); ctx.stroke();
+    ctx.fillStyle = V.base; ctx.beginPath(); ctx.moveTo(sz * 0.42, 0); ctx.lineTo(0, sz * 0.22); ctx.lineTo(-sz * 0.42, 0); ctx.lineTo(0, -sz * 0.22); ctx.closePath(); ctx.fill();
+    const sh = (t * 0.0006 + k) % 1; if (sh < 0.08) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill(); } // бегущий блеск
+    ctx.restore();
+  }
+  // голова: вытянутая, чёрная с золотым узором
+  const [hx, hy] = P[0], ca = Math.cos(ang), sa = Math.sin(ang);
+  ctx.save(); ctx.translate(hx + ca * R * 0.25, hy + sa * R * 0.25); ctx.rotate(ang);
+  const hg = ctx.createRadialGradient(-R * 0.2, -R * 0.35, R * 0.1, 0, 0, R * 1.4); hg.addColorStop(0, V.mid); hg.addColorStop(1, V.base);
+  ctx.fillStyle = hg; ctx.beginPath(); // голова клином, как у питона: широкий затылок, сужение к носу
+  ctx.moveTo(-R * 0.9, -R * 0.95); ctx.quadraticCurveTo(R * 0.6, -R * 1.15, R * 1.35, -R * 0.35); ctx.quadraticCurveTo(R * 1.6, 0, R * 1.35, R * 0.35);
+  ctx.quadraticCurveTo(R * 0.6, R * 1.15, -R * 0.9, R * 0.95); ctx.quadraticCurveTo(-R * 1.25, 0, -R * 0.9, -R * 0.95); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = V.line; ctx.lineWidth = Math.max(1, R * 0.06); ctx.stroke();
+  ctx.fillStyle = V.gold[1]; ctx.beginPath(); ctx.moveTo(-R * 0.9, 0); ctx.lineTo(R * 0.1, -R * 0.28); ctx.lineTo(R * 0.55, 0); ctx.lineTo(R * 0.1, R * 0.28); ctx.closePath(); ctx.fill(); // золотая метка на темени
+  for (const sg of [-1, 1]) { // глаза: золото, зрачок-щёлка, свечение
+    const ex = R * 0.55, ey = sg * R * 0.56;
+    ctx.save(); ctx.shadowColor = V.eye; ctx.shadowBlur = R * 0.6;
+    const eg = ctx.createRadialGradient(ex - R * 0.06, ey - R * 0.06, 1, ex, ey, R * 0.3); eg.addColorStop(0, '#fff6c0'); eg.addColorStop(0.6, V.eye); eg.addColorStop(1, '#7a5200');
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, R * 0.3, 0, TAU); ctx.fill(); ctx.restore();
+    ctx.fillStyle = '#0a0a0a'; ctx.beginPath(); ctx.ellipse(ex + R * 0.04, ey, R * 0.06, R * 0.22, 0, 0, TAU); ctx.fill(); // вертикальный зрачок
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(ex - R * 0.1, ey - R * 0.1, R * 0.06, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; for (const sg of [-1, 1]) { ctx.beginPath(); ctx.ellipse(R * 1.15, sg * R * 0.2, R * 0.07, R * 0.04, 0, 0, TAU); ctx.fill(); } // ноздри
+  // сигара
+  ctx.save(); ctx.translate(R * 1.05, R * 0.42); ctx.rotate(0.5);
+  const L = R * 1.5, Wc = R * 0.22, cg = ctx.createLinearGradient(0, -Wc, 0, Wc); cg.addColorStop(0, '#9a6236'); cg.addColorStop(0.5, '#6b3e1f'); cg.addColorStop(1, '#3a200e');
+  ctx.fillStyle = cg; ctx.fillRect(0, -Wc, L, Wc * 2); ctx.fillStyle = V.gold[1]; ctx.fillRect(L * 0.18, -Wc, L * 0.12, Wc * 2);
+  ctx.fillStyle = '#8a8a8a'; ctx.fillRect(L - Wc * 0.5, -Wc, Wc * 0.5, Wc * 2);
+  const glow = 0.6 + 0.4 * Math.sin(t * 0.006); ctx.fillStyle = `rgba(255,${Math.round(90 + 60 * glow)},20,1)`; ctx.beginPath(); ctx.arc(L, 0, Wc * 0.75, 0, TAU); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+  // дым от сигары
+  const tipX = hx + ca * R * 1.3 + Math.cos(ang + 0.5) * R * 1.5 - sa * R * 0.42, tipY = hy + sa * R * 1.3 + Math.sin(ang + 0.5) * R * 1.5 + ca * R * 0.42;
+  for (let k = 0; k < 5; k++) { const ph = ((t * 0.0005) + k / 5) % 1; ctx.fillStyle = `rgba(200,205,215,${0.3 * (1 - ph)})`; ctx.beginPath(); ctx.arc(tipX + Math.sin(ph * 6 + k) * R * 0.3, tipY - ph * R * 3, R * (0.15 + ph * 0.5), 0, TAU); ctx.fill(); }
+  // золотые искры поднимаются от тела
+  if (Math.random() < 0.5) { const p = P[(Math.random() * (N * 0.7)) | 0]; sparks.push({ x: p[0] + (Math.random() - 0.5) * R, y: p[1], vy: -0.4 - Math.random() * 0.6, life: 1 }); }
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.y += s.vy; s.x += Math.sin(t * 0.003 + i) * 0.3; s.life -= 0.012; if (s.life <= 0) { sparks.splice(i, 1); continue; }
+    ctx.fillStyle = `rgba(255,213,46,${s.life * 0.8})`; ctx.beginPath(); ctx.arc(s.x, s.y, 1.2 + s.life * 1.8, 0, TAU); ctx.fill(); }
+  ctx.globalCompositeOperation = 'source-over';
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
