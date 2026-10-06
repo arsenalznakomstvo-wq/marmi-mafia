@@ -547,17 +547,18 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
   ctx.save(); ctx.translate(px, py); ctx.rotate(hang * 0.5);
   const x0 = -w / 2, y0 = 0, rr = 4 * s;
   if (ri === DON) { ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = (12 + 6 * Math.sin(time * 0.006)) * s; }
-  ctx.fillStyle = R.color;
+  const PS = PLATE_STYLE[R.name] || { bg: R.color, fg: '#fff', border: 'rgba(0,0,0,0.35)' };
+  ctx.fillStyle = PS.bg;
   ctx.beginPath(); ctx.moveTo(x0 + rr, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, rr); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, rr);
   ctx.arcTo(x0, y0 + h, x0, y0, rr); ctx.arcTo(x0, y0, x0 + w, y0, rr); ctx.closePath(); ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.lineWidth = Math.max(1, 1.2 * s); ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+  ctx.lineWidth = Math.max(1, 1.6 * s); ctx.strokeStyle = PS.border; ctx.stroke();
   if (ri === DON) { // блик на золоте
     const g = ctx.createLinearGradient(x0, 0, x0 + w, h); const p = (time * 0.0005) % 1;
     g.addColorStop(Math.max(0, p - 0.15), 'rgba(255,255,255,0)'); g.addColorStop(p, 'rgba(255,255,255,0.55)'); g.addColorStop(Math.min(1, p + 0.15), 'rgba(255,255,255,0)');
     ctx.fillStyle = g; ctx.fill();
   }
-  ctx.fillStyle = ri === DON || R.name === 'Киллер' || R.name === 'Комиссар' || R.name === 'Бомба' ? '#1a1a1a' : '#ffffff';
+  ctx.fillStyle = PS.fg;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, 0, h / 2 + 0.5);
   ctx.restore();
@@ -619,6 +620,147 @@ function showPromo(ri) {
   Sound.promo(don);
 }
 
+// ===== Облик роли поверх скина (владелец 06.10, вариант «б»): скин игрока остаётся, роль добавляет свои детали =====
+// Стиль таблички на спине по роли: фон, цвет текста, рамка
+const PLATE_STYLE = {
+  'Проститутка': { bg: '#ff5fc8', fg: '#ffffff', border: '#ffd0f0' },
+  'Параноик':    { bg: '#5b2fc8', fg: '#ffffff', border: '#c9a8ff' },
+  'Бомба':       { bg: '#2a2a2a', fg: '#ff8a1f', border: '#ff8a1f' },
+  'Доктор':      { bg: '#ffffff', fg: '#e8323c', border: '#e8323c' },
+  'Шериф':       { bg: '#c8a04a', fg: '#3a2a0a', border: '#ffe08a' },
+  'Комиссар':    { bg: '#1d2b44', fg: '#7de3ff', border: '#7de3ff' },
+  'Киллер':      { bg: '#1a1a1a', fg: '#ff3b3b', border: '#9aa3ad' },
+  'Мафия':       { bg: '#0d0d0d', fg: '#ffffff', border: '#e8323c' },
+  'Дон Мафии':   { bg: '#ffd52e', fg: '#1a1a1a', border: '#fff3a0' },
+};
+const roleFlash = new Map(); // id → { role, until } — вспышка при смене роли
+
+function star(cx, cy, R, n = 5) {
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) { const rr = i % 2 ? R * 0.45 : R, a = -Math.PI / 2 + i * Math.PI / n; ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+  ctx.closePath();
+}
+function heart(cx, cy, R) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + R * 0.9);
+  ctx.bezierCurveTo(cx - R * 1.4, cy - R * 0.1, cx - R * 0.6, cy - R * 1.1, cx, cy - R * 0.35);
+  ctx.bezierCurveTo(cx + R * 0.6, cy - R * 1.1, cx + R * 1.4, cy - R * 0.1, cx, cy + R * 0.9);
+  ctx.closePath();
+}
+// Точки тела с равным шагом step (от шеи к хвосту): [x, y, угол]
+function bodyMarks(cnt, step, startDist) {
+  const out = []; let acc = 0, next = startDist;
+  for (let k = 0; k < cnt - 1; k++) {
+    const dx = SX[k + 1] - SX[k], dy = SY[k + 1] - SY[k], L = Math.hypot(dx, dy);
+    while (next <= acc + L && L) { const f = (next - acc) / L; out.push([SX[k] + dx * f, SY[k] + dy * f, Math.atan2(dy, dx)]); next += step; }
+    acc += L;
+  }
+  return out;
+}
+// Под телом (до шариков): свечение Дона, «костюм» Мафии
+function drawRoleUnder(ri, cnt, r, time, view) {
+  const name = (ROLES[ri] || {}).name;
+  if (ri === DON) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28 + 0.1 * Math.sin(time * 0.004);
+    const halo = haloSprite('#ffd52e'), hs = r * 2 * 2.3 * SPR / (SR * 2) / 1.6;
+    for (let k = 0; k < cnt; k += 3) { const x = SX[k], y = SY[k]; if (x < view.x0 - hs || x > view.x1 + hs || y < view.y0 - hs || y > view.y1 + hs) continue; ctx.drawImage(halo, x - hs / 2, y - hs / 2, hs, hs); }
+    ctx.restore();
+  }
+  void name;
+}
+// Поверх тела: детали роли
+function drawRoleOver(ri, cnt, r, time, view, boost) {
+  const name = (ROLES[ri] || {}).name; if (!name || ri === 0) return;
+  const m = r * 2, inView = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
+  const start = r * 6; // начинаем за табличкой на спине
+  ctx.save();
+  if (name === 'Проститутка') {
+    for (const [x, y] of bodyMarks(cnt, r * 3.2, start)) { if (!inView(x, y)) continue; const p = 1 + 0.12 * Math.sin(time * 0.008 + x * 0.05); ctx.fillStyle = 'rgba(255, 95, 200, 0.85)'; heart(x, y, r * 0.38 * p); ctx.fill(); }
+  } else if (name === 'Параноик') {
+    let i = 0;
+    for (const [x, y] of bodyMarks(cnt, r * 4, start)) {
+      i++; if (!inView(x, y)) continue;
+      const er = r * 0.32, la = Math.atan2(cam.y - y, cam.x - x) + Math.sin(time * 0.003 + i) * 0.6; // косятся по сторонам
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, er, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x + Math.cos(la) * er * 0.4, y + Math.sin(la) * er * 0.4, er * 0.5, 0, TAU); ctx.fill();
+    }
+  } else if (name === 'Бомба') {
+    const tx = SX[cnt - 1], ty = SY[cnt - 1], px = SX[Math.max(0, cnt - 4)], py = SY[Math.max(0, cnt - 4)], a = Math.atan2(ty - py, tx - px);
+    if (inView(tx, ty)) {
+      const fx = tx + Math.cos(a) * r * 1.4, fy = ty + Math.sin(a) * r * 1.4;
+      ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = r * 0.18; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + Math.cos(a + 0.6) * r, ty + Math.sin(a + 0.6) * r, fx, fy); ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 6; i++) { const ang = time * 0.02 + i * 1.05, d = r * (0.25 + 0.35 * ((time * 0.01 + i) % 1)); ctx.fillStyle = i % 2 ? '#ffd52e' : '#ff6a00'; ctx.beginPath(); ctx.arc(fx + Math.cos(ang) * d, fy + Math.sin(ang) * d, r * 0.12, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 0.05); ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(fx, fy, r * 0.22, 0, TAU); ctx.fill();
+    }
+  } else if (name === 'Доктор') {
+    for (const [x, y, a] of bodyMarks(cnt, r * 3.4, start)) {
+      if (!inView(x, y)) continue;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a); const L = r * 0.42, W = r * 0.15;
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-L, -W, L * 2, W * 2); ctx.fillRect(-W, -L, W * 2, L * 2);
+      ctx.fillStyle = '#e8323c'; ctx.fillRect(-L * 0.7, -W * 0.55, L * 1.4, W * 1.1); ctx.fillRect(-W * 0.55, -L * 0.7, W * 1.1, L * 1.4);
+      ctx.restore();
+    }
+  } else if (name === 'Шериф') {
+    for (const [x, y] of bodyMarks(cnt, r * 3.4, start)) { if (!inView(x, y)) continue; ctx.fillStyle = '#ffd52e'; star(x, y, r * 0.42); ctx.fill(); ctx.strokeStyle = 'rgba(90, 60, 0, 0.7)'; ctx.lineWidth = r * 0.06; ctx.stroke(); }
+  } else if (name === 'Комиссар' || name === 'Киллер') {
+    const col = name === 'Комиссар' ? 'rgba(15, 25, 45, 0.55)' : 'rgba(200, 20, 30, 0.75)';
+    for (const [x, y, a] of bodyMarks(cnt, r * (name === 'Киллер' ? 2.2 : 2.8), start)) {
+      if (!inView(x, y)) continue;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.fillStyle = col; ctx.fillRect(-r * 0.18, -r * 0.98, r * 0.36, r * 1.96); ctx.restore();
+    }
+    if (name === 'Киллер') { // стальная окантовка по краям тела
+      ctx.strokeStyle = 'rgba(190, 200, 212, 0.75)'; ctx.lineWidth = r * 0.12;
+      for (const sgn of [-1, 1]) { ctx.beginPath(); let first = true; for (const [x, y, a] of bodyMarks(cnt, r * 0.6, r * 1.2)) { const ox = x - Math.sin(a) * r * 0.92 * sgn, oy = y + Math.cos(a) * r * 0.92 * sgn; if (first) { ctx.moveTo(ox, oy); first = false; } else ctx.lineTo(ox, oy); } ctx.stroke(); }
+    }
+  } else if (name === 'Мафия') {
+    // чёрный «костюм» в тонкую белую полоску
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(10, 10, 10, 0.62)'; ctx.lineWidth = r * 1.75;
+    ctx.beginPath(); ctx.moveTo(SX[0], SY[0]); for (let k = 1; k < cnt; k += 2) ctx.lineTo(SX[k], SY[k]); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.lineWidth = Math.max(1, r * 0.06);
+    for (const off of [-0.5, 0, 0.5]) { ctx.beginPath(); let first = true; for (const [x, y, a] of bodyMarks(cnt, r * 0.6, r * 1.5)) { const ox = x - Math.sin(a) * r * off, oy = y + Math.cos(a) * r * off; if (first) { ctx.moveTo(ox, oy); first = false; } else ctx.lineTo(ox, oy); } ctx.stroke(); }
+  }
+  void boost;
+  ctx.restore();
+}
+// Головной убор: шляпа у Комиссара и Мафии, корона у Дона
+function drawRoleHat(ri, hx, hy, a, r, time) {
+  const name = (ROLES[ri] || {}).name; if (!name) return;
+  if (name !== 'Комиссар' && name !== 'Мафия' && ri !== DON) return;
+  // за глазами, верх убора смотрит вперёд по ходу
+  ctx.save(); ctx.translate(hx - Math.cos(a) * r * 1.15, hy - Math.sin(a) * r * 1.15); ctx.rotate(a + Math.PI / 2);
+  if (ri === DON) {
+    const w = r * 1.9, h = r * 1.15, b = r * 0.35;
+    ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = r * 0.6;
+    ctx.fillStyle = '#ffd52e';
+    ctx.beginPath(); ctx.moveTo(-w / 2, b); ctx.lineTo(-w / 2, b - h * 0.6); ctx.lineTo(-w / 4, b - h * 0.25); ctx.lineTo(0, b - h); ctx.lineTo(w / 4, b - h * 0.25); ctx.lineTo(w / 2, b - h * 0.6); ctx.lineTo(w / 2, b); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.strokeStyle = '#a77a00'; ctx.lineWidth = r * 0.07; ctx.stroke();
+    for (const [x, c] of [[-w / 4, '#e8323c'], [0, '#3d6bff'], [w / 4, '#3ddc5a']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, b - h * 0.18, r * 0.1, 0, TAU); ctx.fill(); }
+  } else { // фетровая шляпа
+    const w = r * 1.7, col = name === 'Мафия' ? '#111111' : '#2b3a55';
+    ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, 0, w / 2, r * 0.22, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-w * 0.3, 0); ctx.lineTo(-w * 0.26, -r * 0.75); ctx.quadraticCurveTo(0, -r * 0.95, w * 0.26, -r * 0.75); ctx.lineTo(w * 0.3, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = name === 'Мафия' ? '#e8323c' : '#7de3ff'; ctx.fillRect(-w * 0.29, -r * 0.24, w * 0.58, r * 0.16);
+  }
+  ctx.restore();
+}
+// Вспышка по телу при смене роли
+function drawRoleFlash(id, ri, cnt, r, view) {
+  let f = roleFlash.get(id);
+  if (!f) { roleFlash.set(id, { role: ri, until: 0 }); return; }
+  if (f.role !== ri) { f.role = ri; f.until = performance.now() + 900; }
+  const left = f.until - performance.now(); if (left <= 0) return;
+  const k = left / 900, col = (ROLES[ri] || ROLES[0]).color, hs = r * 2 * 2.6 * SPR / (SR * 2) / 1.6;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = k * 0.9;
+  const halo = haloSprite(col);
+  const front = Math.floor((1 - k) * cnt); // волна бежит от головы к хвосту
+  for (let i = Math.max(0, front - 30); i < Math.min(cnt, front + 30); i += 2) { const x = SX[i], y = SY[i]; if (x < view.x0 - hs || x > view.x1 + hs || y < view.y0 - hs || y > view.y1 + hs) continue; ctx.drawImage(halo, x - hs / 2, y - hs / 2, hs, hs); }
+  ctx.restore();
+}
+setInterval(() => { if (roleFlash.size > 400) roleFlash.clear(); }, 15000);
+
 // ===== Отрисовка =====
 const cam = { x: 0, y: 0, s: 0.8 };
 const SX = [], SY = [], SI = [];
@@ -662,6 +804,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
       ctx.drawImage(sh, x - ss / 2 + so, y - ss / 2 + so, ss, ss);
     }
   }
+  const roleIdx = meta && !fade ? (meta.role || 0) : 0;
+  if (roleIdx) drawRoleUnder(roleIdx, cnt, r, time, view);
   if (sn.boost && !fade) { // при ускорении тело светится и пульсирует
     const hs = size * 2.2, hh = hs / 2;
     ctx.globalCompositeOperation = 'lighter';
@@ -679,6 +823,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
   }
 
+  if (roleIdx) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
+  if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);
   if (sn.idx[0] === 0) { // голова на экране
     const hx = sn.xs[0], hy = sn.ys[0], a = sn.a;
     if (!fade) lastHeads.set(sn.id, { x: hx, y: hy });
@@ -686,6 +832,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     let neck = null;
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
+    if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));

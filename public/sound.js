@@ -108,9 +108,27 @@ window.Sound = (() => {
     if (!ok()) return;
     boost(false);
     const t = ac.currentTime;
-    tone(392, 0.55, 'sine', 0.07, t, 196);
-    tone(294, 0.7, 'triangle', 0.05, t + 0.15, 110);
-    noise(0.5, 0.03, 900, 120, 0.8, t);
+    // «Шмяк» — как помидор вдребезги (владелец 06.10): глухой влажный удар + чавкающий всплеск + брызги
+    const thud = ac.createOscillator(), tg = ac.createGain();
+    thud.type = 'sine'; thud.frequency.setValueAtTime(160, t); thud.frequency.exponentialRampToValueAtTime(45, t + 0.18);
+    tg.gain.setValueAtTime(0.0001, t); tg.gain.exponentialRampToValueAtTime(0.32, t + 0.006); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    thud.connect(tg); tg.connect(sfx); thud.start(t); thud.stop(t + 0.25);
+    splat(t, 0.16, 0.22, 2600, 400, 1.6);           // мокрый всплеск
+    splat(t + 0.02, 0.09, 0.12, 5200, 1800, 2.5);   // чавк
+    for (let i = 0; i < 7; i++) {                   // брызги-капли
+      const d = 0.05 + Math.random() * 0.28;
+      splat(t + d, 0.03 + Math.random() * 0.04, 0.03 + Math.random() * 0.04, 3000 + Math.random() * 3000, 900, 4);
+    }
+  }
+  // Короткий отфильтрованный шум с быстрым спадом — основа «мокрых» звуков
+  function splat(t, dur, vol, f0, f1, q) {
+    const src = ac.createBufferSource(); src.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = q;
+    bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(sfx);
+    src.start(t, Math.random() * 0.8); src.stop(t + dur + 0.02);
   }
   // Новая роль: короткий подъём нот; Дон — фанфары
   function promo(don) {
