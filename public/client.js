@@ -771,6 +771,7 @@ const ROLE_SKIN = {
   'Проститутка': ['#ff5fc8'],
   'Мафия': ['#1e1e22'],
   'Киллер': ['#b4bcc6', '#b4bcc6', '#b4bcc6', '#141414'],
+  'Шериф': ['#f2f2f2'], // белый + шахматная клетка поверх (владелец 07.10: вместо звёздочек)
 };
 const roleFlash = new Map(); // id → { role, until } — вспышка при смене роли
 
@@ -797,6 +798,18 @@ function bodyMarks(cnt, step, startDist) {
   return out;
 }
 // Под телом (до шариков): свечение Дона, «костюм» Мафии
+// Шахматная клетка поверх белого тела: два ряда чёрных квадратов вперемешку вдоль змеи
+function drawChecker(cnt, r, view) {
+  const m = r * 2, s = r * 0.92;
+  ctx.fillStyle = '#141414';
+  let k = 0;
+  for (const [x, y, a] of bodyMarks(cnt, s, r * 0.9)) {
+    k++;
+    if (x < view.x0 - m || x > view.x1 + m || y < view.y0 - m || y > view.y1 + m) continue;
+    const side = k % 2 ? 1 : -1, ox = -Math.sin(a) * side * s * 0.5, oy = Math.cos(a) * side * s * 0.5;
+    ctx.save(); ctx.translate(x + ox, y + oy); ctx.rotate(a); ctx.fillRect(-s / 2, -s / 2, s, s); ctx.restore();
+  }
+}
 function drawRoleUnder(ri, cnt, r, time, view) {
   const name = (ROLES[ri] || {}).name;
   if (false && ri === DON) { // владелец 06.10: Дон — как было, без свечения
@@ -849,7 +862,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
       ctx.restore();
     }
   } else if (name === 'Шериф') {
-    for (const [x, y] of bodyMarks(cnt, r * 3.4, start)) { if (!inView(x, y)) continue; ctx.fillStyle = '#ffd52e'; star(x, y, r * 0.42); ctx.fill(); ctx.strokeStyle = 'rgba(90, 60, 0, 0.7)'; ctx.lineWidth = r * 0.06; ctx.stroke(); }
+    drawChecker(cnt, r, view);
   } else if (name === 'Комиссар' || name === 'Киллер') {
     const col = name === 'Комиссар' ? 'rgba(15, 25, 45, 0.55)' : 'rgba(200, 20, 30, 0.75)';
     for (const [x, y, a] of bodyMarks(cnt, r * (name === 'Киллер' ? 2.2 : 2.8), start)) {
@@ -980,6 +993,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   }
 
   if (roleIdx && !sk.text && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
+  if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
   if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);
   if (sn.idx[0] === 0) { // голова на экране
     const hx = sn.xs[0], hy = sn.ys[0], a = sn.a;
@@ -1235,6 +1249,13 @@ function drawSkinPath(g, sk, pts, r) {
   const a = Math.atan2(pts[0][1] - pts[1][1], pts[0][0] - pts[1][0]);
   const nk = Math.min(xs.length - 2, Math.round(r * 2.6 / sp));
   const neck = nk > 1 ? [xs[nk], ys[nk], Math.atan2(ys[nk - 1] - ys[nk + 1], xs[nk - 1] - xs[nk + 1])] : null;
+  if (p.style === 'checker') { // шахматная клетка и на витрине
+    const sq = r * 0.92; let acc = 0, next = r * 0.9, k = 0; g.fillStyle = '#141414';
+    for (let i = 1; i < xs.length; i++) { const dx = xs[i] - xs[i - 1], dy = ys[i] - ys[i - 1], L = Math.hypot(dx, dy); const an = Math.atan2(dy, dx);
+      while (next <= acc + L && L) { const f = (next - acc) / L, x = xs[i - 1] + dx * f, y = ys[i - 1] + dy * f, side = ++k % 2 ? 1 : -1;
+        g.save(); g.translate(x - Math.sin(an) * side * sq * 0.5, y + Math.cos(an) * side * sq * 0.5); g.rotate(an); g.fillRect(-sq / 2, -sq / 2, sq, sq); g.restore(); next += sq; }
+      acc += L; }
+  }
   if (p.text) { // особый скин: золотая надпись вдоль тела и на витрине
     const unit = p.text + '  ★  ';
     let pathLen = 0; for (let i = 1; i < xs.length; i++) pathLen += Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
