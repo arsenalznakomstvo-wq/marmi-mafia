@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#161c22">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Марми Мафия</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hide">
+  <div id="scorebox">
+    <div>Ваша длина: <b id="len">0</b></div>
+    <div id="rank"></div>
+  </div>
+  <div id="lb">
+    <div class="lb-title">Рейтинг</div>
+    <div id="lb-rows"></div>
+  </div>
+  <canvas id="minimap" width="140" height="140"></canvas>
+  <div id="boostBtn" class="hide">⚡</div>
+  <div id="joy" class="hide"><div id="joyKnob"></div></div>
+  <div id="toast"></div>
+  <div id="ping"></div>
+</div>
+
+<div id="menu" class="menu">
+  <div class="title" aria-label="марми мафия">
+    <span class="t1"><i style="--i:0">м</i><i style="--i:1">а</i><i style="--i:2">р</i><i style="--i:3">м</i><i style="--i:4">и</i></span>
+    <span class="t2"><i style="--i:5">м</i><i style="--i:6">а</i><i style="--i:7">ф</i><i style="--i:8">и</i><i style="--i:9">я</i></span>
+  </div>
+
+  <div id="result" class="hide"></div>
+  <input id="nick" maxlength="16" placeholder="Имя" autocomplete="off" spellcheck="false">
+  <button id="play" class="btn-green" disabled>Играть</button>
+  <div id="status">Подключение к серверу…</div>
+  <div class="help" id="help"></div>
+  <button id="ctrlBtn" class="hide"></button>
+
+  <button id="skinBtn" title="Сменить скин"><canvas id="skinIcon" width="160" height="160"></canvas><span>Сменить скин</span></button>
+  <button id="buildBtn" title="Собрать свою змейку"><canvas id="buildIcon" width="160" height="160"></canvas><span>Собрать змейку</span></button>
+  <div id="qualityBox"><div class="ql">Графика:</div><button id="qualityBtn"></button></div>
+</div>
+
+<div id="skinScreen" class="menu hide">
+  <div class="skin-stage">
+    <button id="prevSkin" class="arrow" aria-label="Предыдущий">&#9664;</button>
+    <canvas id="skinCanvas"></canvas>
+    <button id="nextSkin" class="arrow" aria-label="Следующий">&#9654;</button>
+  </div>
+  <div id="skinName"></div>
+  <div id="skinNum"></div>
+  <div id="customizer" class="hide"><button id="toBuilder" class="btn-green">Собрать змейку</button></div>
+  <button id="saveSkin" class="btn-green">Сохранить</button>
+</div>
+
+<div id="buildScreen" class="menu hide">
+  <div id="palette"></div>
+  <canvas id="buildCanvas"></canvas>
+  <div id="buildHint">Каждое нажатие красит одно колечко от головы. Нажмите цвет несколько раз — полоса станет толще</div>
+  <div class="build-btns"><button id="buildReset" class="btn-green">Сбросить</button><button id="buildSave" class="btn-green">Сохранить</button></div>
+</div>
+
+<button id="soundBtn" title="Звук: всё / только звуки / тишина"></button>
+<script src="skins.js"></script>
+<script src="sound.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
