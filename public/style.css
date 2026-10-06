@@ -345,8 +345,8 @@ body:not(.in-menu) #menuPhotos { display: none; }
 /* Меню: два фото по бокам вместо слайд-шоу (владелец 07.10); к середине плавно уходят в темноту */
 #menuPhotos img { position: absolute; top: 0; height: 100%; width: 34vw; object-fit: cover; opacity: 0.95 !important;
   transform: none !important; transition: none !important; left: auto; }
-#mpL { left: 0 !important; object-position: 30% center; -webkit-mask-image: linear-gradient(to right, #000 55%, transparent); mask-image: linear-gradient(to right, #000 55%, transparent); }
-#mpR { right: 0 !important; object-position: 35% center; -webkit-mask-image: linear-gradient(to left, #000 55%, transparent); mask-image: linear-gradient(to left, #000 55%, transparent); }
+#mpL { left: 0 !important; object-position: 25% center; -webkit-mask-image: linear-gradient(to right, #000 55%, transparent); mask-image: linear-gradient(to right, #000 55%, transparent); }
+#mpR { right: 0 !important; object-position: 20% center; -webkit-mask-image: linear-gradient(to left, #000 55%, transparent); mask-image: linear-gradient(to left, #000 55%, transparent); }
 @media (max-width: 700px) { /* телефон стоя: фото на всю половину, приглушены, чтобы кнопки читались */
   #menuPhotos img { width: 50vw; opacity: 0.45 !important; -webkit-mask-image: none; mask-image: none; }
 }
