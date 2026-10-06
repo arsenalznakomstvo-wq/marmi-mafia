@@ -284,3 +284,13 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; trans
 #promo.don .pn { font-size: 40px; color: #ffd52e; text-shadow: 0 0 20px #ffb300, 0 0 40px #ff8a00; }
 @keyframes donCrown { 50% { transform: translateY(-6px) scale(1.1); } }
 @media (max-height: 500px) { #promo { top: 32%; } #promo .pn { font-size: 24px; } #promo.don .pn { font-size: 30px; } #promo.don .pi { font-size: 34px; } }
+
+/* Поздравление с ролью — компактнее (владелец 06.10) */
+#promo { top: 24%; padding: 8px 18px; border-radius: 14px; }
+#promo .pt { font-size: 11px; letter-spacing: 1px; }
+#promo .pn { font-size: 21px; margin: 2px 0; }
+#promo .ps { font-size: 11px; }
+#promo.don { padding: 10px 22px; }
+#promo.don .pi { font-size: 28px; }
+#promo.don .pn { font-size: 26px; }
+@media (max-height: 500px) { #promo { top: 26%; } #promo .pn { font-size: 18px; } #promo.don .pn { font-size: 22px; } #promo.don .pi { font-size: 24px; } }
