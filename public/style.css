@@ -294,3 +294,8 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; trans
 #promo.don .pi { font-size: 28px; }
 #promo.don .pn { font-size: 26px; }
 @media (max-height: 500px) { #promo { top: 26%; } #promo .pn { font-size: 18px; } #promo.don .pn { font-size: 22px; } #promo.don .pi { font-size: 24px; } }
+
+/* Оповещение о новой роли — справа сбоку, под рейтингом (владелец 06.10) */
+#promo { left: auto; right: max(12px, env(safe-area-inset-right)); top: 300px; transform: translateX(30px) scale(0.85); transform-origin: right center; }
+#promo.show { transform: translateX(0) scale(1); }
+@media (max-width: 900px), (max-height: 500px) { #promo { top: 44%; } }

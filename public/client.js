@@ -533,7 +533,7 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
   st.vel -= turn * 6;
   if (boost) st.vel += Math.sin(time * 0.05) * 0.6;
   st.ang = clamp(st.ang + st.vel * dt, -1.1, 1.1);
-  const L = r * 0.9, s = Math.max(0.6, r / 12);                     // длина ниточки и масштаб таблички
+  const L = r * 0.75, s = Math.max(0.45, r / 18);                   // длина ниточки и масштаб таблички (владелец: поменьше, чтобы не отвлекала)
   const hang = st.ang;                                                // качание вокруг точки крепления
   const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 - r * 0.3;
   const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
