@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Марми Мафия — пробная 3D-змея</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1018; font-family: Arial, sans-serif; touch-action: none; user-select: none; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); z-index: 2; }
+  #ui button { background: rgba(20, 26, 36, 0.85); color: #e8ecf1; border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+  #ui button.on { background: #3e8a63; border-color: #5fd17a; }
+  #fps { position: fixed; right: 10px; top: 10px; color: #8a93a8; font-size: 12px; z-index: 2; background: rgba(10,12,22,0.6); padding: 4px 8px; border-radius: 8px; }
+  #hint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); color: #8a93a8; font-size: 13px; z-index: 2; text-align: center; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }</script>
+</head>
+<body>
+<div id="ui">
+  <button data-skin="python" class="on">🐍 Питон</button>
+  <button data-skin="violet">💜 Фиолетовая</button>
+  <button data-skin="almano">🧡 Альмано</button>
+  <button data-skin="coral">❤️ Коралловый аспид</button>
+  <button id="grow">➕ Длиннее</button>
+  <button id="crowd">🐍×40 Проверка толпы</button>
+  <button id="shadows" class="on">Тени</button>
+</div>
+<div id="fps"></div>
+<div id="hint">Ведите мышкой или пальцем — змея ползёт туда. Это пробная страница, в игре пока ничего не изменилось.</div>
+<script type="module">
+import * as THREE from 'three';
+
+// ===== Сцена =====
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+const isTouch = matchMedia('(pointer: coarse)').matches;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0b1018');
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 6000);
+
+scene.add(new THREE.HemisphereLight('#bcd4ff', '#20160c', 0.9));
+const sun = new THREE.DirectionalLight('#fff4e0', 2.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -500, right: 500, top: 500, bottom: -500, near: 10, far: 2000 });
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+
+// Пол — соты, как в игре
+function hexTexture() {
+  const s = 58, w = Math.round(s * Math.sqrt(3)), h = s * 3, c = document.createElement('canvas'); c.width = w * 4; c.height = h * 4;
+  const g = c.getContext('2d'); g.scale(4, 4);
+  g.fillStyle = '#0b1018'; g.fillRect(0, 0, w, h);
+  for (const [x, y] of [[0, 0], [w, 0], [w / 2, h / 2], [0, h], [w, h]]) {
+    g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g.lineTo(x + Math.cos(a) * (s - 8), y + Math.sin(a) * (s - 8)); } g.closePath();
+    const gr = g.createLinearGradient(x, y - s, x, y + s); gr.addColorStop(0, '#1e2a3d'); gr.addColorStop(1, '#141c2a'); g.fillStyle = gr; g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.repeat.set(4000 / w, 4000 / h); return t;
+}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ map: hexTexture(), roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+// ===== Чешуя: текстура и рельеф рисуются программно =====
+const SKINS = {
+  python: { base: '#6b5a2e', spots: '#2a1f0e', belly: '#d9c48a', pattern: 'blotch' },
+  violet: { base: '#7a3cff', spots: '#3a1488', belly: '#d6c2ff', pattern: 'none' },
+  almano: { base: '#ff9a26', spots: '#3a1066', belly: '#ffe2b0', pattern: 'bands' },
+  coral:  { base: '#d8262e', spots: '#141414', belly: '#f2e9c8', pattern: 'coral' },
+};
+function scaleTextures(sk) {
+  const W = 512, H = 256, c = document.createElement('canvas'), b = document.createElement('canvas');
+  c.width = b.width = W; c.height = b.height = H;
+  const g = c.getContext('2d'), gb = b.getContext('2d');
+  // окраска вдоль (x) и вокруг (y) тела: спина сверху (y≈0.5), брюхо снизу
+  for (let y = 0; y < H; y++) {
+    const around = y / H, back = Math.cos((around - 0.5) * Math.PI * 2); // 1 — спина, −1 — брюхо
+    g.fillStyle = back < -0.55 ? sk.belly : sk.base; g.fillRect(0, y, W, 1);
+  }
+  g.fillStyle = sk.spots;
+  if (sk.pattern === 'blotch') for (let i = 0; i < 9; i++) { g.beginPath(); g.ellipse(i * W / 9 + 20, H / 2 + (i % 2 ? 22 : -22), 26, 34, 0.4, 0, Math.PI * 2); g.fill(); }
+  if (sk.pattern === 'bands') for (let i = 0; i < 4; i++) g.fillRect(i * W / 4, H * 0.2, 26, H * 0.6);
+  if (sk.pattern === 'coral') for (let i = 0; i < 4; i++) { g.fillRect(i * W / 4, 0, 40, H); g.fillStyle = '#f5d33a'; g.fillRect(i * W / 4 - 12, 0, 12, H); g.fillRect(i * W / 4 + 40, 0, 12, H); g.fillStyle = sk.spots; }
+  // чешуйки: ромбическая сетка, каждая со своей тенью — и цвет, и рельеф
+  const sw = 16, sh = 12;
+  gb.fillStyle = '#808080'; gb.fillRect(0, 0, W, H);
+  for (let row = -1; row < H / sh + 1; row++) for (let col = -1; col < W / sw + 1; col++) {
+    const x = col * sw + (row % 2 ? sw / 2 : 0), y = row * sh;
+    const rg = gb.createRadialGradient(x - 2, y - 2, 1, x, y, sw * 0.62);
+    rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.7, '#9a9a9a'); rg.addColorStop(1, '#202020');
+    gb.fillStyle = rg; gb.beginPath(); gb.ellipse(x, y, sw * 0.6, sh * 0.62, 0, 0, Math.PI * 2); gb.fill();
+    const sg = g.createRadialGradient(x - 2, y - 3, 1, x, y, sw * 0.62);
+    sg.addColorStop(0, 'rgba(255,255,255,0.18)'); sg.addColorStop(0.8, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,0.35)');
+    g.fillStyle = sg; g.beginPath(); g.ellipse(x, y, sw * 0.6, sh * 0.62, 0, 0, Math.PI * 2); g.fill();
+  }
+  // узор рисовался со спиной посередине текстуры — сдвигаем на пол-оборота, чтобы спина была сверху тела
+  const c2 = document.createElement('canvas'); c2.width = W; c2.height = H; const g2 = c2.getContext('2d');
+  g2.drawImage(c, 0, -H / 2); g2.drawImage(c, 0, H / 2);
+  const map = new THREE.CanvasTexture(c2), bump = new THREE.CanvasTexture(b);
+  for (const t of [map, bump]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
+  map.colorSpace = THREE.SRGBColorSpace;
+  return { map, bump };
+}
+const matCache = {};
+function bodyMaterial(name) {
+  if (!matCache[name]) { const t = scaleTextures(SKINS[name]);
+    matCache[name] = new THREE.MeshStandardMaterial({ map: t.map, bumpMap: t.bump, bumpScale: 2.2, roughness: 0.38, metalness: 0.05 }); }
+  return matCache[name];
+}
+
+// ===== Змея: тело — трубка, вершины пересчитываются каждый кадр по пути головы =====
+const RADIAL = 14;
+class Snake3D {
+  constructor(skin, x, z, len, r, ai) {
+    this.r = r; this.len = len; this.ai = ai; this.a = Math.random() * Math.PI * 2; this.target = this.a;
+    this.path = []; for (let i = 0; i < 400; i++) this.path.push([x - Math.cos(this.a) * i * 3, z - Math.sin(this.a) * i * 3]);
+    this.rings = ai ? 50 : 110;
+    const n = this.rings * RADIAL;
+    const geo = new THREE.BufferGeometry();
+    this.pos = new Float32Array(n * 3); this.nor = new Float32Array(n * 3); const uv = new Float32Array(n * 2), idx = [];
+    for (let i = 0; i < this.rings; i++) for (let j = 0; j < RADIAL; j++) {
+      uv[(i * RADIAL + j) * 2] = i / this.rings * (this.len / (r * 6)); uv[(i * RADIAL + j) * 2 + 1] = j / (RADIAL - 1);
+      if (i < this.rings - 1 && j < RADIAL - 1) { const a = i * RADIAL + j, b = a + RADIAL; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(this.nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    this.uvAttr = geo.attributes.uv;
+    this.body = new THREE.Mesh(geo, bodyMaterial(skin)); this.body.castShadow = true; this.body.frustumCulled = false;
+    scene.add(this.body);
+    this.makeHead(skin);
+    this.tongueT = Math.random() * 3;
+  }
+  makeHead(skin) {
+    const r = this.r, sk = SKINS[skin], g = new THREE.Group();
+    // голова — цвет спины, без узора (узор на шаре ложился лучами), с чешуйчатым рельефом
+    const headMat = new THREE.MeshStandardMaterial({ color: sk.pattern === 'coral' ? '#141414' : sk.base, bumpMap: bodyMaterial(skin).bumpMap, bumpScale: 1.5, roughness: 0.38 });
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), headMat);
+    skull.scale.set(1.7, 0.85, 1.25); skull.position.set(r * 0.45, 0, 0); skull.castShadow = true; g.add(skull);
+    // глаза: жёлтая радужка с вертикальной щёлкой, стеклянный блеск
+    const ec = document.createElement('canvas'); ec.width = ec.height = 128; const eg = ec.getContext('2d');
+    const ir = eg.createRadialGradient(64, 64, 4, 64, 64, 64); ir.addColorStop(0, '#fff2a0'); ir.addColorStop(0.6, '#e2b13a'); ir.addColorStop(1, '#6a4a0a');
+    eg.fillStyle = ir; eg.fillRect(0, 0, 128, 128); eg.fillStyle = '#0a0a0a'; eg.beginPath(); eg.ellipse(64, 64, 9, 52, 0, 0, Math.PI * 2); eg.fill();
+    const et = new THREE.CanvasTexture(ec); et.colorSpace = THREE.SRGBColorSpace;
+    const eyeMat = new THREE.MeshPhysicalMaterial({ map: et, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05 });
+    for (const s of [-1, 1]) {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 20, 16), eyeMat);
+      e.position.set(r * 0.95, r * 0.42, s * r * 0.78); e.rotation.set(0, s > 0 ? -1.2 : 1.2, 0); g.add(e);
+    }
+    // язык: раздвоенный, высовывается время от времени
+    const tMat = new THREE.MeshStandardMaterial({ color: '#c0102e', roughness: 0.5 });
+    const tongue = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.05, r * 0.05, r * 1.2, 6), tMat); stem.rotation.z = Math.PI / 2; stem.position.x = r * 0.6; tongue.add(stem);
+    for (const s of [-1, 1]) { const f = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.04, r * 0.02, r * 0.5, 6), tMat); f.rotation.set(0, 0, Math.PI / 2); f.rotation.y = s * 0.5; f.position.set(r * 1.35, 0, s * r * 0.1); tongue.add(f); }
+    tongue.position.set(r * 1.6, -r * 0.1, 0); g.add(tongue);
+    this.tongue = tongue; this.head = g; scene.add(g);
+  }
+  update(dt, aim) {
+    if (this.ai) { if (Math.random() < 0.02) this.target += (Math.random() - 0.5) * 2; const [hx, hz] = this.path[0]; if (Math.hypot(hx, hz) > 1500) this.target = Math.atan2(-hz, -hx); }
+    else if (aim != null) this.target = aim;
+    let d = this.target - this.a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+    this.a += Math.max(-3.2 * dt, Math.min(3.2 * dt, d));
+    const sp = 170 * dt, [hx, hz] = this.path[0];
+    this.path.unshift([hx + Math.cos(this.a) * sp, hz + Math.sin(this.a) * sp]);
+    // путь укорачиваем до нужной длины
+    let acc = 0; for (let i = 1; i < this.path.length; i++) { acc += Math.hypot(this.path[i][0] - this.path[i - 1][0], this.path[i][1] - this.path[i - 1][1]); if (acc > this.len + 50) { this.path.length = i + 1; break; } }
+    this.build(performance.now() / 1000);
+  }
+  build(t) {
+    const r = this.r, N = this.rings, step = this.len / (N - 1), P = this.path;
+    // идём вдоль пути головы и ставим кольца тела через равные промежутки
+    let seg = 0, segStart = 0, segLen = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) || 1e-6;
+    for (let i = 0; i < N; i++) {
+      const want = i * step;
+      while (want > segStart + segLen && seg < P.length - 2) { segStart += segLen; seg++; segLen = Math.hypot(P[seg + 1][0] - P[seg][0], P[seg + 1][1] - P[seg][1]) || 1e-6; }
+      const f = Math.max(0, Math.min(1, (want - segStart) / segLen));
+      const x = P[seg][0] + (P[seg + 1][0] - P[seg][0]) * f, z = P[seg][1] + (P[seg + 1][1] - P[seg][1]) * f;
+      const tx = (P[seg][0] - P[seg + 1][0]) / segLen, tz = (P[seg][1] - P[seg + 1][1]) / segLen; // вперёд по телу
+      const k = i / (N - 1), w = r * (k < 0.06 ? 0.82 + k * 3 : k > 0.55 ? Math.max(0.08, 1 - (k - 0.55) / 0.45 * 0.92) : 1); // шея, хвост сужается
+      const nx = -tz, nz = tx; // вбок
+      for (let j = 0; j < RADIAL; j++) {
+        const th = j / (RADIAL - 1) * Math.PI * 2, cy = Math.cos(th), sx = Math.sin(th);
+        const o = (i * RADIAL + j) * 3, flat = 0.8; // тело чуть приплюснуто, как у настоящей змеи
+        this.pos[o] = x + nx * sx * w; this.pos[o + 1] = w * flat + cy * w * flat; this.pos[o + 2] = z + nz * sx * w;
+        this.nor[o] = nx * sx; this.nor[o + 1] = cy; this.nor[o + 2] = nz * sx;
+      }
+    }
+    this.body.geometry.attributes.position.needsUpdate = true; this.body.geometry.attributes.normal.needsUpdate = true;
+    const [hx, hz] = P[0];
+    this.head.position.set(hx, r * 0.8, hz); this.head.rotation.y = -this.a;
+    this.tongueT += 1 / 60; const ph = this.tongueT % 3; this.tongue.visible = ph < 0.45; this.tongue.scale.x = 0.4 + Math.sin(ph / 0.45 * Math.PI) * 0.8;
+    void t;
+  }
+  remove() { scene.remove(this.body, this.head); this.body.geometry.dispose(); }
+}
+
+// ===== Управление и сцена =====
+let skin = 'python', me = new Snake3D(skin, 0, 0, 520, 18, false), crowd = [], aim = null, last = performance.now();
+const pointer = new THREE.Vector2();
+function setAim(x, y) { const dx = x - innerWidth / 2, dy = y - innerHeight / 2; if (dx * dx + dy * dy > 100) aim = Math.atan2(dy, dx); }
+addEventListener('pointermove', e => setAim(e.clientX, e.clientY));
+addEventListener('pointerdown', e => { if (e.target.tagName !== 'BUTTON') setAim(e.clientX, e.clientY); });
+document.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-skin]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  skin = b.dataset.skin; const len = me.len, [x, z] = me.path[0]; me.remove(); me = new Snake3D(skin, x, z, len, 18, false);
+});
+document.getElementById('grow').onclick = () => { const [x, z] = me.path[0]; const len = Math.min(1600, me.len + 260); me.remove(); me = new Snake3D(skin, x, z, len, Math.min(30, me.r + 2), false); };
+document.getElementById('crowd').onclick = e => {
+  const on = !crowd.length; e.target.classList.toggle('on', on);
+  if (on) { const names = Object.keys(SKINS); for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, d = 200 + Math.random() * 1100; crowd.push(new Snake3D(names[i % 4], Math.cos(a) * d, Math.sin(a) * d, 200 + Math.random() * 300, 10 + Math.random() * 8, true)); } }
+  else { crowd.forEach(s => s.remove()); crowd = []; }
+};
+document.getElementById('shadows').onclick = e => { const on = !renderer.shadowMap.enabled; renderer.shadowMap.enabled = on; e.target.classList.toggle('on', on); scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); };
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+let frames = 0, fpsT = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  me.update(dt, aim);
+  for (const s of crowd) s.update(dt);
+  const [hx, hz] = me.path[0];
+  camera.position.set(hx, 620, hz + 330); camera.lookAt(hx, 0, hz); // вид сверху с наклоном, как в игре, но объёмно
+  sun.position.set(hx - 300, 700, hz - 200); sun.target.position.set(hx, 0, hz);
+  renderer.render(scene, camera);
+  frames++; if (now - fpsT > 1000) { document.getElementById('fps').textContent = Math.round(frames * 1000 / (now - fpsT)) + ' кадров/с' + (crowd.length ? ' · 41 змея' : ''); frames = 0; fpsT = now; }
+}
+requestAnimationFrame(loop);
+window.__fps = () => document.getElementById('fps').textContent;
+</script>
+</body>
+</html>
