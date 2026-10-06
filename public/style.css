@@ -327,7 +327,7 @@ body.in-menu #evPill { display: none !important; } /* в меню не закр�
 #menuPhotos { position: fixed; inset: 0; z-index: 29; pointer-events: none; overflow: hidden; background: #0b1018; } /* игра под меню не просвечивает — только фото */
 #menuPhotos img { position: absolute; left: 50%; top: 50%; height: 100%; max-width: none; transform: translate(-50%, -50%) scale(1.04);
   opacity: 0; transition: opacity 1.4s ease, transform 7s linear; }
-#menuPhotos img.on { opacity: 0.55; transform: translate(-50%, -50%) scale(1.1); }
+#menuPhotos img.on { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
 body:not(.in-menu) #menuPhotos { display: none; }
 #menu { background: rgba(11, 16, 24, 0.45); }
 #promo .pimg { display: block; width: 74px; height: 74px; border-radius: 50%; object-fit: cover; object-position: center 20%;

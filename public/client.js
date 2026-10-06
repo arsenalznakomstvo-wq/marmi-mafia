@@ -212,7 +212,8 @@ function makeBg() {
 }
 
 // ===== Фото владельца по всей игре (владелец 06.10): слайд-шоу в меню, постеры на карте, портрет Дона =====
-const PHOTO_N = 13, PHOTO_DON = 7, PHOTO_CENTER = 2;
+// Владелец 07.10: убраны машина, PREMIUM, «11 uz», парень с роботом; остальные — в исходном качестве
+const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 11, 12, 13], PHOTO_DON = 7, PHOTO_CENTER = 2;
 const photoImg = [];
 function photo(i) { // ленивая загрузка: картинка грузится при первом обращении
   if (!photoImg[i]) { const im = new Image(); im.decoding = 'async'; im.src = 'photos/p' + i + '.jpg'; photoImg[i] = im; }
@@ -221,7 +222,7 @@ function photo(i) { // ленивая загрузка: картинка гру�
 // Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
 const POSTERS = (() => {
   const list = [{ i: PHOTO_CENTER, x: 0, y: 0, h: 1300 }];
-  const others = []; for (let i = 1; i <= PHOTO_N; i++) if (i !== PHOTO_CENTER) others.push(i);
+  const others = PHOTO_LIST.filter(i => i !== PHOTO_CENTER);
   others.forEach((pi, k) => { const a = k / others.length * TAU + 0.3, d = k % 2 ? 3500 : 2300; list.push({ i: pi, x: Math.cos(a) * d, y: Math.sin(a) * d, h: 1000 }); });
   return list;
 })();
@@ -230,7 +231,7 @@ function drawPosters(view) {
     const im = photo(p.i); if (!im.complete || !im.naturalWidth) continue;
     const h = p.h, w = h * im.naturalWidth / im.naturalHeight, x0 = p.x - w / 2, y0 = p.y - h / 2;
     if (x0 > view.x1 || x0 + w < view.x0 || y0 > view.y1 || y0 + h < view.y0) continue;
-    ctx.save(); ctx.globalAlpha = 0.5;
+    ctx.save(); ctx.imageSmoothingQuality = 'high'; // как оригинал: без прозрачности
     ctx.drawImage(im, x0, y0, w, h);
     ctx.globalAlpha = 0.8; ctx.lineWidth = 10; ctx.strokeStyle = p.i === PHOTO_CENTER ? '#ffd52e' : 'rgba(255,255,255,0.35)';
     ctx.strokeRect(x0, y0, w, h);
@@ -242,7 +243,7 @@ let slideK = 0, slideT = 0;
 function nextSlide(first) {
   const a = $('mpA'), b = $('mpB'); if (!a) return;
   const show = slideK % 2 ? b : a, hide = slideK % 2 ? a : b;
-  const idx = first || ((slideK % PHOTO_N) + 1);
+  const idx = first || PHOTO_LIST[slideK % PHOTO_LIST.length];
   show.src = 'photos/p' + idx + '.jpg';
   show.onload = () => { show.classList.add('on'); hide.classList.remove('on'); };
   slideK++;
@@ -1419,7 +1420,7 @@ if (isTouch) {
 applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
-startSlides(1);
+startSlides(PHOTO_CENTER);
 // «Установить на телефон»: Android — системное окно установки; iPhone — короткая подсказка «Поделиться → На экран Домой»
 (() => {
   if (isApp || !isTouch) return;
