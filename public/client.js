@@ -214,11 +214,19 @@ function makeBg() {
 // ===== Фото владельца по всей игре (владелец 06.10): слайд-шоу в меню, постеры на карте, портрет Дона =====
 // Владелец 07.10: убраны машина, PREMIUM, «11 uz», парень с роботом; остальные — в исходном качестве
 // 07.10: +15 фото в стиле мафии (p14–p28)
-const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28], PHOTO_DON = 7, PHOTO_CENTER = 2;
-const photoImg = [];
-function photo(i) { // ленивая загрузка: картинка грузится при первом обращении
-  if (!photoImg[i]) { const im = new Image(); im.decoding = 'async'; im.src = 'photos/p' + i + '.jpg'; photoImg[i] = im; }
-  return photoImg[i];
+const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28], PHOTO_DON = 7, PHOTO_CENTER = 2;
+// Постер для карты: фото распаковывается и уменьшается В ФОНЕ (createImageBitmap), а не посреди кадра.
+// Раньше телефон распаковывал фото 1280 px прямо в игре — экран замирал до 0,8 с у каждого постера.
+const photoBmp = [];
+function photo(i) {
+  if (photoBmp[i] === undefined) {
+    photoBmp[i] = null;
+    const im = new Image(); im.src = 'photos/p' + i + '.jpg';
+    const H = isTouch ? 640 : 1100;
+    im.decode().then(() => (window.createImageBitmap ? createImageBitmap(im, { resizeHeight: Math.min(H, im.naturalHeight), resizeQuality: 'medium' }) : im))
+      .then(bmp => { photoBmp[i] = bmp; }).catch(() => {});
+  }
+  return photoBmp[i];
 }
 // Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
 const POSTERS = (() => {
@@ -235,10 +243,10 @@ function drawPosters(view) {
     // фото грузим, только когда постер рядом (чтобы телефон не качал сразу все)
     const near = 1500, hh = p.h;
     if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) continue;
-    const im = photo(p.i); if (!im.complete || !im.naturalWidth) continue;
-    const h = p.h, w = h * im.naturalWidth / im.naturalHeight, x0 = p.x - w / 2, y0 = p.y - h / 2;
+    const im = photo(p.i); if (!im) continue;
+    const h = p.h, w = h * im.width / im.height, x0 = p.x - w / 2, y0 = p.y - h / 2;
     if (x0 > view.x1 || x0 + w < view.x0 || y0 > view.y1 || y0 + h < view.y0) continue;
-    ctx.save(); ctx.imageSmoothingQuality = 'high'; // как оригинал: без прозрачности
+    ctx.save(); // как оригинал: без прозрачности
     ctx.drawImage(im, x0, y0, w, h);
     ctx.globalAlpha = 0.8; ctx.lineWidth = 10; ctx.strokeStyle = p.i === PHOTO_CENTER ? '#ffd52e' : 'rgba(255,255,255,0.35)';
     ctx.strokeRect(x0, y0, w, h);
