@@ -10,6 +10,7 @@ const { WebSocketServer } = require('ws');
 const { SKINS, MAX_PATTERN, skinCols } = require('./public/skins.js');
 const stats = require('./stats.js');
 const voice = require('./voice.js');
+const records = require('./records.js');
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
@@ -314,6 +315,7 @@ function collisions() {
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
 function killSnake(s, killer) {
   if (!s.alive) return;
+  if (!s.bot) records.report(s.name, s.mass);
   if (!s.bot) deathStats.player++; else if (killer) deathStats.botBody++; else deathStats.botWall++;
   s.alive = false;
   snakes.delete(s.id);
@@ -765,13 +767,47 @@ function sendLeaderboard() {
   }
   const players = arr.reduce((n, s) => n + (s.bot ? 0 : 1), 0);
   const pn = arr.filter(s => !s.bot).map(s => [s.name, Math.floor(s.mass)]); // ники живых людей — по нажатию на цифру внизу
+  const ev = event ? [event.type, Math.ceil((event.until - tick) / TICK_RATE), Math.round(event.x), Math.round(event.y)] : null;
+  const rec = tick % (TICK_RATE * 5) === 0 ? records.view() : null; // рекорды — раз в 5 с
   for (const c of clients) {
     const me = c.snake && c.snake.alive ? c.snake : null;
-    sendJSON(c, { t: 'lb', top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}) });
+    sendJSON(c, { t: 'lb', top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}), ...(ev ? { ev } : {}), ...(rec ? { rec } : {}) });
   }
 }
 
 // ===== Шаг мира =====
+// ===== События на карте (владелец 06.10): раз в 10 минут по очереди «Ночь мафии» и «Золотая еда» =====
+const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 600) * TICK_RATE; // TEST_EVENT_EVERY — только для проверок
+const NIGHT_LEN = 60 * TICK_RATE, GOLD_LEN = 45 * TICK_RATE;
+let event = null, nextEventAt = Math.round(EVENT_EVERY / 2), nextEventType = process.env.TEST_EVENT_FIRST || 'gold'; // TEST_EVENT_FIRST — только для проверок
+function runEvents() {
+  if (event && tick >= event.until) event = null;
+  if (event || tick < nextEventAt) return;
+  let players = 0; for (const s of snakes.values()) if (!s.bot) players++;
+  if (!players) { nextEventAt = tick + Math.min(30 * TICK_RATE, Math.round(EVENT_EVERY / 4)); return; } // никого нет — ждём людей
+  if (nextEventType === 'night') {
+    event = { type: 'night', until: tick + NIGHT_LEN, x: 0, y: 0 };
+  } else {
+    const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (MAP_R - 900);
+    const x = Math.cos(a) * d, y = Math.sin(a) * d;
+    for (let i = 0; i < 140; i++) { // россыпь крупной золотой еды
+      const ra = rand(0, TAU), rd = Math.sqrt(Math.random()) * 320;
+      addFood(x + Math.cos(ra) * rd, y + Math.sin(ra) * rd, valueOfSize(rand(11, 16)), hexTo565('#ffd52e'), true);
+    }
+    event = { type: 'gold', until: tick + GOLD_LEN, x, y };
+  }
+  nextEventType = nextEventType === 'night' ? 'gold' : 'night';
+  nextEventAt = tick + EVENT_EVERY;
+}
+// Рекорды: раз в 2 секунды сообщаем длину живых людей
+function reportRecords() {
+  for (const s of snakes.values()) {
+    if (s.bot || !s.alive) continue;
+    const hit = records.report(s.name, s.mass);
+    if (hit && s.client && s.recShown !== hit) { s.recShown = hit; sendJSON(s.client, { t: 'record', kind: hit }); }
+  }
+}
+
 function step() {
   tick++;
   for (const s of snakes.values()) if (s.bot) botThink(s); // каждый шаг — быстрее реагируют на опасность
@@ -786,6 +822,8 @@ function step() {
   cellEv.clear();
   diedThisTick.length = 0;
   if (tick % (TICK_RATE / 2) === 0) sendLeaderboard(); // рейтинг и миникарта — 2 раза в секунду
+  runEvents();
+  if (tick % (TICK_RATE * 2) === 0) reportRecords();
 }
 
 let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0;
@@ -838,6 +876,7 @@ wss.on('connection', (ws, req) => {
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c);
   stats.onConnect(c, req);
+  sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
   sendJSON(c, { t: 'hello', proto: PROTO, mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   ws.on('message', (data, isBinary) => {
     const now = Date.now();
@@ -862,6 +901,7 @@ wss.on('connection', (ws, req) => {
 
 while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
+records.load();
 server.listen(PORT, () => {
   console.log(`Марми Мафия запущена: http://localhost:${PORT}`);
   for (const list of Object.values(os.networkInterfaces())) {

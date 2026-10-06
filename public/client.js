@@ -243,7 +243,14 @@ function onJSON(m) {
     case 'spawn': myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
-    case 'lb': lb = m; if (m.mm) mmLines = m.mm; renderLb(); break;
+    case 'lb': {
+      const prevEv = evNow ? evNow[0] : null;
+      lb = m; if (m.mm) mmLines = m.mm; if (m.rec) { recData = m.rec; renderRecords(); }
+      evNow = m.ev || null; evAt = performance.now();
+      if (evNow && evNow[0] !== prevEv) toast(evNow[0] === 'night' ? '🌙 Ночь мафии! Видно только рядом с собой' : '🍅 Золотая еда! Скорее туда — смотрите на миникарту');
+      renderEvent(); renderLb(); break;
+    }
+    case 'record': showRecord(m.kind); break;
     case 'pong': pingMs = Math.round(performance.now() - m.c); break;
   }
 }
@@ -957,11 +964,57 @@ function frame(time) {
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (evNow && evNow[0] === 'night') drawNight(me);
   if (alive) { $('len').textContent = myMass; drawMinimap(me); }
+  renderEventArrow(me);
 }
 
 // Миникарта как в оригинале: змеи — серыми линиями (где их много, там гуще), живые игроки — жёлтыми, вы — белая точка
 let mmLines = [];
+// ===== События и рекорды (владелец 06.10) =====
+let evNow = null, evAt = 0, recData = null;
+function evLeft() { return evNow ? Math.max(0, evNow[1] - Math.floor((performance.now() - evAt) / 1000)) : 0; }
+function renderEvent() {
+  const el = $('evPill');
+  if (!evNow) { el.classList.add('hide'); return; }
+  const t = evLeft(), mmss = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  el.innerHTML = (evNow[0] === 'night' ? '🌙 Ночь мафии' : '🍅 Золотая еда') + ' · ' + mmss + (evNow[0] === 'gold' ? ' <span id="evArrow">➤</span>' : '');
+  el.className = evNow[0];
+}
+setInterval(renderEvent, 1000);
+// Стрелка в плашке показывает, куда ехать за золотой едой
+function renderEventArrow(me) {
+  const ar = document.getElementById('evArrow'); if (!ar || !evNow || evNow[0] !== 'gold') return;
+  const fx = me ? me.xs[0] : cam.x, fy = me ? me.ys[0] : cam.y;
+  ar.style.transform = `rotate(${Math.atan2(evNow[3] - fy, evNow[2] - fx)}rad)`;
+}
+// Ночь: всё затемнено, светлый круг только вокруг своей змеи; плавно темнеет в начале и светлеет в конце
+function drawNight(me) {
+  const total = 60, t = evLeft(), passed = total - t;
+  const k = Math.min(1, passed / 3, t / 3); if (k <= 0) return;
+  const cx = W / 2, cy = H / 2, R = 380 * cam.s * (me ? 1 + me.r / 60 : 1);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = ctx.createRadialGradient(cx, cy, R * 0.45, cx, cy, R);
+  g.addColorStop(0, 'rgba(2, 4, 12, 0)'); g.addColorStop(1, `rgba(2, 4, 12, ${0.93 * k})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+function renderRecords() {
+  const el = $('records'); if (!recData) return;
+  const row = (list, i) => list[i] ? `<div class="rr"><span>${i + 1}. ${esc(list[i][0])}</span><b>${list[i][1]}</b></div>` : '';
+  const col = (title, list) => `<div class="rc"><div class="rt">${title}</div>${list.length ? list.map((_, i) => row(list, i)).join('') : '<div class="rr empty">пока пусто</div>'}</div>`;
+  el.innerHTML = `<div class="rh">🏆 Рекорды</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
+  el.classList.remove('hide');
+}
+function showRecord(kind) {
+  const el = $('promo');
+  el.className = 'don'; el.style.setProperty('--rc', '#ffd52e');
+  el.innerHTML = `<div class="pi">🏆</div><div class="pn">${kind === 'all' ? 'РЕКОРД ВСЕХ ВРЕМЁН' : 'РЕКОРД ДНЯ'}</div><div class="ps">${esc(myName())}, вы — лучший${kind === 'all' ? ' за всё время' : ' сегодня'}!</div>`;
+  void el.offsetWidth; el.classList.add('show');
+  clearTimeout(promoT); promoT = setTimeout(() => el.classList.remove('show'), 3500);
+  Sound.promo(true);
+}
+
 function drawMinimap(me) {
   const w = mm.width, c = w / 2, R = w / 2 - 3, k = w / 130;
   mctx.clearRect(0, 0, w, w);
@@ -984,6 +1037,11 @@ function drawMinimap(me) {
   if (me) {
     const x = c + me.xs[0] / MAP_R * R, y = c + me.ys[0] / MAP_R * R;
     mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.arc(x, y, 3.2 * k, 0, TAU); mctx.fill();
+  }
+  if (evNow && evNow[0] === 'gold') { // золотая еда на миникарте — пульсирующая точка
+    const gx = c + evNow[2] / MAP_R * R, gy = c + evNow[3] / MAP_R * R, p = 1 + 0.35 * Math.sin(performance.now() * 0.008);
+    mctx.fillStyle = '#ffd52e'; mctx.shadowColor = '#ffd52e'; mctx.shadowBlur = 8 * k;
+    mctx.beginPath(); mctx.arc(gx, gy, 4.5 * k * p, 0, TAU); mctx.fill(); mctx.shadowBlur = 0;
   }
 }
 

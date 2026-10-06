@@ -299,3 +299,26 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; trans
 #promo { left: auto; right: max(12px, env(safe-area-inset-right)); top: 300px; transform: translateX(30px) scale(0.85); transform-origin: right center; }
 #promo.show { transform: translateX(0) scale(1); }
 @media (max-width: 900px), (max-height: 500px) { #promo { top: 44%; } }
+
+/* ===== События на карте ===== */
+#evPill { position: fixed; z-index: 43; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); margin-top: 40px;
+  padding: 5px 14px; border-radius: 16px; font-size: 14px; font-weight: bold; pointer-events: none; white-space: nowrap; }
+#evPill.night { background: rgba(20, 24, 60, 0.85); color: #c9d4ff; border: 1px solid #5b6bd6; }
+#evPill.gold { background: rgba(60, 45, 0, 0.85); color: #ffd52e; border: 1px solid #ffd52e; box-shadow: 0 0 12px rgba(255, 213, 46, 0.5); }
+#evArrow { display: inline-block; margin-left: 4px; color: #fff; }
+body.in-menu #evPill { margin-top: 0; top: auto; bottom: 60px; }
+/* ===== Рекорды в меню ===== */
+#records { margin-top: 14px; background: rgba(10, 12, 22, 0.55); border: 1px solid rgba(255, 213, 46, 0.25); border-radius: 12px; padding: 8px 12px; min-width: 300px; }
+#records .rh { text-align: center; color: #ffd52e; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+#records .rcols { display: flex; gap: 18px; }
+#records .rc { flex: 1; min-width: 0; }
+#records .rt { font-size: 11px; color: #8a93a8; text-transform: uppercase; margin-bottom: 2px; }
+#records .rr { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: #d4dae3; line-height: 1.45; }
+#records .rr span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#records .rr b { color: #ffd52e; }
+#records .rr.empty { color: #5a6270; }
+@media (max-height: 500px) {
+  #records { position: fixed; right: max(10px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); margin: 0; min-width: 0; width: 210px; }
+  #records .rcols { flex-direction: column; gap: 4px; }
+  #records .rr { font-size: 11px; line-height: 1.3; }
+}
