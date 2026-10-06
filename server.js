@@ -282,12 +282,33 @@ function collisions() {
         const p = c[j], o = PS[p];
         if (o === s) continue;           // в себя врезаться нельзя, как в slither.io
         const dx = PX[p] - hx, dy = PY[p] - hy, rr = o.r + rs * 0.6;
-        if (dx * dx + dy * dy < rr * rr) { killer = o; break outer; }
+        if (dx * dx + dy * dy < rr * rr) { killer = o; s.hitIdx = PIdx[p]; break outer; }
       }
     }
     if (killer) dead.push(s, killer);
   }
-  for (let i = 0; i < dead.length; i += 2) killSnake(dead[i], dead[i + 1]);
+  // Две змеи задели друг друга одновременно — погибает только одна (владелец 06.10; замер: 8 из 52 смертей были «оба»).
+  // Кто въехал головой в тело — тот и разбился. Если обе задели головы: погибает та, что ехала прямо на соперника
+  // (подрезавшая поперёк остаётся жить); если поровну — медленная, затем меньшая.
+  const spare = new Set();
+  for (let i = 0; i < dead.length; i += 2) {
+    const a = dead[i], b = dead[i + 1];
+    if (!b || spare.has(a) || spare.has(b)) continue;
+    let j = -1;
+    for (let k = 0; k < dead.length; k += 2) if (dead[k] === b && dead[k + 1] === a) { j = k; break; }
+    if (j < 0) continue;
+    let loser;
+    if ((a.hitIdx > 2) !== (b.hitIdx > 2)) loser = a.hitIdx > 2 ? a : b;
+    else {
+      const dx = b.xs[0] - a.xs[0], dy = b.ys[0] - a.ys[0], d = Math.hypot(dx, dy) || 1;
+      const aimA = (Math.cos(a.a) * dx + Math.sin(a.a) * dy) / d, aimB = -(Math.cos(b.a) * dx + Math.sin(b.a) * dy) / d;
+      if (Math.abs(aimA - aimB) > 0.15) loser = aimA > aimB ? a : b;
+      else if (a.boosting !== b.boosting) loser = a.boosting ? b : a;
+      else loser = a.mass < b.mass ? a : b;
+    }
+    spare.add(loser === a ? b : a);
+  }
+  for (let i = 0; i < dead.length; i += 2) if (!spare.has(dead[i])) killSnake(dead[i], dead[i + 1]);
 }
 
 const deathStats = { botBody: 0, botWall: 0, player: 0 };

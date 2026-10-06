@@ -516,6 +516,55 @@ function predStep(srv) {
 
 // ===== Роли: табличка на змее и поздравление =====
 const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
+// Болтающаяся табличка на спине — только у Киллера, Мафии и Дона (владелец 06.10). Висит на ниточке и качается:
+// сильнее на поворотах и на ускорении (простой маятник на каждую змею).
+const BACK_PLATE_MIN = ROLES.findIndex(r => r.name === 'Киллер');
+const SHORT = { 'Дон Мафии': 'ДОН' };
+const swing = new Map(); // id → { ang, vel, lastA, t }
+function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
+  const R = ROLES[ri]; if (!R) return;
+  let st = swing.get(id);
+  const now = performance.now();
+  if (!st) { st = { ang: 0, vel: 0, lastA: heading, t: now }; swing.set(id, st); }
+  const dt = Math.min(0.05, (now - st.t) / 1000); st.t = now;
+  const turn = angDiff(st.lastA, heading); st.lastA = heading;
+  // поворот толкает табличку в обратную сторону; пружина возвращает; ускорение — дрожь
+  st.vel += (-turn * 9 - st.ang * 30 - st.vel * 3.2) * dt * 1;
+  st.vel -= turn * 6;
+  if (boost) st.vel += Math.sin(time * 0.05) * 0.6;
+  st.ang = clamp(st.ang + st.vel * dt, -1.1, 1.1);
+  const L = r * 0.9, s = Math.max(0.6, r / 12);                     // длина ниточки и масштаб таблички
+  const hang = st.ang;                                                // качание вокруг точки крепления
+  const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 - r * 0.3;
+  const label = R.icon + ' ' + (SHORT[R.name] || R.name.toUpperCase());
+  const fs = 11 * s;
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  const w = ctx.measureText(label).width + 12 * s, h = fs * 1.7;
+  // ниточка
+  ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = Math.max(1, 1.4 * s);
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo((x + px) / 2 + Math.sin(hang) * 4 * s, (y + py) / 2 - 3 * s, px, py); ctx.stroke();
+  // табличка (слегка наклонена по качанию)
+  ctx.save(); ctx.translate(px, py); ctx.rotate(hang * 0.5);
+  const x0 = -w / 2, y0 = 0, rr = 4 * s;
+  if (ri === DON) { ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = (12 + 6 * Math.sin(time * 0.006)) * s; }
+  ctx.fillStyle = R.color;
+  ctx.beginPath(); ctx.moveTo(x0 + rr, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, rr); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, rr);
+  ctx.arcTo(x0, y0 + h, x0, y0, rr); ctx.arcTo(x0, y0, x0 + w, y0, rr); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = Math.max(1, 1.2 * s); ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+  if (ri === DON) { // блик на золоте
+    const g = ctx.createLinearGradient(x0, 0, x0 + w, h); const p = (time * 0.0005) % 1;
+    g.addColorStop(Math.max(0, p - 0.15), 'rgba(255,255,255,0)'); g.addColorStop(p, 'rgba(255,255,255,0.55)'); g.addColorStop(Math.min(1, p + 0.15), 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fill();
+  }
+  ctx.fillStyle = ri === DON || R.name === 'Киллер' ? '#1a1a1a' : '#ffffff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, 0, h / 2 + 0.5);
+  ctx.restore();
+  // кружок-крепление на спине
+  ctx.fillStyle = 'rgba(30,30,30,0.9)'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 2 * s), 0, TAU); ctx.fill();
+}
+setInterval(() => { if (swing.size > 300) swing.clear(); }, 10000);
 let promoT = 0;
 function showPromo(ri) {
   const R = ROLES[ri]; if (!R) return;
@@ -597,6 +646,10 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     let neck = null;
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
+    if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
+      const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
+      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time);
+    }
     // Имя — белое полупрозрачное под змейкой, как в оригинале
     if (meta && !fade) {
       // Владелец 06.10: под змеёй только ник (у ботов — их роль), без таблички роли
