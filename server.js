@@ -89,7 +89,8 @@ function radiusFor(m) { return 10 * scFor(m); }
 function radiusForPoints(n) { const sct = (n - 1) * SEG_D / 29; return 10 * Math.min(6, 1 + Math.max(0, sct - 2) / SC_DIV); }
 function segsFor(m) { return Math.min(1300, Math.max(8, Math.round(1 + sctFor(m) * 29 / SEG_D))); }
 // Поворот: mamu·scang (за кадр оригинала 8 мс) → за наш шаг 33 мс; толстые разворачиваются шире
-function turnFor(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * (TICK_MS / 8) * scang; }
+const TURN_BOOST = 1.3; // владелец 06.10: живые игроки манёвреннее на 30%, боты — как в оригинале (менять вместе с client.js)
+function turnFor(r, bot) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * (TICK_MS / 8) * scang * (bot ? 1 : TURN_BOOST); }
 // Скорость: обычная 4,25 + 0,5·sc, ускорение 12 (единицы оригинала, пересчитаны в наши)
 const SPEED_K = 6 / 4.75;
 const speedFor = (r, boost) => (boost ? 12 : 4.25 + 0.5 * (r / 10)) * SPEED_K;
@@ -155,7 +156,7 @@ class Snake {
 }
 
 function moveSnake(s) {
-  const tr = turnFor(s.r);
+  const tr = turnFor(s.r, s.bot);
   s.a += clamp(angDiff(s.a, s.ta), -tr, tr);
   if (s.a > Math.PI) s.a -= TAU; else if (s.a < -Math.PI) s.a += TAU;
   s.boosting = s.boost && s.mass >= MIN_BOOST_MASS;
@@ -388,6 +389,7 @@ function makePersonality(s) {
   if (roll < 0.35) aggr = rand(0.75, 1);       // охотники: режут под голову
   else if (roll < 0.75) aggr = rand(0.4, 0.75); // обычные
   else aggr = rand(0.1, 0.35);                  // собиратели еды
+  aggr *= 0.93;                                 // владелец 06.10: агрессивность −7%
   return {
     aggr, greed: rand(0.4, 1), boostLove: rand(0.5, 1),
     prey: null, preyT: 0, cool: 0, side: Math.random() < 0.5 ? -1 : 1,
@@ -514,7 +516,7 @@ const OFFS = [0, 0.2, -0.2, 0.4, -0.4, 0.65, -0.65, 0.95, -0.95, 1.3, -1.3, 1.75
 const SIM_T = 18; // шагов вперёд (~0,6 с)
 // Сколько шагов бот проживёт, если будет поворачивать к углу th (SIM_T+1 — путь свободен)
 function survive(b, hx, hy, th, boost) {
-  const r = b.r, tr = turnFor(r), spd = speedFor(r, boost), rb = MAP_R - r - 30;
+  const r = b.r, tr = turnFor(r, true), spd = speedFor(r, boost), rb = MAP_R - r - 30;
   // Охотник рискует (подрезает впритык); гигант осторожен (большой запас); остальные — обычный запас
   const margin = b.mass > GIANT_MASS ? 22 : b.ai && b.ai.prey ? 2 : 12;
   let x = hx, y = hy, a = b.a;

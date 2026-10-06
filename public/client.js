@@ -469,7 +469,7 @@ function applyCtrlMode() {
 // Сервер главный: с каждым его обновлением положение мягко подтягивается к настоящему; при большом расхождении — сразу встаёт на место.
 // Тело тянется за головой по пройденному пути.
 const MIN_BOOST = 12;
-function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * ((1000 / TICK_RATE) / 8) * scang; }
+function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * ((1000 / TICK_RATE) / 8) * scang * 1.3; } // ×1.3 — как TURN_BOOST в server.js
 function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 / 4.75; }
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
 window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
@@ -528,7 +528,7 @@ const ROLES = window.Roles.ROLES, DON = window.Roles.DON;
 const BACK_PLATE_MIN = 1; // владелец 06.10: табличка у всех ролей, кроме стартового «Мирного»
 const SHORT = { 'Дон Мафии': 'ДОН' };
 const swing = new Map(); // id → { ang, vel, lastA, t }
-function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
+function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol) {
   const R = ROLES[ri]; if (!R) return;
   let st = swing.get(id);
   const now = performance.now();
@@ -554,7 +554,9 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time) {
   ctx.save(); ctx.translate(px, py); ctx.rotate(hang * 0.5);
   const x0 = -w / 2, y0 = 0, rr = 4 * s;
   if (ri === DON) { ctx.shadowColor = '#ffd52e'; ctx.shadowBlur = (12 + 6 * Math.sin(time * 0.006)) * s; }
-  const PS = PLATE_STYLE[R.name] || { bg: R.color, fg: '#fff', border: 'rgba(0,0,0,0.35)' };
+  // Владелец 06.10: табличка в цвет змеи; текст — чёрный или белый, смотря что читается лучше; у Дона — золотая рамка
+  const [cr, cg, cb] = hexToRgb(bodyCol || R.color), light = (cr * 299 + cg * 587 + cb * 114) / 1000 > 150;
+  const PS = { bg: bodyCol || R.color, fg: light ? '#1a1a1a' : '#ffffff', border: ri === DON ? '#ffd52e' : shade(bodyCol || R.color, light ? -70 : 70) };
   ctx.fillStyle = PS.bg;
   ctx.beginPath(); ctx.moveTo(x0 + rr, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, rr); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, rr);
   ctx.arcTo(x0, y0 + h, x0, y0, rr); ctx.arcTo(x0, y0, x0 + w, y0, rr); ctx.closePath(); ctx.fill();
@@ -859,7 +861,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
-      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time);
+      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0));
     }
     // Имя — белое полупрозрачное под змейкой, как в оригинале
     if (meta && !fade) {
