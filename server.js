@@ -98,7 +98,7 @@ const speedFor = (r, boost) => (boost ? 12 : 4.25 + 0.5 * (r / 10)) * SPEED_K;
 // Камера: в оригинале gsc = 0.64285 + 0.514285714 / max(1, (sct + 16)/36) — отдаляется по мере роста
 function viewScale(w, h, r) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
-  const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.2 : 0), sct = 2 + (r / 10 - 1) * SC_DIV;
+  const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * SC_DIV;
   return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857;
 }
 // Еда как в оригинале (замерено на живой игре, 42 поедания): шарик размера sz даёт 0,048·sz² очков длины.
@@ -659,7 +659,7 @@ function sendState(c) {
   if (me && me.alive) { vx = me.xs[0]; vy = me.ys[0]; r = me.r; c.vx = vx; c.vy = vy; }
   else { vx = c.vx; vy = c.vy; }
   const sc = viewScale(c.w, c.h, r);
-  const hw = c.w / 2 / sc + 160, hh = c.h / 2 / sc + 160;
+  const hw = c.w / 2 / sc + 260, hh = c.h / 2 / sc + 260; // запас под «взгляд вперёд» камеры в браузере
   const x0 = vx - hw, x1 = vx + hw, y0 = vy - hh, y1 = vy + hh;
 
   let o = 0, metas = null;

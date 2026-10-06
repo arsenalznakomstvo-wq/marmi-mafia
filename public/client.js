@@ -22,7 +22,7 @@ function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d <
 // Камера как в оригинале: отдаляется по мере роста числа сегментов (формула та же, что в server.js)
 function viewScale(w, h, r) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
-  const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.2 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
+  const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
   return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857;
 }
 
@@ -409,7 +409,8 @@ function interpolated(renderTick) {
 // ===== Управление =====
 let inAngle = 0, inBoost = false, mouseBoost = false, keyBoost = false, btnBoost = false;
 let lastSentA = 99, lastSentB = null, lastSentT = 0;
-function setAngleFrom(x, y) { const dx = x - W / 2, dy = y - H / 2; if (dx * dx + dy * dy > 64) inAngle = Math.atan2(dy, dx); }
+// Направление считаем от головы змеи на экране (камера смотрит вперёд, голова не в центре)
+function setAngleFrom(x, y) { const dx = x - (W / 2 - look.x * cam.s), dy = y - (H / 2 - look.y * cam.s); if (dx * dx + dy * dy > 64) inAngle = Math.atan2(dy, dx); }
 function sendInput() {
   if (!alive || !ws || ws.readyState !== 1) return;
   inBoost = mouseBoost || keyBoost || btnBoost;
@@ -424,6 +425,7 @@ function sendInput() {
 // правая половина — ускорение, пока держите палец. «Палец» — змейка ползёт к месту касания, ⚡ слева.
 let ctrlMode = (() => { try { return localStorage.getItem('mm_ctrl') || 'joy'; } catch (e) { return 'joy'; } })();
 const JOY_R = 56;
+const look = { x: 0, y: 0 }; // сдвиг камеры вперёд по ходу змеи
 let steerId = null, joy = null, boostId = null;
 const joyEl = $('joy'), knobEl = $('joyKnob'), bb = $('boostBtn');
 function showJoy(x, y) { joyEl.style.left = x + 'px'; joyEl.style.top = y + 'px'; knobEl.style.transform = 'translate(-50%, -50%)'; joyEl.classList.remove('hide'); }
@@ -495,6 +497,7 @@ function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc
 function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 / 4.75; }
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
 window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
+window.__mmHeadScreen = () => ({ x: W / 2 - look.x * cam.s, y: H / 2 - look.y * cam.s }); // для проверки
 function predStop() { pred.on = false; pred.trail.length = 0; }
 function predStart(srv) {
   pred.on = true; pred.x = srv.xs[0]; pred.y = srv.ys[0]; pred.a = srv.a; pred.t = performance.now();
@@ -947,8 +950,12 @@ function frame(time) {
   else if (pred.on && !alive) predStop();
   if (me && world) world.list = world.list.filter(s => s.id !== myId);
   Sound.boost(!!(me && me.boost));
-  if (me) { cam.x = me.xs[0]; cam.y = me.ys[0]; }
-  else if (world) { cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
+  if (me) {
+    // «Взгляд вперёд» (владелец 06.10): камера плавно сдвигается по ходу движения — впереди видно больше
+    const L = Math.min(W, H) / 2 / cam.s * 0.22, tx = Math.cos(me.a) * L, ty = Math.sin(me.a) * L;
+    look.x += (tx - look.x) * 0.04; look.y += (ty - look.y) * 0.04;
+    cam.x = me.xs[0] + look.x; cam.y = me.ys[0] + look.y;
+  } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
   const target = viewScale(W, H, me ? me.r : 10);
   cam.s += (target - cam.s) * 0.06;
 
