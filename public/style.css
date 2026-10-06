@@ -306,7 +306,7 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: auto; top: auto; trans
 #evPill.night { background: rgba(20, 24, 60, 0.85); color: #c9d4ff; border: 1px solid #5b6bd6; }
 #evPill.gold { background: rgba(60, 45, 0, 0.85); color: #ffd52e; border: 1px solid #ffd52e; box-shadow: 0 0 12px rgba(255, 213, 46, 0.5); }
 #evArrow { display: inline-block; margin-left: 4px; color: #fff; }
-body.in-menu #evPill { margin-top: 0; top: auto; bottom: 60px; }
+body.in-menu #evPill { display: none !important; } /* в меню не закрываем кнопки — плашка нужна только в игре */
 /* ===== Рекорды в меню ===== */
 #records { margin-top: 14px; background: rgba(10, 12, 22, 0.55); border: 1px solid rgba(255, 213, 46, 0.25); border-radius: 12px; padding: 8px 12px; min-width: 300px; }
 #records .rh { text-align: center; color: #ffd52e; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
