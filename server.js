@@ -181,7 +181,7 @@ function moveSnake(s) {
   xs[0] += Math.cos(s.a) * spd; ys[0] += Math.sin(s.a) * spd;
   if (s.boosting) {
     // Ускорение стоит длины: змейка худеет и роняет еду с хвоста, как в slither.io
-    const cost = 0.15 + s.mass * 0.0008;
+    const cost = (0.15 + s.mass * 0.0008) * 0.7; // владелец 07.10: при ускорении теряет на 30% меньше
     s.mass -= cost; s.boostAcc += cost;
     if (s.boostAcc >= 1.2) {
       const t = xs.length - 1;
