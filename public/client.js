@@ -281,6 +281,8 @@ const TEAM_MODE = QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
+const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0; // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
+const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
 let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
@@ -330,14 +332,19 @@ function onJSON(m) {
     case 'roundEnd': onRoundEnd(m); break;
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
-      if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); teamAlarms = m.a || []; break; }
+      if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
+      { const n = alive ? bazooka.get(myId) || 0 : 0; if (n !== myRockets) { myRockets = n; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'tmsg': bigToast(m.text); Sound.alert(); break;
     case 'final': finalMinute = true; break;
+    case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(); break;
+    case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit }); if (m.hit) Sound.boom(); break;
+    case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
+    case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -1120,6 +1127,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
+    if (TEAM_MODE && !fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1259,6 +1267,7 @@ function frame(time) {
     if (me) drawSnake(me, metas.get(me.id), true, time, view);
   }
   if (BASES) drawFlags(time);
+  if (rocketsFly.size || booms.length) drawRockets(time);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
@@ -1421,6 +1430,15 @@ function bigToast(text) { const e = $('bigToast'); e.textContent = text; e.class
 function drawBases(view, time) {
   BASES.forEach(([x, y], t) => {
     if (x + BASE_R < view.x0 || x - BASE_R > view.x1 || y + BASE_R < view.y0 || y - BASE_R > view.y1) return;
+    const fire = baseFireUntil[t] - performance.now();
+    if (fire > 0) { // сияние: тёплый ореол и бегущие огни по краю
+      const k = Math.min(1, fire / 4000), p = 0.5 + 0.5 * Math.sin(time * 0.01);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.25 + 0.2 * p) * k;
+      const hs = BASE_R * 3.2; ctx.drawImage(haloSprite('#ffd52e'), x - hs / 2, y - hs / 2, hs, hs); ctx.drawImage(haloSprite(TEAM_COL[t]), x - hs / 3, y - hs / 3, hs / 1.5, hs / 1.5);
+      ctx.globalAlpha = k;
+      for (let i = 0; i < 24; i++) { const a = i / 24 * TAU + time * 0.0015, s = 26 + 10 * Math.sin(time * 0.012 + i); ctx.drawImage(haloSprite(i & 1 ? '#ffd52e' : TEAM_COL[t]), x + Math.cos(a) * BASE_R - s, y + Math.sin(a) * BASE_R - s, s * 2, s * 2); }
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.globalAlpha = 0.13; ctx.fillStyle = TEAM_COL[t]; ctx.beginPath(); ctx.arc(x, y, BASE_R, 0, TAU); ctx.fill();
     ctx.globalAlpha = 0.75; ctx.setLineDash([28, 18]); ctx.lineDashOffset = -time * 0.02; ctx.lineWidth = 8; ctx.strokeStyle = TEAM_COL[t]; ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = 0.55; ctx.fillStyle = TEAM_COL[t]; ctx.font = 'bold 46px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1439,6 +1457,45 @@ function drawFlags(time) {
     ctx.lineTo(x + W, y - H + 34 * sc + w); ctx.quadraticCurveTo(x + W / 2, y - H + 26 * sc - w, x, y - H + 32 * sc); ctx.closePath(); ctx.fill(); ctx.stroke();
     if (!carrier) { ctx.globalAlpha = 0.35 + 0.25 * Math.sin(time * 0.006); ctx.strokeStyle = TEAM_COL[t]; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 45, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
   });
+}
+
+// ===== Базука =====
+function drawBazooka(x, y, a, r) { // две трубы по бокам головы, смотрят вперёд
+  const c = Math.cos(a), s = Math.sin(a), px = -s, py = c, L = r * 1.9, W = r * 0.42, off = r * 1.25;
+  for (const side of [-1, 1]) {
+    const bx = x + px * off * side - c * r * 0.5, by = y + py * off * side - s * r * 0.5;
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#2f3b2a'; ctx.lineWidth = W; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + c * L, by + s * L); ctx.stroke();
+    ctx.strokeStyle = '#5c7350'; ctx.lineWidth = W * 0.45; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + c * L, by + s * L); ctx.stroke();
+    ctx.fillStyle = '#ff3b2b'; ctx.beginPath(); ctx.arc(bx + c * L, by + s * L, W * 0.38, 0, TAU); ctx.fill();
+  }
+}
+function drawRockets(time) {
+  const now = performance.now();
+  for (const [id, r] of rocketsFly) {
+    const dt = now - r.t0; if (dt > r.life + 300) { rocketsFly.delete(id); continue; }
+    const x = r.x + r.vx * dt, y = r.y + r.vy * dt, a = Math.atan2(r.vy, r.vx), c = Math.cos(a), s = Math.sin(a);
+    ctx.globalCompositeOperation = 'lighter'; // огненный хвост
+    for (let k = 1; k <= 5; k++) { const hs = 34 - k * 4; ctx.globalAlpha = 0.5 - k * 0.07; ctx.drawImage(haloSprite(k < 3 ? '#ffd52e' : '#ff5a1f'), x - c * k * 14 - hs / 2, y - s * k * 14 - hs / 2, hs, hs); }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#d8dde4'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x - c * 20, y - s * 20); ctx.lineTo(x + c * 8, y + s * 8); ctx.stroke();
+    ctx.fillStyle = '#ff2b2b'; ctx.beginPath(); ctx.arc(x + c * 9, y + s * 9, 5, 0, TAU); ctx.fill();
+  }
+  for (let i = booms.length - 1; i >= 0; i--) { // взрыв: вспышка и расходящееся кольцо
+    const b = booms[i], k = (now - b.t0) / (b.big ? 700 : 400); if (k >= 1) { booms.splice(i, 1); continue; }
+    const R = (b.big ? 170 : 80) * (0.3 + k);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - k;
+    ctx.drawImage(haloSprite('#ff8a1f'), b.x - R, b.y - R, R * 2, R * 2); ctx.drawImage(haloSprite('#ffd52e'), b.x - R / 2, b.y - R / 2, R, R);
+    ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = '#ffd52e'; ctx.lineWidth = 6 * (1 - k); ctx.beginPath(); ctx.arc(b.x, b.y, R * 0.8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+}
+function fire() { if (myRockets > 0 && alive) { sendJSON({ t: 'fire' }); Sound.click(); } }
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(TEAM_MODE && myRockets > 0 && alive)); b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
+{
+  const b = $('fireBtn');
+  const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
+  b.addEventListener('pointerdown', e => { stop(e); e.preventDefault(); fire(); });
+  for (const ev of ['touchstart', 'touchmove', 'touchend', 'mousedown', 'click']) b.addEventListener(ev, stop, { passive: false });
+  window.addEventListener('keydown', e => { if ((e.code === 'KeyF') && !e.repeat && document.activeElement !== $('nick')) fire(); });
 }
 
 let toastT = 0;

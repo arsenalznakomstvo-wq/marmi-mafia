@@ -699,12 +699,15 @@ function handleJSON(c, m) {
     if (TEAM) { s.team = team; setTeamSkin(s); s.born = tick; c.rs = c.rs || { kills: 0, orbs: 0, caps: 0, life: 0 }; c.rs.name = s.name; c.rs.team = team; }
     if (TEAM && process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     s.client = c; c.snake = s; c.inA = s.a;
-    if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200]; } // только для проверок: чужое знамя у головы, своя база рядом
+    if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
+      if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
+  } else if (m.t === 'fire') {
+    if (TEAM && c.snake && c.snake.alive) fireRocket(c.snake);
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -913,11 +916,12 @@ function stepOrbs() {
     o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
   }
   stepFlags();
+  stepRockets();
   if (tick % 10 === 0) checkAlarms();
   if (tick % 3 === 0) { // 10 раз в секунду: шары, флаги, кто «в ударе»; тревоги — только своей команде
     const base = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]),
       f: flags.map(f => [Math.round(f.x), Math.round(f.y), f.carrier ? f.carrier.id : 0, f.home ? 1 : 0]), h: [] };
-    for (const s of snakes.values()) if (s.alive) { if (s.hot) base.h.push(s.id); if (s.havana) (base.c || (base.c = [])).push(s.id); }
+    for (const s of snakes.values()) if (s.alive) { if (s.hot) base.h.push(s.id); if (s.havana) (base.c || (base.c = [])).push(s.id); if (s.rockets) (base.z || (base.z = [])).push([s.id, s.rockets]); }
     const msgs = [0, 1].map(t => { const a = alarms.filter(x => x.team === t && x.until > tick).map(x => [Math.round(x.x), Math.round(x.y)]); return JSON.stringify(a.length ? { ...base, a } : base); });
     const plain = JSON.stringify(base);
     for (const c of clients) if (c.ws.readyState === 1) { const t = c.snake ? c.snake.team : c.rs ? c.rs.team : -1; c.ws.send(t === 0 || t === 1 ? msgs[t] : plain); }
@@ -929,6 +933,12 @@ const TEAM_GEN = ['Мирных', 'Мафии'];
 const flags = BASES.map(([x, y]) => ({ x, y, home: true, carrier: null, dropT: 0 }));
 let teamCaps = [0, 0];
 function flagHome(f, t) { f.x = BASES[t][0]; f.y = BASES[t][1]; f.home = true; f.carrier = null; }
+// База вспыхивает (владелец 07.10): сотни маленьких красных шаров по всей базе, лежат 90 с — собирай и расти
+function baseFire(team, total) {
+  const [bx, by] = BASES[team], n = 450, v = total / n, col = hexTo565('#ff2b2b');
+  for (let i = 0; i < n; i++) { const a = rand(0, TAU), d = Math.sqrt(Math.random()) * BASE_R * 1.15; addFood(bx + Math.cos(a) * d, by + Math.sin(a) * d, v, col, true); }
+  for (const c of clients) sendJSON(c, { t: 'baseFire', team });
+}
 function teamMsg(text) { for (const c of clients) sendJSON(c, { t: 'tmsg', text }); }
 function stepFlags() {
   for (let t = 0; t < 2; t++) {
@@ -940,9 +950,11 @@ function stepFlags() {
       const b = BASES[k.team];
       if (Math.hypot(f.x - b[0], f.y - b[1]) < BASE_R) {
         teamCaps[k.team]++; if (k.client && k.client.rs) k.client.rs.caps++;
-        // Владелец 07.10: довёз знамя — сразу в 5 раз длиннее (не меньше +1000) и сигара «Гавана»; каждый новый раз — ещё ×5
-        k.mass = Math.min(65000, Math.max(k.mass * 5, k.mass + 1000)); k.havana = true; k.caps = (k.caps || 0) + 1;
-        teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде, сам вырос в 5 раз 🚬${k.caps > 1 ? ' (уже ' + k.caps + '-й раз!)' : ''}`);
+        // Владелец 07.10: довёз знамя — вся база вспыхивает огнями (еды на «вырасти в 5 раз»), собирай и расти; плюс сигара «Гавана»
+        k.havana = true; k.caps = (k.caps || 0) + 1; k.rockets = (k.rockets || 0) + 1; // и выстрел из базуки
+        if (k.client) sendJSON(k.client, { t: 'tmsgMe', text: '🚀 У вас базука! Жмите 🚀' + (isTouchUA(k.client) ? '' : ' или F') + ' — две ракеты по бокам' });
+        baseFire(k.team, Math.min(20000, Math.max(k.mass * 4, 1000)));
+        teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде — база ${TEAM_GEN[k.team]} засияла огнями, собирайте! 🚬`);
         flagHome(f, t);
       }
       continue;
@@ -971,6 +983,45 @@ function checkAlarms() {
       if (!o.alive || o.team === s.team) continue;
       const dx = o.xs[0] - s.xs[0], dy = o.ys[0] - s.ys[0];
       if (dx * dx + dy * dy < 350 * 350) { addAlarm(s.team, s.xs[0], s.ys[0]); break; }
+    }
+  }
+}
+// ===== Базука (владелец 07.10): довёз знамя — выстрел; две ракеты летят вперёд с боков головы; попала в соперника — он погибает =====
+const ROCKET_SP = 32, ROCKET_LIFE = Math.round(1.3 * TICK_RATE), ROCKET_HIT = 14;
+const rockets = []; let rocketSeq = 0;
+const isTouchUA = c => /Android|iPhone|iPad|Mobile/i.test(c.ua || '');
+function fireRocket(s) {
+  if (!s.rockets) return;
+  s.rockets--;
+  const px = -Math.sin(s.a), py = Math.cos(s.a), off = s.r * 1.6;
+  for (const side of [-1, 1]) {
+    const r = { id: ++rocketSeq, owner: s, team: s.team, x: s.xs[0] + px * off * side, y: s.ys[0] + py * off * side, vx: Math.cos(s.a) * ROCKET_SP, vy: Math.sin(s.a) * ROCKET_SP, die: tick + ROCKET_LIFE };
+    rockets.push(r);
+    for (const c of clients) sendJSON(c, { t: 'rocket', id: r.id, x: Math.round(r.x), y: Math.round(r.y), vx: r.vx, vy: r.vy, life: ROCKET_LIFE * TICK_MS });
+  }
+}
+function stepRockets() {
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i];
+    let hit = null;
+    // летим по 4 подшага, чтобы не проскочить тонкую змею
+    for (let k = 0; k < 4 && !hit; k++) {
+      r.x += r.vx / 4; r.y += r.vy / 4;
+      const cx = Math.floor(r.x / GRID), cy = Math.floor(r.y / GRID);
+      for (let gx = cx - 1; gx <= cx + 1 && !hit; gx++) for (let gy = cy - 1; gy <= cy + 1 && !hit; gy++) {
+        const cell = grid.get(gkey(gx, gy)); if (!cell) continue;
+        for (const p of cell) {
+          const o = PS[p]; if (!o.alive || o.team === r.team) continue;
+          const dx = PX[p] - r.x, dy = PY[p] - r.y, rr = o.r + ROCKET_HIT;
+          if (dx * dx + dy * dy < rr * rr) { hit = o; break; }
+        }
+      }
+    }
+    const out = Math.hypot(r.x, r.y) > MAP_R;
+    if (hit || out || tick >= r.die) {
+      rockets.splice(i, 1);
+      for (const c of clients) sendJSON(c, { t: 'boom', id: r.id, x: Math.round(r.x), y: Math.round(r.y), hit: hit ? 1 : 0 });
+      if (hit) { const killer = r.owner.alive ? r.owner : null; if (!hit.bot || (killer && !killer.bot)) teamMsg(`💥 ${r.owner.name} подбил базукой ${hit.name}!`); killSnake(hit, killer); }
     }
   }
 }
@@ -1012,7 +1063,7 @@ function runRound() {
     for (const c of clients) { sendJSON(c, msg); if (c.snake) { c.snake.client = null; c.snake = null; } c.cells = new Set(); c.rs = null; }
     for (const s of [...snakes.values()]) { s.alive = false; snakes.delete(s.id); diedThisTick.push(s.id); }
     for (const f of drops) removeFood(f, 0); // останки змей убираем, обычная еда остаётся
-    drops.length = 0; teamKills = [0, 0]; teamCaps = [0, 0]; alarms.length = 0; finalMin = false;
+    drops.length = 0; teamKills = [0, 0]; teamCaps = [0, 0]; alarms.length = 0; finalMin = false; rockets.length = 0;
     flags.forEach(flagHome);
     roundPause = true; roundEndTick = tick + ROUND_PAUSE_SEC * TICK_RATE;
   } else { // перерыв прошёл — новый раунд
@@ -1134,7 +1185,7 @@ if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // о
 wss.on('connection', (ws, req) => {
   if (clients.size >= MAX_CLIENTS) { ws.close(1013, 'full'); return; }
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
-  clients.add(c);
+  clients.add(c); c.ua = String(req.headers['user-agent'] || '');
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
   sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });

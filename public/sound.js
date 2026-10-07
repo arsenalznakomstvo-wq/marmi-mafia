@@ -220,5 +220,7 @@ window.Sound = (() => {
   function beat(strong) { if (!ok()) return; tone(strong ? 70 : 58, 0.18, 'sine', strong ? 0.16 : 0.1); tone(strong ? 70 : 58, 0.16, 'sine', strong ? 0.12 : 0.07, ac.currentTime + 0.2); }
   // Тревога/событие команды: короткий двойной сигнал
   function alert() { if (!ok()) return; tone(880, 0.09, 'square', 0.035); tone(660, 0.12, 'square', 0.035, ac.currentTime + 0.11); }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert };
+  function rocket() { if (!ok()) return; noise(0.45, 0.18, 2500, 500, 0.9); tone(300, 0.35, 'sawtooth', 0.03, 0, 900); }
+  function boom() { if (!ok()) return; noise(0.7, 0.4, 900, 60, 0.7); tone(90, 0.5, 'sine', 0.22, 0, 40); }
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom };
 })();

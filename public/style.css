@@ -386,3 +386,10 @@ body.team-mode #play { background: rgba(10, 12, 18, 0.55) !important; border: 1p
 @keyframes finPulse { 50% { opacity: 0.45; } }
 #roundBanner .aw { margin-top: 10px; text-align: left; font-size: 15px; line-height: 1.6; }
 @media (max-width: 900px), (max-height: 500px) { #bigToast { font-size: 15px; top: 26%; } }
+/* Базука: кнопка выстрела справа по центру (владелец 07.10) */
+#fireBtn { position: fixed; z-index: 41; right: max(16px, env(safe-area-inset-right)); top: 42%; width: 70px; height: 70px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ff6a4a, #b3180c); border: 3px solid #ffd52e; box-shadow: 0 0 18px rgba(255, 80, 30, 0.7);
+  font-size: 32px; display: flex; align-items: center; justify-content: center; pointer-events: all; cursor: pointer; user-select: none; touch-action: none;
+  animation: firePulse 1s infinite; }
+#fireBtn span { position: absolute; right: -4px; top: -4px; background: #ffd52e; color: #111; font: bold 14px Arial, sans-serif; border-radius: 10px; padding: 1px 6px; }
+@keyframes firePulse { 50% { transform: scale(1.08); } }
