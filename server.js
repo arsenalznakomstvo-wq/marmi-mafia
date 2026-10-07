@@ -1096,10 +1096,13 @@ function step() {
   if (tick % (TICK_RATE * 2) === 0) reportRecords();
 }
 
-let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0, sumMs = 0, nSteps = 0;
+let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0, sumMs = 0, nSteps = 0, paused = false;
 function loop() {
   const now = performance.now();
   acc += now - lastT; lastT = now;
+  // Владелец 07.10: к арене никто не подключён (ни в игре, ни в меню) — она стоит на паузе и не тратит процессор
+  if (!clients.size && !process.env.TEST_NO_PAUSE) { acc = 0; paused = true; setTimeout(loop, 100); return; }
+  if (paused) { paused = false; console.log('арена проснулась: подключился человек'); }
   let n = 0;
   while (acc >= TICK_MS && n < 4) {
     const t0 = performance.now();
