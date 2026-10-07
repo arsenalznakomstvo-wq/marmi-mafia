@@ -280,8 +280,8 @@ let lb = null, pingMs = 0;
 let myMass = 0;
 // ===== Командный режим (владелец 07.10): ?mode=team — арена «Мирные (белые) против Мафии (чёрно-оранжевые)», ?team=0/1 — сразу в команду друга =====
 const QS = new URLSearchParams(location.search);
-// Владелец 07.10: командная игра пока выключена (из-за неё всё лагает). Включить: TEAM_ENABLED = true здесь и в server.js
-const TEAM_ENABLED = false;
+// Владелец 07.10: командная игра: выключалась 07.10 из-за лагов на бесплатном сервере, включена снова после перехода на Starter (0,5 CPU). Выключить: TEAM_ENABLED = false здесь и в server.js
+const TEAM_ENABLED = true;
 if (QS.get('mode') === 'team' && !TEAM_ENABLED) location.replace(location.pathname); // старая ссылка на команды — в обычную игру
 const TEAM_MODE = TEAM_ENABLED && QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
