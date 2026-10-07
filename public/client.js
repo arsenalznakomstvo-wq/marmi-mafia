@@ -281,6 +281,7 @@ const TEAM_MODE = QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
+let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
 let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
 
 function connect() {
@@ -314,6 +315,7 @@ function onJSON(m) {
   switch (m.t) {
     case 'hello':
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
+      if (m.bases) { BASES = m.bases; BASE_R = m.baseR; }
       protoOk = m.proto === PROTO;
       if (protoOk) {
         $('play').disabled = false; setStatus(''); $('status').style.color = ''; // владелец 06.10: без лишних надписей
@@ -326,9 +328,12 @@ function onJSON(m) {
     case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat, role, team] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot, role: role || 0, team: team == null ? -1 : team }); break;
     case 'roundEnd': onRoundEnd(m); break;
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
-      if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } } break; }
+      if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
+      if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); teamAlarms = m.a || []; break; }
+    case 'tmsg': bigToast(m.text); Sound.alert(); break;
+    case 'final': finalMinute = true; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
-    case 'roundStart': $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
+    case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
@@ -1114,6 +1119,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && meta.role === DON) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара
+    if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
@@ -1212,6 +1218,7 @@ function frame(time) {
     const sz = f.r * pulse * (hiQ ? SPR / FOOD_CORE : 3.2), spr = hiQ ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
+  if (BASES) drawBases(view, time);
   // Светящиеся шары (командный режим): плавно между обновлениями, пульсирующее сияние
   if (orbs.size) {
     const nowO = performance.now();
@@ -1250,6 +1257,7 @@ function frame(time) {
     for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn !== me) drawSnake(sn, metas.get(sn.id), false, time, view); }
     if (me) drawSnake(me, metas.get(me.id), true, time, view);
   }
+  if (BASES) drawFlags(time);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
@@ -1330,6 +1338,11 @@ function drawMinimap(me) {
     const x = c + me.xs[0] / MAP_R * R, y = c + me.ys[0] / MAP_R * R;
     mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.arc(x, y, 3.2 * k, 0, TAU); mctx.fill();
   }
+  if (BASES) { // базы — кольца цвета команды, знамёна — квадратики, тревога своих — мигающие красные круги
+    BASES.forEach(([bx, by], t) => { mctx.strokeStyle = TEAM_COL[t]; mctx.lineWidth = 1.6 * k; mctx.beginPath(); mctx.arc(c + bx / MAP_R * R, c + by / MAP_R * R, Math.max(4 * k, BASE_R / MAP_R * R), 0, TAU); mctx.stroke(); });
+    teamFlags.forEach((f, t) => { const s = 4.5 * k; mctx.fillStyle = TEAM_COL[t]; mctx.strokeStyle = '#000'; mctx.lineWidth = 1; mctx.fillRect(c + f[0] / MAP_R * R - s / 2, c + f[1] / MAP_R * R - s / 2, s, s); mctx.strokeRect(c + f[0] / MAP_R * R - s / 2, c + f[1] / MAP_R * R - s / 2, s, s); });
+    if (teamAlarms.length && Math.floor(performance.now() / 300) % 2) for (const [ax, ay] of teamAlarms) { mctx.strokeStyle = '#ff2b2b'; mctx.lineWidth = 2 * k; mctx.beginPath(); mctx.arc(c + ax / MAP_R * R, c + ay / MAP_R * R, 5 * k, 0, TAU); mctx.stroke(); }
+  }
   for (const o of orbs.values()) { // светящиеся шары на миникарте — голубые точки
     mctx.fillStyle = '#7df9ff'; mctx.beginPath(); mctx.arc(c + o.x / MAP_R * R, c + o.y / MAP_R * R, 2.6 * k, 0, TAU); mctx.fill();
   }
@@ -1362,7 +1375,9 @@ function renderTeamBar() {
   if (!TEAM_MODE || !teamTm) { b.classList.add('hide'); return; }
   const [a, c, left, h0, h1, pause] = teamTm;
   b.classList.remove('hide');
-  b.innerHTML = `<span class="t0${myTeam === 0 ? ' me' : ''}">⚪ Мирные ${a}</span><span class="clk">⏱ ${pause ? 'перерыв' : mmss(left)}</span><span class="t1${myTeam === 1 ? ' me' : ''}">${c} Мафия 🟠</span>`;
+  const fin = !pause && left <= 60;
+  if (fin && alive && left !== lastBeat) { lastBeat = left; Sound.beat(left <= 10); }
+  b.innerHTML = `<span class="t0${myTeam === 0 ? ' me' : ''}">⚪ Мирные ${a}</span><span class="clk${fin ? ' fin' : ''}">⏱ ${pause ? 'перерыв' : mmss(left)}${fin ? ' ×2' : ''}</span><span class="t1${myTeam === 1 ? ' me' : ''}">${c} Мафия 🟠</span>`;
   b.title = `Людей: Мирные ${h0}, Мафия ${h1}`;
 }
 function onRoundEnd(m) {
@@ -1372,7 +1387,9 @@ function onRoundEnd(m) {
   const head = w < 0 ? '🤝 Ничья!' : `🏆 Победила ${TEAM_ICON[w]} ${TEAM_NAME[w]}!`;
   const best = m.best ? `<div class="sub">Лучший игрок: <b>${esc(m.best[0])}</b> ${m.best[2] >= 0 ? TEAM_ICON[m.best[2]] : ''} — длина ${m.best[1]}</div>` : '';
   $('roundBanner').innerHTML = `<div class="big">${head}</div>${myTeam >= 0 && w >= 0 ? `<div>${mine ? 'Ваша команда победила! 🎉' : 'Ваша команда проиграла'}</div>` : ''}`
-    + `<div class="sc">⚪ ${m.scores[0]} : ${m.scores[1]} 🟠</div>${best}<div class="sub" id="rbLeft">Новый раунд через ${m.pause} с</div>`;
+    + `<div class="sc">⚪ ${m.scores[0]} : ${m.scores[1]} 🟠</div>${best}`
+    + ((m.awards || []).length ? `<div class="aw">${m.awards.map(([ic, ti, nm, tm, v]) => `<div>${ic} ${ti}: <b>${esc(nm)}</b> ${tm >= 0 ? TEAM_ICON[tm] : ''} — ${v}</div>`).join('')}</div>` : '')
+    + `<div class="sub" id="rbLeft">Новый раунд через ${m.pause} с</div>`;
   $('roundBanner').classList.remove('hide');
   let left = m.pause; const t = setInterval(() => { left--; const e = $('rbLeft'); if (!e || left <= 0) { clearInterval(t); return; } e.textContent = `Новый раунд через ${left} с`; }, 1000);
   if (wasAlive) { rejoinAfterRound = true; Sound.kill(); } // играл — после перерыва зайдёт в новый раунд сам
@@ -1395,6 +1412,33 @@ function setupModeMenu() {
   });
 }
 setupModeMenu();
+
+// Командные новости (знамя украли, «в ударе», последняя минута) — крупная надпись сверху на 3 с
+let bigT = 0;
+function bigToast(text) { const e = $('bigToast'); e.textContent = text; e.classList.add('show'); clearTimeout(bigT); bigT = setTimeout(() => e.classList.remove('show'), 3000); }
+// База команды: круг цвета команды на полу и надпись
+function drawBases(view, time) {
+  BASES.forEach(([x, y], t) => {
+    if (x + BASE_R < view.x0 || x - BASE_R > view.x1 || y + BASE_R < view.y0 || y - BASE_R > view.y1) return;
+    ctx.globalAlpha = 0.13; ctx.fillStyle = TEAM_COL[t]; ctx.beginPath(); ctx.arc(x, y, BASE_R, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 0.75; ctx.setLineDash([28, 18]); ctx.lineDashOffset = -time * 0.02; ctx.lineWidth = 8; ctx.strokeStyle = TEAM_COL[t]; ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 0.55; ctx.fillStyle = TEAM_COL[t]; ctx.font = 'bold 46px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('БАЗА ' + TEAM_NAME[t].toUpperCase(), x, y + BASE_R * 0.62); ctx.globalAlpha = 1;
+  });
+}
+// Знамя: древко и развевающееся полотнище; у того, кто несёт, — над головой
+function drawFlags(time) {
+  teamFlags.forEach(([fx, fy, carrier], t) => {
+    let x = fx, y = fy, sc = 1;
+    if (carrier) { const h = lastHeads.get(carrier); if (h && Math.hypot(h.x - fx, h.y - fy) < 250) { x = h.x; y = h.y; } sc = 0.8; } // голова на экране — точно над ней
+    const H = 90 * sc, W = 58 * sc, w = Math.sin(time * 0.008 + t) * 6 * sc;
+    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5 * sc; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - H); ctx.stroke();
+    ctx.fillStyle = TEAM_COL[t]; ctx.strokeStyle = t ? '#1c1c1e' : '#9aa0a8'; ctx.lineWidth = 2.5 * sc;
+    ctx.beginPath(); ctx.moveTo(x, y - H); ctx.quadraticCurveTo(x + W / 2, y - H - 8 * sc + w, x + W, y - H + 4 * sc + w);
+    ctx.lineTo(x + W, y - H + 34 * sc + w); ctx.quadraticCurveTo(x + W / 2, y - H + 26 * sc - w, x, y - H + 32 * sc); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (!carrier) { ctx.globalAlpha = 0.35 + 0.25 * Math.sin(time * 0.006); ctx.strokeStyle = TEAM_COL[t]; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 45, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
+  });
+}
 
 let toastT = 0;
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }

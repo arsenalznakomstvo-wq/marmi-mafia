@@ -344,10 +344,20 @@ function killSnake(s, killer) {
   }
   if (killer && killer.alive) {
     killer.kills++;
-    if (TEAM && killer.team != null && killer.team !== s.team) teamKills[killer.team]++;
+    if (TEAM && killer.team != null && killer.team !== s.team) {
+      teamKills[killer.team]++;
+      if (killer.client && killer.client.rs) killer.client.rs.kills++;
+      killer.streak = (killer.streak || 0) + 1;
+      if (s.hot) { // остановил того, кто «в ударе» — награда двойная
+        teamKills[killer.team]++; killer.mass += 200;
+        if (!killer.bot || !s.bot) teamMsg(`💥 ${killer.name} остановил ${s.name}! Двойная награда`);
+      }
+      if (killer.streak === 3) { killer.hot = true; if (!killer.bot) teamMsg(`🔥 ${killer.name} В УДАРЕ! Кто съест — двойная награда`); }
+    }
     if (killer.client) sendJSON(killer.client, { t: 'kill', name: s.name });
   }
   const c = s.client;
+  if (TEAM && c && c.rs) { c.rs.life = Math.max(c.rs.life, Math.round((tick - (s.born || tick)) / TICK_RATE)); addAlarm(s.team, s.xs[0], s.ys[0]); }
   if (c) {
     c.snake = null;
     sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null });
@@ -362,17 +372,17 @@ function eat(s) {
     const cell = fcells.get(((cx + 64) << 8) | (cy + 64)); if (!cell) continue;
     for (const f of cell) {
       const dx = f.x - hx, dy = f.y - hy, rr = s.r * 1.25 + 10 + f.r;
-      if (dx * dx + dy * dy < rr * rr) { s.mass += f.v; removeFood(f, s.id); }
+      if (dx * dx + dy * dy < rr * rr) { s.mass += finalMin ? f.v * 2 : f.v; removeFood(f, s.id); } // последняя минута командного раунда — еда ×2
     }
   }
 }
 
 // Место для появления: подальше от чужих тел и голов игроков
-function findSpawn(awayFromPlayers) {
+function findSpawn(awayFromPlayers, cx, cy, rad) { // cx, cy, rad — искать рядом с точкой (командный режим: у своей базы)
   let best = null, bestD = -1;
   for (let t = 0; t < 30; t++) {
-    const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (MAP_R - 700);
-    const x = Math.cos(a) * d, y = Math.sin(a) * d;
+    const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (cx != null ? rad : MAP_R - 700);
+    const x = (cx != null ? cx : 0) + Math.cos(a) * d, y = (cy != null ? cy : 0) + Math.sin(a) * d;
     let md = 400;
     const cx0 = Math.floor((x - 400) / GRID), cx1 = Math.floor((x + 400) / GRID);
     const cy0 = Math.floor((y - 400) / GRID), cy1 = Math.floor((y + 400) / GRID);
@@ -683,10 +693,13 @@ function handleJSON(c, m) {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
     const pos = process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_CENTER — только для проверок
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
+    const team = TEAM ? (m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true)) : null;
+    if (TEAM && !process.env.TEST_SPAWN_CENTER) { const p = findSpawn(false, BASES[team][0], BASES[team][1], 1300); pos.x = p.x; pos.y = p.y; } // у своей базы
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
-    if (TEAM) { s.team = m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true); setTeamSkin(s); }
+    if (TEAM) { s.team = team; setTeamSkin(s); s.born = tick; c.rs = c.rs || { kills: 0, orbs: 0, caps: 0, life: 0 }; c.rs.name = s.name; c.rs.team = team; }
     if (TEAM && process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     s.client = c; c.snake = s; c.inA = s.a;
+    if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200]; } // только для проверок: чужое знамя у головы, своя база рядом
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
@@ -838,9 +851,8 @@ function sendLeaderboard() {
 
 // ===== Шаг мира =====
 // ===== События на карте (владелец 06.10): раз в 10 минут по очереди «Ночь мафии» и «Золотая еда» =====
-const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 600) * TICK_RATE; // TEST_EVENT_EVERY — только для проверок
+const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 90) * TICK_RATE; // владелец 07.10: ночь раз в 3 минуты, золото между ночами; // TEST_EVENT_EVERY — только для проверок
 const NIGHT_LEN = 60 * TICK_RATE, GOLD_LEN = 45 * TICK_RATE;
-let goldRun = 0;
 let event = null, nextEventAt = Math.round(EVENT_EVERY / 2), nextEventType = process.env.TEST_EVENT_FIRST || 'gold'; // TEST_EVENT_FIRST — только для проверок
 function runEvents() {
   if (TEAM) return; // в командном режиме событий нет
@@ -859,13 +871,12 @@ function runEvents() {
     }
     event = { type: 'gold', until: tick + GOLD_LEN, x, y };
   }
-  // Владелец 07.10: ночь реже — порядок «золото, золото, ночь»: ночь раз в 30 минут, золото как было
-  goldRun = nextEventType === 'gold' ? goldRun + 1 : 0;
-  nextEventType = goldRun >= 2 ? 'night' : 'gold';
+  nextEventType = nextEventType === 'night' ? 'gold' : 'night'; // по очереди: ночь раз в 3 минуты
   nextEventAt = tick + EVENT_EVERY;
 }
 // ===== Светящиеся шары (командный режим, владелец 07.10): убегают от змей, догнал — змея сразу заметно длиннее =====
-const ORB_N = 4, ORB_R = 22, ORB_VALUE = 150, ORB_FLEE = 9, ORB_WANDER = 2, ORB_SEE = 450, ORB_RESPAWN = 8 * TICK_RATE;
+const ORB_N = 7, ORB_BASE_N = 4, // 4 шара всегда, ещё 3 — только в последнюю минуту раунда
+   ORB_R = 22, ORB_VALUE = 150, ORB_FLEE = 9, ORB_WANDER = 2, ORB_SEE = 450, ORB_RESPAWN = 8 * TICK_RATE;
 const orbs = [];
 function placeOrb(o) {
   const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (MAP_R - 800);
@@ -875,6 +886,7 @@ for (let i = 0; i < ORB_N; i++) { const o = { i }; placeOrb(o); orbs.push(o); }
 function stepOrbs() {
   if (!TEAM || roundPause) return;
   for (const o of orbs) {
+    if (o.i >= ORB_BASE_N && !finalMin) { o.alive = false; continue; }
     if (!o.alive) { if (tick >= o.back) placeOrb(o); continue; }
     // ближайшая голова: от неё убегаем (быстрее обычной змеи, медленнее ускорения — догнать можно только с ускорением)
     let near = null, nd = ORB_SEE * ORB_SEE;
@@ -883,6 +895,7 @@ function stepOrbs() {
       const dx = o.x - s.xs[0], dy = o.y - s.ys[0], d = dx * dx + dy * dy, rr = ORB_R + s.r;
       if (d < rr * rr) { // поймали
         s.mass += ORB_VALUE; o.alive = false; o.back = tick + ORB_RESPAWN;
+        if (s.client && s.client.rs) s.client.rs.orbs++;
         if (s.client) sendJSON(s.client, { t: 'orbEat', v: ORB_VALUE });
         break;
       }
@@ -899,9 +912,64 @@ function stepOrbs() {
     }
     o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
   }
-  if (tick % 3 === 0) { // 10 раз в секунду: где шары
-    const msg = JSON.stringify({ t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) });
-    for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+  stepFlags();
+  if (tick % 10 === 0) checkAlarms();
+  if (tick % 3 === 0) { // 10 раз в секунду: шары, флаги, кто «в ударе»; тревоги — только своей команде
+    const base = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]),
+      f: flags.map(f => [Math.round(f.x), Math.round(f.y), f.carrier ? f.carrier.id : 0, f.home ? 1 : 0]), h: [] };
+    for (const s of snakes.values()) if (s.hot && s.alive) base.h.push(s.id);
+    const msgs = [0, 1].map(t => { const a = alarms.filter(x => x.team === t && x.until > tick).map(x => [Math.round(x.x), Math.round(x.y)]); return JSON.stringify(a.length ? { ...base, a } : base); });
+    const plain = JSON.stringify(base);
+    for (const c of clients) if (c.ws.readyState === 1) { const t = c.snake ? c.snake.team : c.rs ? c.rs.team : -1; c.ws.send(t === 0 || t === 1 ? msgs[t] : plain); }
+  }
+}
+// ===== Флаги (владелец 07.10): у каждой команды база со знаменем. Украл чужое знамя и довёз до своей базы — +2000 команде =====
+const BASES = [[-3200, 0], [3200, 0]], BASE_R = 300, FLAG_R = 45, FLAG_POINTS = 2000, FLAG_BACK_SEC = 30;
+const TEAM_GEN = ['Мирных', 'Мафии'];
+const flags = BASES.map(([x, y]) => ({ x, y, home: true, carrier: null, dropT: 0 }));
+let teamCaps = [0, 0];
+function flagHome(f, t) { f.x = BASES[t][0]; f.y = BASES[t][1]; f.home = true; f.carrier = null; }
+function teamMsg(text) { for (const c of clients) sendJSON(c, { t: 'tmsg', text }); }
+function stepFlags() {
+  for (let t = 0; t < 2; t++) {
+    const f = flags[t];
+    if (f.carrier) {
+      const k = f.carrier;
+      if (!k.alive) { f.carrier = null; f.dropT = tick; teamMsg(`🚩 Знамя ${TEAM_GEN[t]} упало! Свои — верните его, чужие — подхватите`); continue; }
+      f.x = k.xs[0]; f.y = k.ys[0];
+      const b = BASES[k.team];
+      if (Math.hypot(f.x - b[0], f.y - b[1]) < BASE_R) {
+        teamCaps[k.team]++; if (k.client && k.client.rs) k.client.rs.caps++;
+        teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде`);
+        flagHome(f, t);
+      }
+      continue;
+    }
+    if (!f.home && tick - f.dropT > FLAG_BACK_SEC * TICK_RATE) { flagHome(f, t); teamMsg(`🚩 Знамя ${TEAM_GEN[t]} вернулось на базу`); continue; }
+    for (const s of snakes.values()) {
+      if (!s.alive || s.bot) continue; // знамёнами играют люди
+      const dx = s.xs[0] - f.x, dy = s.ys[0] - f.y, rr = FLAG_R + s.r;
+      if (dx * dx + dy * dy > rr * rr) continue;
+      if (s.team !== t) { f.carrier = s; f.home = false; teamMsg(`🚩 ${s.name} украл знамя ${TEAM_GEN[t]}! Догоните его!`); break; }
+      if (!f.home) { flagHome(f, t); teamMsg(`🚩 ${s.name} вернул знамя ${TEAM_GEN[t]} на базу`); break; }
+    }
+  }
+}
+// ===== Тревога своим: на нашего человека напал соперник (чужая голова рядом) — свои видят мигающую точку на миникарте =====
+const alarms = [];
+function addAlarm(team, x, y) {
+  for (const a of alarms) if (a.team === team && Math.hypot(a.x - x, a.y - y) < 400) { a.x = x; a.y = y; a.until = tick + 3 * TICK_RATE; return; }
+  alarms.push({ team, x, y, until: tick + 3 * TICK_RATE });
+}
+function checkAlarms() {
+  for (let i = alarms.length - 1; i >= 0; i--) if (alarms[i].until <= tick) alarms.splice(i, 1);
+  for (const s of snakes.values()) {
+    if (s.bot || !s.alive) continue;
+    for (const o of snakes.values()) {
+      if (!o.alive || o.team === s.team) continue;
+      const dx = o.xs[0] - s.xs[0], dy = o.ys[0] - s.ys[0];
+      if (dx * dx + dy * dy < 350 * 350) { addAlarm(s.team, s.xs[0], s.ys[0]); break; }
+    }
   }
 }
 function angDiffS(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }
@@ -917,23 +985,33 @@ function reportRecords() {
 }
 
 // ===== Раунды командного режима =====
-let teamKills = [0, 0], roundEndTick = ROUND_SEC * TICK_RATE, roundPause = false;
+let teamKills = [0, 0], roundEndTick = ROUND_SEC * TICK_RATE, roundPause = false, finalMin = false;
 // Счёт команды = длина всех живых змей команды + 300 за каждое убийство соперника
 function teamScores() {
-  const sc = [teamKills[0] * 300, teamKills[1] * 300], hum = [0, 0];
+  const sc = [teamKills[0] * 300 + teamCaps[0] * FLAG_POINTS, teamKills[1] * 300 + teamCaps[1] * FLAG_POINTS], hum = [0, 0];
   for (const s of snakes.values()) if (s.alive && s.team != null) { sc[s.team] += Math.floor(s.mass); if (!s.bot) hum[s.team]++; }
   return [sc[0], sc[1], Math.max(0, Math.ceil((roundEndTick - tick) / TICK_RATE)), hum[0], hum[1], roundPause ? 1 : 0];
 }
 function runRound() {
-  if (!TEAM || tick < roundEndTick) return;
+  if (!TEAM) return;
+  const fm = !roundPause && roundEndTick - tick <= 60 * TICK_RATE;
+  if (fm && !finalMin) { teamMsg('⏰ Последняя минута! Еда ×2, шаров больше — всё решится сейчас'); for (const c of clients) sendJSON(c, { t: 'final' }); }
+  finalMin = fm;
+  if (tick < roundEndTick) return;
   if (!roundPause) { // раунд закончился: объявляем победителя и очищаем карту
     const [a, b] = teamScores();
     let best = null; for (const s of snakes.values()) if (s.alive && (!best || s.mass > best.mass)) best = s;
-    const msg = { t: 'roundEnd', winner: a === b ? -1 : a > b ? 0 : 1, scores: [a, b], best: best ? [best.name, Math.floor(best.mass), best.team] : null, pause: ROUND_PAUSE_SEC };
-    for (const c of clients) { sendJSON(c, msg); if (c.snake) { c.snake.client = null; c.snake = null; } c.cells = new Set(); }
+    // Итоги раунда: награды людям
+    const rs = [];
+    for (const c of clients) if (c.rs) { if (c.snake && c.snake.alive) c.rs.life = Math.max(c.rs.life, Math.round((tick - (c.snake.born || tick)) / TICK_RATE)); rs.push(c.rs); }
+    const award = (key, icon, title, unit) => { let w = null; for (const r of rs) if (r[key] > 0 && (!w || r[key] > w[key])) w = r; return w ? [icon, title, w.name, w.team, w[key] + unit] : null; };
+    const awards = [award('kills', '🗡', 'Больше всех убил', ''), award('caps', '🏁', 'Довёз знамя', ' раз'), award('orbs', '✨', 'Ловец шаров', ''), award('life', '⏱', 'Дольше всех прожил', ' с')].filter(Boolean);
+    const msg = { t: 'roundEnd', winner: a === b ? -1 : a > b ? 0 : 1, scores: [a, b], best: best ? [best.name, Math.floor(best.mass), best.team] : null, pause: ROUND_PAUSE_SEC, awards };
+    for (const c of clients) { sendJSON(c, msg); if (c.snake) { c.snake.client = null; c.snake = null; } c.cells = new Set(); c.rs = null; }
     for (const s of [...snakes.values()]) { s.alive = false; snakes.delete(s.id); diedThisTick.push(s.id); }
     for (const f of drops) removeFood(f, 0); // останки змей убираем, обычная еда остаётся
-    drops.length = 0; teamKills = [0, 0];
+    drops.length = 0; teamKills = [0, 0]; teamCaps = [0, 0]; alarms.length = 0; finalMin = false;
+    flags.forEach(flagHome);
     roundPause = true; roundEndTick = tick + ROUND_PAUSE_SEC * TICK_RATE;
   } else { // перерыв прошёл — новый раунд
     roundPause = false; roundEndTick = tick + ROUND_SEC * TICK_RATE;
@@ -1057,7 +1135,7 @@ wss.on('connection', (ws, req) => {
   clients.add(c);
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
-  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   ws.on('message', (data, isBinary) => {
     const now = Date.now();
     if (now - c.msgT > 1000) { c.msgT = now; c.msgs = 0; }

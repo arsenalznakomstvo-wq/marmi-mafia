@@ -378,3 +378,11 @@ body:not(.in-menu) #menuPhotos { display: none; }
 body.team-mode #teamBar { top: calc(max(8px, env(safe-area-inset-top)) + 46px); }
 /* Владелец 07.10: в командной игре кнопка «Играть» тёмная полупрозрачная */
 body.team-mode #play { background: rgba(10, 12, 18, 0.55) !important; border: 1px solid rgba(255, 255, 255, 0.28); color: #fff; box-shadow: none; }
+/* Командные новости и итоги раунда (владелец 07.10) */
+#bigToast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+  background: rgba(10, 12, 18, 0.82); color: #fff; font: bold 19px Arial, sans-serif; padding: 9px 18px; border-radius: 14px; text-align: center; max-width: 86vw; z-index: 6; }
+#bigToast.show { opacity: 1; transform: translateX(-50%) scale(1); }
+#teamBar .clk.fin { color: #ff4040; animation: finPulse 1s infinite; }
+@keyframes finPulse { 50% { opacity: 0.45; } }
+#roundBanner .aw { margin-top: 10px; text-align: left; font-size: 15px; line-height: 1.6; }
+@media (max-width: 900px), (max-height: 500px) { #bigToast { font-size: 15px; top: 26%; } }
