@@ -17,6 +17,8 @@ const records = require('./records.js');
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
 // ===== Командный режим (владелец 07.10): отдельная арена «Мирные (белые) против Мафии (чёрно-оранжевые)» — этот же файл, запущенный с TEAM_MODE=1 =====
 const TEAM = process.env.TEAM_MODE === '1';
+// Владелец 07.10: командная игра пока выключена (из-за неё всё лагает). Включить: TEAM_ENABLED = true здесь и в public/client.js
+const TEAM_ENABLED = false;
 const TEAM_NAMES = ['Мирные', 'Мафия'], TEAM_BOT_NAMES = ['Мирный', 'Мафиози'];
 // Владелец 07.10: вся команда одного цвета — Мирные белые, Мафия чёрно-оранжевая (свой скин в командах не действует)
 const TEAM_SKIN_NAMES = ['Белый', 'Чёрно-оранжевый'];
@@ -1171,7 +1173,7 @@ const teamWss = TEAM ? null : new WebSocketServer({ noServer: true, maxPayload: 
 server.on('upgrade', (req, socket, head) => {
   const p = (req.url || '').split('?')[0];
   if (p === '/ws') wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
-  else if (p === '/ws-team' && teamWss) teamWss.handleUpgrade(req, socket, head, ws => teamWss.emit('connection', ws, req));
+  else if (p === '/ws-team' && teamWss && TEAM_ENABLED) teamWss.handleUpgrade(req, socket, head, ws => teamWss.emit('connection', ws, req));
   else socket.destroy();
 });
 if (teamWss) teamWss.on('connection', (ws, req) => {

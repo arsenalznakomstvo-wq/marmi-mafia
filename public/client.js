@@ -280,7 +280,10 @@ let lb = null, pingMs = 0;
 let myMass = 0;
 // ===== Командный режим (владелец 07.10): ?mode=team — арена «Мирные (белые) против Мафии (чёрно-оранжевые)», ?team=0/1 — сразу в команду друга =====
 const QS = new URLSearchParams(location.search);
-const TEAM_MODE = QS.get('mode') === 'team';
+// Владелец 07.10: командная игра пока выключена (из-за неё всё лагает). Включить: TEAM_ENABLED = true здесь и в server.js
+const TEAM_ENABLED = false;
+if (QS.get('mode') === 'team' && !TEAM_ENABLED) location.replace(location.pathname); // старая ссылка на команды — в обычную игру
+const TEAM_MODE = TEAM_ENABLED && QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
@@ -1410,6 +1413,7 @@ function onRoundEnd(m) {
   if (wasAlive) { rejoinAfterRound = true; Sound.kill(); } // играл — после перерыва зайдёт в новый раунд сам
 }
 function setupModeMenu() {
+  if (!TEAM_ENABLED) { $('modeRow').classList.add('hide'); return; } // командная игра выключена — кнопки нет
   $('modeBtn').textContent = TEAM_MODE ? '← Обычная игра' : '👥 Команда на команду';
   $('modeBtn').addEventListener('click', () => { location.href = location.pathname + (TEAM_MODE ? '' : '?mode=team'); });
   if (!TEAM_MODE) return;
