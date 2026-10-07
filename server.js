@@ -331,7 +331,7 @@ function collisions() {
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
 function killSnake(s, killer) {
   if (!s.alive) return;
-  if (!s.bot && !TEAM) records.report(s.name, s.mass);
+  if (!s.bot) records.report(s.name, s.mass);
   if (!s.bot) deathStats.player++; else if (killer) deathStats.botBody++; else deathStats.botWall++;
   s.alive = false;
   snakes.delete(s.id);
@@ -1034,7 +1034,6 @@ function angDiffS(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d 
 
 // Рекорды: раз в 2 секунды сообщаем длину живых людей
 function reportRecords() {
-  if (TEAM) return;
   for (const s of snakes.values()) {
     if (s.bot || !s.alive) continue;
     const hit = records.report(s.name, s.mass);
@@ -1150,6 +1149,8 @@ function ensureTeamArena() {
   if (teamReady) return teamReady;
   teamProc = spawn(process.execPath, [__filename], { env: { ...process.env, TEAM_MODE: '1', PORT: String(TEAM_PORT) }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
   teamProc.on('exit', () => { teamProc = null; teamReady = null; });
+  teamProc.on('message', m => { if (m && m.t === 'rec') teamRecStore = m.data; });
+  if (teamRecStore) teamProc.send({ t: 'recInit', data: teamRecStore });
   teamReady = new Promise((ok, fail) => {
     let n = 0;
     const t = setInterval(() => {
@@ -1217,7 +1218,14 @@ wss.on('connection', (ws, req) => {
 
 while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
-if (!TEAM) records.load();
+records.load();
+// Рекорды командной арены живут в основном процессе: арена шлёт их при каждом изменении и получает обратно при запуске
+let teamRecStore = null;
+if (TEAM && process.send) {
+  process.on('message', m => { if (m && m.t === 'recInit') records.restore(m.data); });
+  let recT = null;
+  records.setOnChange(() => { if (!recT) recT = setTimeout(() => { recT = null; try { process.send({ t: 'rec', data: records.dump() }); } catch {} }, 2000); });
+}
 server.listen(PORT, () => {
   console.log(TEAM ? `Командная арена запущена (порт ${PORT})` : `Марми Мафия запущена: http://localhost:${PORT}`);
   if (TEAM) { loop(); return; }

@@ -6,6 +6,8 @@ const URL_ = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
 const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const enabled = () => !!(URL_ && TOKEN);
 const TOP = 5;
+// Командная арена (TEAM_MODE=1) ведёт свои рекорды отдельно (владелец 07.10)
+const KEY = process.env.TEAM_MODE === '1' ? 'mm:trec' : 'mm:rec';
 
 const dayOf = t => new Date(t + 5 * 3600e3).toISOString().slice(0, 10); // ташкентская дата
 let day = dayOf(Date.now());
@@ -20,7 +22,7 @@ async function redis(cmd) {
 async function load() {
   if (!enabled()) return;
   try {
-    const [a, d] = await Promise.all([redis(['GET', 'mm:rec:all']), redis(['GET', 'mm:rec:day:' + day])]);
+    const [a, d] = await Promise.all([redis(['GET', KEY + ':all']), redis(['GET', KEY + ':day:' + day])]);
     if (a) allTime = JSON.parse(a);
     if (d) today = JSON.parse(d);
     console.log('рекорды загружены: всех времён', allTime.length, ', сегодня', today.length);
@@ -30,8 +32,8 @@ async function save() {
   if (!enabled() || !dirty) return;
   dirty = false;
   try {
-    await redis(['SET', 'mm:rec:all', JSON.stringify(allTime)]);
-    await redis(['SET', 'mm:rec:day:' + day, JSON.stringify(today), 'EX', String(3 * 86400)]);
+    await redis(['SET', KEY + ':all', JSON.stringify(allTime)]);
+    await redis(['SET', KEY + ':day:' + day, JSON.stringify(today), 'EX', String(3 * 86400)]);
   } catch (e) { dirty = true; console.log('рекорды: не удалось сохранить', e.message); }
 }
 setInterval(save, 10000);
@@ -53,7 +55,7 @@ function report(name, score) {
   if (score < 50) return null;
   const wasDay = today[0] ? today[0].score : 0, wasAll = allTime[0] ? allTime[0].score : 0;
   const ch1 = put(today, name, score), ch2 = put(allTime, name, score);
-  if (ch1 || ch2) dirty = true;
+  if (ch1 || ch2) { dirty = true; if (onChange) onChange(); }
   if (score < 500) return null; // поздравляем только с заметным рекордом
   if (score > wasAll && allTime[0] && allTime[0].name === name && wasAll > 0) return 'all';
   if (score > wasDay && today[0] && today[0].name === name && wasDay > 0) return 'day';
@@ -61,4 +63,12 @@ function report(name, score) {
 }
 const view = () => ({ day: today.map(r => [r.name, r.score]), all: allTime.map(r => [r.name, r.score]), saved: enabled() });
 
-module.exports = { load, report, view, enabled };
+// Командная арена — отдельный процесс, который засыпает без игроков: рекорды хранит основной процесс (dump/restore)
+let onChange = null;
+const dump = () => ({ day, today, allTime });
+function restore(d) {
+  if (!d) return;
+  if (d.day === day) for (const r of d.today || []) put(today, r.name, r.score);
+  for (const r of d.allTime || []) put(allTime, r.name, r.score);
+}
+module.exports = { load, report, view, enabled, dump, restore, setOnChange: f => { onChange = f; } };

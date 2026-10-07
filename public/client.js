@@ -1312,11 +1312,10 @@ function drawNight(me) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 function renderRecords() {
-  if (TEAM_MODE) { $('records').classList.add('hide'); return; } // в командах рекордов нет
   const el = $('records'); if (!recData) return;
   const row = (list, i) => list[i] ? `<div class="rr"><span>${i + 1}. ${esc(list[i][0])}</span><b>${list[i][1]}</b></div>` : '';
   const col = (title, list) => `<div class="rc"><div class="rt">${title}</div>${list.length ? list.map((_, i) => row(list, i)).join('') : '<div class="rr empty">пока пусто</div>'}</div>`;
-  el.innerHTML = `<div class="rh">🏆 Рекорды</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
+  el.innerHTML = `<div class="rh">🏆 Рекорды${TEAM_MODE ? ' команд' : ''}</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
   el.classList.remove('hide');
 }
 function showRecord(kind) {
@@ -1415,7 +1414,7 @@ function setupModeMenu() {
   $('modeBtn').addEventListener('click', () => { location.href = location.pathname + (TEAM_MODE ? '' : '?mode=team'); });
   if (!TEAM_MODE) return;
   document.body.classList.add('team-mode');
-  $('teamPick').classList.remove('hide'); $('inviteBtn').classList.remove('hide'); $('records').classList.add('records-off');
+  $('teamPick').classList.remove('hide'); $('inviteBtn').classList.remove('hide');
   const mark = () => { for (const b of document.querySelectorAll('#teamPick .tp')) b.classList.toggle('sel', String(teamChoice) === b.dataset.team); };
   for (const b of document.querySelectorAll('#teamPick .tp')) b.addEventListener('click', () => { teamChoice = b.dataset.team === 'auto' ? 'auto' : +b.dataset.team; mark(); Sound.click(); });
   mark();
