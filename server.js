@@ -917,7 +917,7 @@ function stepOrbs() {
   if (tick % 3 === 0) { // 10 раз в секунду: шары, флаги, кто «в ударе»; тревоги — только своей команде
     const base = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]),
       f: flags.map(f => [Math.round(f.x), Math.round(f.y), f.carrier ? f.carrier.id : 0, f.home ? 1 : 0]), h: [] };
-    for (const s of snakes.values()) if (s.hot && s.alive) base.h.push(s.id);
+    for (const s of snakes.values()) if (s.alive) { if (s.hot) base.h.push(s.id); if (s.havana) (base.c || (base.c = [])).push(s.id); }
     const msgs = [0, 1].map(t => { const a = alarms.filter(x => x.team === t && x.until > tick).map(x => [Math.round(x.x), Math.round(x.y)]); return JSON.stringify(a.length ? { ...base, a } : base); });
     const plain = JSON.stringify(base);
     for (const c of clients) if (c.ws.readyState === 1) { const t = c.snake ? c.snake.team : c.rs ? c.rs.team : -1; c.ws.send(t === 0 || t === 1 ? msgs[t] : plain); }
@@ -940,7 +940,9 @@ function stepFlags() {
       const b = BASES[k.team];
       if (Math.hypot(f.x - b[0], f.y - b[1]) < BASE_R) {
         teamCaps[k.team]++; if (k.client && k.client.rs) k.client.rs.caps++;
-        teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде`);
+        // Владелец 07.10: довёз знамя — сразу в 5 раз длиннее (не меньше +1000) и сигара «Гавана»; каждый новый раз — ещё ×5
+        k.mass = Math.min(65000, Math.max(k.mass * 5, k.mass + 1000)); k.havana = true; k.caps = (k.caps || 0) + 1;
+        teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде, сам вырос в 5 раз 🚬${k.caps > 1 ? ' (уже ' + k.caps + '-й раз!)' : ''}`);
         flagHome(f, t);
       }
       continue;
