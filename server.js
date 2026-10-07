@@ -25,7 +25,7 @@ const TICK_RATE = 30;            // шагов мира в секунду
 const TICK_MS = 1000 / TICK_RATE;
 const MAP_R = 5000;              // радиус круглой карты
 const TARGET_SNAKES = 40;        // живые игроки + боты; зашёл человек — бот уступает место
-const FOOD_TARGET = 3490;        // обычной еды на карте: в оригинале её немного, ~25 точек на экран
+const FOOD_TARGET = TEAM ? 4360 : 3490; // обычной еды на карте: в оригинале её немного, ~25 точек на экран; в командах +25% — своих не разбить, трупов меньше (владелец 07.10)
 const SEG_D = 6;                 // расстояние между точками тела
 const BASE_SPEED = 6;            // за шаг мира (у змейки на старте; дальше см. speedFor)
 const BOOST_SPEED = 12 * 6 / 4.75; // ускорение как в оригинале: 12 против 4,75
@@ -839,6 +839,7 @@ function sendLeaderboard() {
 // ===== События на карте (владелец 06.10): раз в 10 минут по очереди «Ночь мафии» и «Золотая еда» =====
 const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 600) * TICK_RATE; // TEST_EVENT_EVERY — только для проверок
 const NIGHT_LEN = 60 * TICK_RATE, GOLD_LEN = 45 * TICK_RATE;
+let goldRun = 0;
 let event = null, nextEventAt = Math.round(EVENT_EVERY / 2), nextEventType = process.env.TEST_EVENT_FIRST || 'gold'; // TEST_EVENT_FIRST — только для проверок
 function runEvents() {
   if (TEAM) return; // в командном режиме событий нет
@@ -857,7 +858,9 @@ function runEvents() {
     }
     event = { type: 'gold', until: tick + GOLD_LEN, x, y };
   }
-  nextEventType = nextEventType === 'night' ? 'gold' : 'night';
+  // Владелец 07.10: ночь реже — порядок «золото, золото, ночь»: ночь раз в 30 минут, золото как было
+  goldRun = nextEventType === 'gold' ? goldRun + 1 : 0;
+  nextEventType = goldRun >= 2 ? 'night' : 'gold';
   nextEventAt = tick + EVENT_EVERY;
 }
 // Рекорды: раз в 2 секунды сообщаем длину живых людей
