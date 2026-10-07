@@ -22,10 +22,13 @@ function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d <
 // Камера как в оригинале: отдаляется по мере роста числа сегментов (формула та же, что в server.js)
 // Владелец 07.10: Дону и Киллеру (и Мафии — она старше Киллера) камера выше — видно больше карты
 const ROLE_ZOOM = { 7: 0.85, 8: 0.85, 9: 0.72 }; // номера ролей: 7 Киллер, 8 Мафия, 9 Дон (см. public/roles.js)
-function viewScale(w, h, r, role) {
+// Владелец 07.10: в командной игре чем длиннее змея, тем выше камера (видно красоту карты): с 300 плавно до ×0,5 на 8000
+let farView = false;
+const teamZoom = mass => mass > 300 ? 1 - 0.5 * Math.min(1, Math.log(mass / 300) / Math.log(8000 / 300)) : 1;
+function viewScale(w, h, r, role, mass) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
   const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
-  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1);
+  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1);
 }
 
 // ===== Цвета =====
@@ -1057,7 +1060,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (!n) return;
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
-  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 ? 0.6 : isTouch ? 0.42 : 0.28));
+  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView ? 0.6 : isTouch ? 0.42 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
   let cnt = 0;
   SX[0] = sn.xs[0]; SY[0] = sn.ys[0]; SI[0] = sn.idx[0]; cnt = 1;
   let rem = sp;
@@ -1200,7 +1203,8 @@ function frame(time) {
     look.x += (tx - look.x) * 0.04; look.y += (ty - look.y) * 0.04;
     cam.x = me.xs[0] + look.x; cam.y = me.ys[0] + look.y;
   } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
-  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0);
+  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0);
+  farView = TEAM_MODE && me && teamZoom(me.mass) < 0.8; // камера высоко — рисуем проще, чтобы телефон не тормозил
   cam.s += (target - cam.s) * 0.06;
 
   const s = cam.s;
@@ -1226,7 +1230,7 @@ function frame(time) {
     if (f.x < view.x0 - 40 || f.x > view.x1 + 40 || f.y < view.y0 - 40 || f.y > view.y1 + 40) continue;
     const pulse = 1 + 0.12 * Math.sin(tt * 2 + f.ph);
     // Низкое качество: маленький ореол — в разы меньше закрашиваемых пикселей
-    const sz = f.r * pulse * (hiQ ? SPR / FOOD_CORE : 3.2), spr = hiQ ? foodSprite(f.col) : foodDot(f.col);
+    const hq = hiQ && !farView, sz = f.r * pulse * (hq ? SPR / FOOD_CORE : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
   if (BASES) drawBases(view, time);

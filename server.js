@@ -106,10 +106,12 @@ const speedFor = (r, boost) => (boost ? 12 : 4.25 + 0.5 * (r / 10)) * SPEED_K;
 // Камера: в оригинале gsc = 0.64285 + 0.514285714 / max(1, (sct + 16)/36) — отдаляется по мере роста
 // Владелец 07.10: Дону и Киллеру (и Мафии — она старше Киллера) камера выше — видно больше карты
 const ROLE_ZOOM = { 7: 0.85, 8: 0.85, 9: 0.72 }; // номера ролей: 7 Киллер, 8 Мафия, 9 Дон (см. public/roles.js)
-function viewScale(w, h, r, role) {
+// Владелец 07.10: в командной игре чем длиннее змея, тем выше камера (видно красоту карты): с 300 плавно до ×0,5 на 8000
+const teamZoom = mass => mass > 300 ? 1 - 0.5 * Math.min(1, Math.log(mass / 300) / Math.log(8000 / 300)) : 1;
+function viewScale(w, h, r, role, mass) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
   const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * SC_DIV;
-  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1);
+  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1);
 }
 // Еда как в оригинале (замерено на живой игре, 42 поедания): шарик размера sz даёт 0,048·sz² очков длины.
 // Обычная еда — размеры 3…9 вперемешку; от погибших — ~2 шарика размера ~13–14 на сегмент; от ускорения — размер ~5.
@@ -725,7 +727,7 @@ function sendState(c) {
   let vx, vy, r = 10;
   if (me && me.alive) { vx = me.xs[0]; vy = me.ys[0]; r = me.r; c.vx = vx; c.vy = vy; }
   else { vx = c.vx; vy = c.vy; }
-  const sc = viewScale(c.w, c.h, r, me && me.alive ? me.role : 0);
+  const sc = viewScale(c.w, c.h, r, me && me.alive ? me.role : 0, TEAM && me && me.alive ? me.mass : 0);
   const hw = c.w / 2 / sc + 260, hh = c.h / 2 / sc + 260; // запас под «взгляд вперёд» камеры в браузере
   const x0 = vx - hw, x1 = vx + hw, y0 = vy - hh, y1 = vy + hh;
 
