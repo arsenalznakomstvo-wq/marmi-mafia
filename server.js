@@ -613,7 +613,10 @@ function botThink(b) {
     if (ai.prey) { ai.preyT = Math.round(rand(90, 210)); ai.side = Math.random() < 0.5 ? -1 : 1; }
     else ai.cool = 10;
   }
-  const pile = null; // владелец 07.10: поиск еды у ботов убран, чтобы разгрузить сервер (едят то, на что наткнутся)
+  // Владелец 07.10: поиск еды — 15 раз в секунду (через шаг; половина ботов на чётном шаге, половина на нечётном), между поисками — та же цель
+  if ((tick + b.id) % 2 === 0 || !ai.pileT) { ai.pile = bestFood(b, hx, hy); ai.pileT = 1; }
+  const pile = ai.pile;
+  if (pile) pile.d = Math.hypot(pile.x - hx, pile.y - hy);
   const dc = Math.hypot(hx, hy);
 
   if (dc > MAP_R - 350 - r * 3) {
