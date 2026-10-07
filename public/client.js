@@ -344,6 +344,7 @@ function onJSON(m) {
     case 'final': finalMinute = true; break;
     case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(); break;
     case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit, mine: m.o === myId, parts: m.hit ? makeDebris() : null }); if (m.hit) { Sound.boom(); if (m.o === myId) shakeUntil = performance.now() + 450; } break;
+    case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
@@ -764,6 +765,19 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
 }
 
 // Сигара Дона: из уголка рта, тлеющий кончик и дымок вверх
+// Губы Проститутки (владелец 07.10, вариант 2): знак поцелуя 💋 торчит перед мордой; картинка рисуется один раз и копируется
+function lipsSprite(fs) {
+  const k = PX_PER_UNIT(), f = Math.max(8, Math.round(fs / 2) * 2), size = f * 1.4;
+  return cacheCanvas('lp|' + f + '|' + k, size * k, size * k, g => {
+    g.scale(k, k); g.font = `${f}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('💋', size / 2, size / 2);
+  });
+}
+function drawLips(hx, hy, a, r) {
+  const fs = r * 1.25, sz = Math.max(8, Math.round(fs / 2) * 2) * 1.4;
+  drawRotated(lipsSprite(fs), hx + Math.cos(a) * r * 1.25, hy + Math.sin(a) * r * 1.25, a + Math.PI / 2, sz, sz, sz / 2, sz / 2);
+  resetWorldT();
+}
 function drawCigar(hx, hy, a, r, time) {
   const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
   const bx = hx + ca * r * 0.85 + px * r * 0.45, by = hy + sa * r * 0.85 + py * r * 0.45; // уголок рта
@@ -1063,6 +1077,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
   const n = sn.idx.length;
   if (!n) return;
+  const ghostT = !fade && docGhost.get(sn.id); // Доктор после спасения — мигает зелёным
+  if (ghostT && ghostT < performance.now()) docGhost.delete(sn.id);
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
   const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView ? 0.6 : isTouch ? 0.42 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
@@ -1087,6 +1103,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   const vx0 = view.x0 - size, vx1 = view.x1 + size, vy0 = view.y0 - size, vy1 = view.y1 + size;
   const shadeStep = Math.max(1, Math.round(sn.r * 0.9 / sp));
   if (fade) ctx.globalAlpha = 1 - fade;
+  else if (ghostT && ghostT > performance.now()) ctx.globalAlpha = 0.35 + 0.3 * (Math.sin(time * 0.03) > 0 ? 1 : 0);
 
   if (hiQ && !isTouch && !fade) { // тень под телом: змейка будто лежит над полом (на телефоне не рисуем — экономим)
     const sh = shadowSprite(), ss = size * 1.35, so = r * 0.25;
@@ -1134,6 +1151,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
+    if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка') drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
+    if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
@@ -1525,6 +1544,7 @@ function drawRockets(time) {
   }
 }
 let shakeUntil = 0;
+const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
 function fire() { if (myRockets > 0 && alive) { sendJSON({ t: 'fire' }); Sound.click(); } }
 function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(myRockets > 0 && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона */ b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
