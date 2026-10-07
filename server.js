@@ -861,7 +861,7 @@ function sendLeaderboard() {
 
 // ===== Шаг мира =====
 // ===== События на карте (владелец 06.10): раз в 10 минут по очереди «Ночь мафии» и «Золотая еда» =====
-const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 90) * TICK_RATE; // владелец 07.10: ночь раз в 3 минуты, золото между ночами; // TEST_EVENT_EVERY — только для проверок
+const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 180) * TICK_RATE; // владелец 07.10: «Ночь мафии» убрана (слишком часто), осталась золотая еда раз в 3 минуты; TEST_EVENT_EVERY — только для проверок
 const NIGHT_LEN = 60 * TICK_RATE, GOLD_LEN = 45 * TICK_RATE;
 let event = null, nextEventAt = Math.round(EVENT_EVERY / 2), nextEventType = process.env.TEST_EVENT_FIRST || 'gold'; // TEST_EVENT_FIRST — только для проверок
 function runEvents() {
@@ -881,7 +881,7 @@ function runEvents() {
     }
     event = { type: 'gold', until: tick + GOLD_LEN, x, y };
   }
-  nextEventType = nextEventType === 'night' ? 'gold' : 'night'; // по очереди: ночь раз в 3 минуты
+  nextEventType = 'gold'; // владелец 07.10: ночи больше нет — только золотая еда
   nextEventAt = tick + EVENT_EVERY;
 }
 // ===== Светящиеся шары (командный режим, владелец 07.10): убегают от змей, догнал — змея сразу заметно длиннее =====

@@ -420,3 +420,7 @@ body.team-mode #status { margin: 8px 0 0; }
 body.team-mode #records:not(.hide) { width: min(300px, 100%); min-width: 0; box-sizing: border-box; }
 @media (max-height: 500px) { body.team-mode #records:not(.hide) { width: 190px; } body.team-mode #play { height: 46px; } }
 body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; background: rgba(10, 12, 18, 0.6); border: 1px solid rgba(95, 209, 122, 0.35); border-radius: 20px; color: #9fe8b4; font-size: 14px; padding: 10px 6px; }
+/* Замер во время игры (владелец 07.10): пинг, кадры от сервера, рывки, кадры экрана — внизу по центру над цифрой игроков */
+#netInfo { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(max(4px, env(safe-area-inset-bottom)) + 24px); z-index: 5; pointer-events: none;
+  font: 12px Arial, sans-serif; color: #aeb6c2; background: rgba(10, 12, 18, 0.55); border-radius: 10px; padding: 3px 10px; white-space: nowrap; }
+#netInfo:empty { display: none; }

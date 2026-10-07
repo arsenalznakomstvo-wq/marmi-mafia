@@ -430,6 +430,7 @@ function onState(buf) {
       interpWant = clamp(Math.ceil(p95 / (1000 / TICK_RATE)) + 1, 3, 9);
     }
   }
+  netFrames++; if (lastArrive && nowA - lastArrive > 150) netJerks++;
   lastArrive = nowA;
   snaps.push({ tick, vx, vy, sn });
   while (snaps.length > 30) snaps.shift();
@@ -1160,7 +1161,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
 
 // Строка замеров внизу экрана: кадры в секунду, пинг, запас плавности — чтобы видеть, что тормозит
 let lowSecs = 0, autoLow = 0; // 1 — чёткость 1×, 2 — ещё и упрощённые змеи
-let fpsCount = 0, fpsT = performance.now();
+let fpsCount = 0, fpsT = performance.now(), netFrames = 0, netJerks = 0; // кадров от сервера за секунду; пауз между ними дольше 150 мс
 setInterval(() => {
   const now = performance.now(), fps = Math.round(fpsCount * 1000 / (now - fpsT));
   // Авто-облегчение на телефоне: если кадров мало несколько секунд подряд — сначала снижаем чёткость, потом упрощаем змей
@@ -1169,7 +1170,10 @@ setInterval(() => {
     if (lowSecs >= 3 && autoLow < 2) { autoLow++; lowSecs = 0; resize(); }
   }
   fpsCount = 0; fpsT = now;
-  void fps;
+  // Владелец 07.10: надпись-замер во время игры — что тормозит: связь (пинг, кадры от сервера, рывки) или телефон (кадры экрана)
+  { const srv = netFrames, jerks = netJerks; netFrames = 0; netJerks = 0;
+    const bad = (v, b) => v ? ' style="color:#ff6b6b"' : '';
+    $('netInfo').innerHTML = alive ? `<span${bad(pingMs > 150)}>📶 ${pingMs} мс</span> · <span${bad(srv < 26)}>сервер ${srv}/30</span>${jerks ? ` · <span style="color:#ff6b6b">рывки ${jerks}</span>` : ''} · <span${bad(fps < 40)}>экран ${fps} к/с</span>` : ''; }
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
   $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
   if (window.VoiceChat) VoiceChat.tick(alive, lb && typeof lb.online === 'number' ? lb.online : 0); // общий голос: когда на сайте есть кто-то ещё
