@@ -361,7 +361,7 @@ function onJSON(m) {
       const prevEv = evNow ? evNow[0] : null;
       lb = m; if (m.vis) visData = m.vis; if (m.mm) mmLines = m.mm; if (m.tm) { teamTm = m.tm; renderTeamBar(); } if (m.rec) { recData = m.rec; renderRecords(); }
       evNow = m.ev || null; evAt = performance.now();
-      if (evNow && evNow[0] !== prevEv) toast(evNow[0] === 'night' ? '🌙 Ночь мафии! Видно только рядом с собой' : '🍅 Золотая еда! Скорее туда — смотрите на миникарту');
+      if (evNow && evNow[0] !== prevEv) toast(evNow[0] === 'night' ? '🌙 Ночь мафии! Видно только рядом с собой' : '✨ Золотая еда · смотри на миникарту', 'ev'); // владелец 07.10: мельче и красивым шрифтом
       renderEvent(); renderLb(); break;
     }
     case 'record': showRecord(m.kind); break;
@@ -1586,7 +1586,7 @@ function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(
 }
 
 let toastT = 0;
-function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
+function toast(text, cls) { const t = $('toast'); t.textContent = text; t.classList.toggle('ev', cls === 'ev'); t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
 
 // ===== Меню =====
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }

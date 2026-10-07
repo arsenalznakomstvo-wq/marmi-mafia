@@ -442,3 +442,6 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
 }
 /* Владелец 07.10: на телефоне вся игра ярче — как будто прибавили яркость экрана */
 @media (pointer: coarse) { #game { filter: brightness(1.15) saturate(1.05); } }
+/* Владелец 07.10: сообщение о золотой еде — мельче, округлым шрифтом (как название), золотом на полупрозрачном фоне, чтобы не отвлекало */
+#toast.ev { font-family: 'Comfortaa', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ffd52e; letter-spacing: 0.3px;
+  background: rgba(10, 12, 18, 0.55); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 14px; padding: 5px 14px; text-shadow: none; top: 16%; }
