@@ -613,7 +613,7 @@ function botThink(b) {
     if (ai.prey) { ai.preyT = Math.round(rand(90, 210)); ai.side = Math.random() < 0.5 ? -1 : 1; }
     else ai.cool = 10;
   }
-  const pile = bestFood(b, hx, hy);
+  const pile = null; // владелец 07.10: поиск еды у ботов убран, чтобы разгрузить сервер (едят то, на что наткнутся)
   const dc = Math.hypot(hx, hy);
 
   if (dc > MAP_R - 350 - r * 3) {
@@ -1096,7 +1096,7 @@ function step() {
   if (tick % (TICK_RATE * 2) === 0) reportRecords();
 }
 
-let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0;
+let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0, sumMs = 0, nSteps = 0;
 function loop() {
   const now = performance.now();
   acc += now - lastT; lastT = now;
@@ -1106,6 +1106,7 @@ function loop() {
     step();
     const dt = performance.now() - t0;
     if (dt > worstMs) worstMs = dt;
+    sumMs += dt; nSteps++;
     if (dt > TICK_MS) slowTicks++;
     acc -= TICK_MS; n++;
   }
@@ -1117,10 +1118,10 @@ function loop() {
 setInterval(() => {
   let players = 0, bots = 0;
   for (const s of snakes.values()) { if (s.bot) bots++; else players++; }
-  console.log(`[${new Date().toLocaleTimeString('ru-RU')}] онлайн ${clients.size}, в игре ${players}, ботов ${bots}, еды ${foods.size}, худший шаг ${worstMs.toFixed(1)} мс, медленных шагов ${slowTicks}, боты разбились: о тела ${deathStats.botBody}, о край ${deathStats.botWall}, больших (>1000): ${[...snakes.values()].filter(s => s.mass > 1000).length}`);
+  console.log(`[${new Date().toLocaleTimeString('ru-RU')}] онлайн ${clients.size}, в игре ${players}, ботов ${bots}, еды ${foods.size}, ${TEAM ? '[команды] ' : ''}шаг в среднем ${(sumMs / Math.max(1, nSteps)).toFixed(2)} мс, худший ${worstMs.toFixed(1)} мс, медленных шагов ${slowTicks}, боты разбились: о тела ${deathStats.botBody}, о край ${deathStats.botWall}, больших (>1000): ${[...snakes.values()].filter(s => s.mass > 1000).length}`);
   deathStats.botBody = deathStats.botWall = deathStats.player = 0;
-  worstMs = 0; slowTicks = 0;
-}, 60000);
+  worstMs = 0; slowTicks = 0; sumMs = 0; nSteps = 0;
+}, Number(process.env.TEST_REPORT_SEC || 60) * 1000);
 
 // ===== HTTP + WebSocket =====
 const PUBLIC = path.join(__dirname, 'public');
@@ -1185,6 +1186,7 @@ if (teamWss) teamWss.on('connection', (ws, req) => {
     up.on('close', done); up.on('error', done);
   }).catch(done);
 });
+if (process.env.TEST_EXIT_SEC) setTimeout(() => process.exit(0), Number(process.env.TEST_EXIT_SEC) * 1000); // только для замеров (--cpu-prof пишет файл при выходе)
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (teamProc) teamProc.kill(); process.exit(0); });
 process.on('exit', () => { if (teamProc) teamProc.kill(); });
 if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // основной процесс закрылся — арена тоже
