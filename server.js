@@ -704,7 +704,7 @@ function handleJSON(c, m) {
     if (TEAM && !process.env.TEST_SPAWN_CENTER) { const p = findSpawn(false, BASES[team][0], BASES[team][1], 1300); pos.x = p.x; pos.y = p.y; } // у своей базы
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
     if (TEAM) { s.team = team; setTeamSkin(s); s.born = tick; c.rs = c.rs || { kills: 0, orbs: 0, caps: 0, life: 0 }; c.rs.name = s.name; c.rs.team = team; }
-    if (TEAM && process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
+    if (process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     s.client = c; c.snake = s; c.inA = s.a;
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
@@ -894,7 +894,7 @@ function placeOrb(o) {
 }
 for (let i = 0; i < ORB_N; i++) { const o = { i }; placeOrb(o); orbs.push(o); }
 function stepOrbs() {
-  if (!TEAM || roundPause) return;
+  if (TEAM && roundPause) return; // владелец 07.10: светящиеся шары и в обычной игре
   for (const o of orbs) {
     if (o.i >= ORB_BASE_N && !finalMin) { o.alive = false; continue; }
     if (!o.alive) { if (tick >= o.back) placeOrb(o); continue; }
@@ -921,6 +921,10 @@ function stepOrbs() {
       o.a = toC + clamp(angDiffS(toC, o.a), -1.2, 1.2);
     }
     o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
+  }
+  if (!TEAM) { // обычная игра: только шары (без знамён, базуки и тревог)
+    if (tick % 3 === 0) { const msg = JSON.stringify({ t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) }); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg); }
+    return;
   }
   stepFlags();
   stepRockets();
