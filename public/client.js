@@ -356,7 +356,7 @@ function onJSON(m) {
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
       const prevEv = evNow ? evNow[0] : null;
-      lb = m; if (m.mm) mmLines = m.mm; if (m.tm) { teamTm = m.tm; renderTeamBar(); } if (m.rec) { recData = m.rec; renderRecords(); }
+      lb = m; if (m.vis) visData = m.vis; if (m.mm) mmLines = m.mm; if (m.tm) { teamTm = m.tm; renderTeamBar(); } if (m.rec) { recData = m.rec; renderRecords(); }
       evNow = m.ev || null; evAt = performance.now();
       if (evNow && evNow[0] !== prevEv) toast(evNow[0] === 'night' ? '🌙 Ночь мафии! Видно только рядом с собой' : '🍅 Золотая еда! Скорее туда — смотрите на миникарту');
       renderEvent(); renderLb(); break;
@@ -531,7 +531,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && TEAM_MODE && myRockets > 0) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && myRockets > 0) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (e.clientX < W / 2) { if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } }
     else if (boostId === null) boostOn(e.pointerId);
@@ -1135,7 +1135,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
-    if (TEAM_MODE && !fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
+    if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1181,10 +1181,12 @@ setInterval(() => {
   if (pnShowUntil > Date.now()) showPlayerNames(); else $('pnList').classList.add('hide');
 }, 1000);
 // Нажатие на цифру внизу — на 5 секунд показать ники живых людей в игре
-let pnShowUntil = 0;
+let pnShowUntil = 0, visData = null; // посетители [сегодня, 7 дней, 30 дней]
 function showPlayerNames() {
   const list = (lb && lb.pn) || [], el = $('pnList');
-  el.innerHTML = list.length ? list.map(([n, sc]) => `<div>${esc(n)} <span>${sc}</span></div>`).join('') : '<div>никого</div>';
+  // Владелец 07.10: сверху — сколько людей заходили в игру за день, неделю и месяц
+  const vis = visData ? `<div class="vis">👥 Сегодня <b>${visData[0]}</b> · Неделя <b>${visData[1]}</b> · Месяц <b>${visData[2]}</b></div>` : '';
+  el.innerHTML = vis + (list.length ? list.map(([n, sc]) => `<div>${esc(n)} <span>${sc}</span></div>`).join('') : '<div>в игре никого</div>');
   el.classList.remove('hide');
 }
 $('ping').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = Date.now() + 5000; showPlayerNames(); });
@@ -1218,7 +1220,7 @@ function frame(time) {
   const s = cam.s;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#0b1018'; ctx.fillRect(0, 0, W, H);
-  const shk = TEAM_MODE && shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
+  const shk = shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
   const shx = shk ? (Math.random() - 0.5) * 2 * shk : 0, shy = shk ? (Math.random() - 0.5) * 2 * shk : 0;
   ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s + shx), DPR * (H / 2 - cam.y * s + shy));
   worldT.k = DPR * s; worldT.tx = DPR * (W / 2 - cam.x * s + shx); worldT.ty = DPR * (H / 2 - cam.y * s + shy);
@@ -1518,7 +1520,7 @@ function drawRockets(time) {
 let shakeUntil = 0;
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
 function fire() { if (myRockets > 0 && alive) { sendJSON({ t: 'fire' }); Sound.click(); } }
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(TEAM_MODE && myRockets > 0 && alive)); b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(myRockets > 0 && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона */ b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
 {
   const b = $('fireBtn');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой

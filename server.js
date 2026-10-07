@@ -61,6 +61,11 @@ function updateRoles() {
   if (top && top.id !== donId) {
     donId = top.id;
     if (!top.bot) for (const c of clients) if (c !== top.client) sendJSON(c, { t: 'don', name: top.name });
+    // Владелец 07.10: человек стал Доном — 4 выстрела из базуки (один раз за жизнь змеи)
+    if (!top.bot && !top.donGun) {
+      top.donGun = true; top.rockets = (top.rockets || 0) + 4;
+      if (top.client) sendJSON(top.client, { t: 'tmsgMe', text: '👑 Вы Дон Мафии! У вас базука: 4 ракеты — 🚀' + (isTouchUA(top.client) ? '' : ', правая кнопка мыши или F') });
+    }
   }
 }
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
@@ -714,7 +719,7 @@ function handleJSON(c, m) {
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (TEAM && c.snake && c.snake.alive) fireRocket(c.snake);
+    if (c.snake && c.snake.alive) fireRocket(c.snake);
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -852,10 +857,11 @@ function sendLeaderboard() {
   const pn = arr.filter(s => !s.bot).map(s => [s.name, Math.floor(s.mass)]); // ники живых людей — по нажатию на цифру внизу
   const ev = event ? [event.type, Math.ceil((event.until - tick) / TICK_RATE), Math.round(event.x), Math.round(event.y)] : null;
   const rec = tick % (TICK_RATE * 5) === 0 ? records.view() : null; // рекорды — раз в 5 с
+  const vis = rec ? (TEAM ? teamVis : stats.visits()) : null; // посетители за день/неделю/месяц — раз в 5 с
   const tm = TEAM ? teamScores() : null;
   for (const c of clients) {
     const me = c.snake && c.snake.alive ? c.snake : null;
-    sendJSON(c, { t: 'lb', ...(tm ? { tm } : {}), top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}), ...(ev ? { ev } : {}), ...(rec ? { rec } : {}) });
+    sendJSON(c, { t: 'lb', ...(tm ? { tm } : {}), top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}), ...(ev ? { ev } : {}), ...(rec ? { rec } : {}), ...(vis ? { vis } : {}) });
   }
 }
 
@@ -922,8 +928,13 @@ function stepOrbs() {
     }
     o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
   }
-  if (!TEAM) { // обычная игра: только шары (без знамён, базуки и тревог)
-    if (tick % 3 === 0) { const msg = JSON.stringify({ t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) }); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg); }
+  if (!TEAM) { // обычная игра: шары и базука Дона (без знамён и тревог)
+    stepRockets();
+    if (tick % 3 === 0) {
+      const m = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) };
+      for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
+      const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+    }
     return;
   }
   stepFlags();
@@ -1025,7 +1036,7 @@ function stepRockets() {
       for (let gx = cx - 1; gx <= cx + 1 && !hit; gx++) for (let gy = cy - 1; gy <= cy + 1 && !hit; gy++) {
         const cell = grid.get(gkey(gx, gy)); if (!cell) continue;
         for (const p of cell) {
-          const o = PS[p]; if (!o.alive || o.team === r.team) continue;
+          const o = PS[p]; if (!o.alive || o === r.owner || (TEAM && o.team === r.team)) continue;
           const dx = PX[p] - r.x, dy = PY[p] - r.y, rr = o.r + ROCKET_HIT;
           if (dx * dx + dy * dy < rr * rr) { hit = o; break; }
         }
@@ -1163,6 +1174,7 @@ function ensureTeamArena() {
   teamProc = spawn(process.execPath, [__filename], { env: { ...process.env, TEAM_MODE: '1', PORT: String(TEAM_PORT) }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
   teamProc.on('exit', () => { teamProc = null; teamReady = null; });
   teamProc.on('message', m => { if (m && m.t === 'rec') teamRecStore = m.data; });
+  const visT = setInterval(() => { if (teamProc && teamProc.connected) teamProc.send({ t: 'vis', v: stats.visits() }); else clearInterval(visT); }, 5000);
   if (teamRecStore) teamProc.send({ t: 'recInit', data: teamRecStore });
   teamReady = new Promise((ok, fail) => {
     let n = 0;
@@ -1181,6 +1193,7 @@ server.on('upgrade', (req, socket, head) => {
   else socket.destroy();
 });
 if (teamWss) teamWss.on('connection', (ws, req) => {
+  stats.onConnect({}, req); // посетитель командной игры — тоже посетитель сайта
   teamConns++; clearTimeout(teamIdleT);
   const queue = []; let up = null, closed = false;
   ws.on('message', (d, bin) => { if (up && up.readyState === 1) up.send(d, { binary: bin }); else if (queue.length < 50) queue.push([d, bin]); });
@@ -1234,9 +1247,9 @@ while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
 records.load();
 // Рекорды командной арены живут в основном процессе: арена шлёт их при каждом изменении и получает обратно при запуске
-let teamRecStore = null;
+let teamRecStore = null, teamVis = null;
 if (TEAM && process.send) {
-  process.on('message', m => { if (m && m.t === 'recInit') records.restore(m.data); });
+  process.on('message', m => { if (m && m.t === 'recInit') records.restore(m.data); if (m && m.t === 'vis') teamVis = m.v; });
   let recT = null;
   records.setOnChange(() => { if (!recT) recT = setTimeout(() => { recT = null; try { process.send({ t: 'rec', data: records.dump() }); } catch {} }, 2000); });
 }
