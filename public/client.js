@@ -1077,7 +1077,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
   const n = sn.idx.length;
   if (!n) return;
-  const ghostT = !fade && docGhost.get(sn.id); // Доктор после спасения — мигает зелёным
+  const ghostT = !fade && docGhost.get(sn.id); // Доктор только что спасся — зелёная вспышка у головы
   if (ghostT && ghostT < performance.now()) docGhost.delete(sn.id);
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
@@ -1103,7 +1103,6 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   const vx0 = view.x0 - size, vx1 = view.x1 + size, vy0 = view.y0 - size, vy1 = view.y1 + size;
   const shadeStep = Math.max(1, Math.round(sn.r * 0.9 / sp));
   if (fade) ctx.globalAlpha = 1 - fade;
-  else if (ghostT && ghostT > performance.now()) ctx.globalAlpha = 0.35 + 0.3 * (Math.sin(time * 0.03) > 0 ? 1 : 0);
 
   if (hiQ && !isTouch && !fade) { // тень под телом: змейка будто лежит над полом (на телефоне не рисуем — экономим)
     const sh = shadowSprite(), ss = size * 1.35, so = r * 0.25;

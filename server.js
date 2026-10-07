@@ -336,15 +336,17 @@ function collisions() {
 }
 
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
-// Владелец 07.10: Доктор один раз за жизнь не умирает — 2 с «призрака» (сквозь змей и край), у края разворачивается к центру
-const DOCTOR = ROLES.findIndex(r => r.name === 'Доктор'), GHOST_TICKS = 2 * TICK_RATE;
+// Владелец 07.10: Доктор один раз за жизнь не умирает — отскакивает: сразу разворачивается назад (у края — к центру).
+// Сквозь змей НЕ проходит (владелец: «не должен пересекаться»): неуязвим лишь 0,4 с — столько, чтобы вытащить голову обратно
+const DOCTOR = ROLES.findIndex(r => r.name === 'Доктор'), GHOST_TICKS = Math.round(0.4 * TICK_RATE);
 function docSave(s) {
   if (TEAM || s.docUsed || (s.role || 0) !== DOCTOR || !s.alive) return false;
   s.docUsed = true; s.ghostUntil = tick + GHOST_TICKS;
   const hx = s.xs[0], hy = s.ys[0];
-  if (hx * hx + hy * hy > (MAP_R - 300) * (MAP_R - 300)) { s.a = s.ta = Math.atan2(-hy, -hx); } // у края — сразу к центру
-  for (const c of clients) sendJSON(c, { t: 'docSave', id: s.id, ms: GHOST_TICKS * TICK_MS });
-  if (s.client) sendJSON(s.client, { t: 'tmsgMe', text: '🩺 Доктор спас вас! 2 секунды вы призрак — уползайте. Второго раза не будет' });
+  if (hx * hx + hy * hy > (MAP_R - 300) * (MAP_R - 300)) s.a = s.ta = Math.atan2(-hy, -hx); // у края — к центру
+  else { s.a += Math.PI; if (s.a > Math.PI) s.a -= TAU; s.ta = s.a; } // врезался в змею — разворот назад, прочь от неё
+  for (const c of clients) sendJSON(c, { t: 'docSave', id: s.id, ms: 1000 });
+  if (s.client) sendJSON(s.client, { t: 'tmsgMe', text: '🩺 Доктор спас вас — отскок! Второго раза не будет' });
   return true;
 }
 function killSnake(s, killer) {
