@@ -610,7 +610,7 @@ function predStep(srv) {
   const spd = moveSpeed(r, boosting) * dt;
   pred.x += Math.cos(pred.a) * spd; pred.y += Math.sin(pred.a) * spd;
   // Где голова на сервере «сейчас»: свежий снимок + путь за время, пока он шёл к нам
-  const lead = ((now - lastArrive) + pingMs / 2) / tickMs;
+  const lead = ((now - lastArrive) + pingMs) / tickMs;
   const sx = srv.xs[0] + Math.cos(srv.a) * moveSpeed(r, srv.boost) * lead;
   const sy = srv.ys[0] + Math.sin(srv.a) * moveSpeed(r, srv.boost) * lead;
   const ex = sx - pred.x, ey = sy - pred.y, err = Math.hypot(ex, ey);

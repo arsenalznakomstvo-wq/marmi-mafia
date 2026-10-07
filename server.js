@@ -1235,6 +1235,11 @@ wss.on('connection', (ws, req) => {
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
   sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  if (process.env.TEST_LAG) { // только для проверок: искусственная задержка связи в каждую сторону (мс), как у далёкого игрока
+    const LAG = Number(process.env.TEST_LAG), send0 = ws.send.bind(ws), on0 = ws.on.bind(ws);
+    ws.send = (d, o) => setTimeout(() => { if (ws.readyState === 1) send0(d, o); }, LAG);
+    ws.on = (ev, fn) => on0(ev, ev === 'message' ? (d, b) => setTimeout(() => fn(d, b), LAG) : fn);
+  }
   ws.on('message', (data, isBinary) => {
     const now = Date.now();
     if (now - c.msgT > 1000) { c.msgT = now; c.msgs = 0; }
