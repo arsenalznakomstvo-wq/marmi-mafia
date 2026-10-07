@@ -375,7 +375,9 @@ body:not(.in-menu) #menuPhotos { display: none; }
 /* Владелец 07.10: на телефоне плашку «Золотая еда / Ночь» не показываем — наверху теперь микрофон; о событии скажет всплывающая надпись, золотая еда видна на миникарте */
 @media (pointer: coarse) { #evPill { display: none !important; } }
 /* Командный режим: счёт команд — под полоской микрофона */
-body.team-mode #teamBar { top: calc(max(8px, env(safe-area-inset-top)) + 46px); }
+/* владелец 07.10: счёт команд — на самом верху, полоска микрофона — под ним */
+body.team-mode #teamBar { top: max(2px, env(safe-area-inset-top)); }
+body.team-mode:not(.in-menu) #vcBar { top: calc(max(2px, env(safe-area-inset-top)) + 38px); }
 /* Владелец 07.10: в командной игре кнопка «Играть» тёмная полупрозрачная */
 body.team-mode #play { background: rgba(10, 12, 18, 0.55) !important; border: 1px solid rgba(255, 255, 255, 0.28); color: #fff; box-shadow: none; }
 /* Командные новости и итоги раунда (владелец 07.10) */
