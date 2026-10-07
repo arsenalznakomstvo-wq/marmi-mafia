@@ -795,17 +795,29 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
 }
 
 // Сигара Дона: из уголка рта, тлеющий кончик и дымок вверх
-// Губы Проститутки (владелец 07.10, вариант 2): знак поцелуя 💋 торчит перед мордой; картинка рисуется один раз и копируется
-function lipsSprite(fs) {
-  const k = PX_PER_UNIT(), f = Math.max(8, Math.round(fs / 2) * 2), size = f * 1.4;
-  return cacheCanvas('lp|' + f + '|' + k, size * k, size * k, g => {
-    g.scale(k, k); g.font = `${f}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('💋', size / 2, size / 2);
+// Губы Проститутки (владелец 07.10): ровные нарисованные губы строго поперёк морды (значок 💋 стоял наискосок и разный на телефонах).
+// Картинка рисуется один раз на размер и дальше копируется. В картинке: x — поперёк морды, y — вперёд (верхняя губа ближе к морде).
+function lipsSprite(r) {
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), W = R * 0.72, H = R * 0.42;
+  const w = W * 2 + R * 0.2, top = H * 1.3 + R * 0.05, h = top + H * 1.5 + R * 0.05;
+  const img = cacheCanvas('lp2|' + R + '|' + k, w * k, h * k, g => {
+    g.scale(k, k); g.translate(w / 2, top);
+    const gr = g.createLinearGradient(0, -H * 1.2, 0, H * 1.4); gr.addColorStop(0, '#ff4f8f'); gr.addColorStop(0.5, '#e8115b'); gr.addColorStop(1, '#a50d44');
+    g.fillStyle = gr; g.strokeStyle = '#7a0a33'; g.lineWidth = Math.max(1, R * 0.05); g.lineJoin = 'round';
+    g.beginPath(); // верхняя губа «бантиком»
+    g.moveTo(-W, 0); g.bezierCurveTo(-W * 0.75, -H * 0.9, -W * 0.25, -H * 1.25, 0, -H * 0.62); g.bezierCurveTo(W * 0.25, -H * 1.25, W * 0.75, -H * 0.9, W, 0);
+    g.quadraticCurveTo(0, H * 0.22, -W, 0); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); // нижняя губа
+    g.moveTo(-W, 0); g.quadraticCurveTo(0, H * 0.22, W, 0); g.bezierCurveTo(W * 0.7, H * 1.5, -W * 0.7, H * 1.5, -W, 0); g.closePath(); g.fill(); g.stroke();
+    g.strokeStyle = '#5c0726'; g.lineWidth = Math.max(1, R * 0.06); g.beginPath(); g.moveTo(-W * 0.95, 0); g.quadraticCurveTo(0, H * 0.22, W * 0.95, 0); g.stroke(); // линия рта
+    g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(-W * 0.25, H * 0.75, W * 0.22, H * 0.14, 0, 0, TAU); g.fill(); // блики
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(W * 0.35, -H * 0.6, W * 0.14, H * 0.1, 0, 0, TAU); g.fill();
   });
+  return { img, w, h, top };
 }
 function drawLips(hx, hy, a, r) {
-  const fs = r * 1.25, sz = Math.max(8, Math.round(fs / 2) * 2) * 1.4;
-  drawRotated(lipsSprite(fs), hx + Math.cos(a) * r * 1.25, hy + Math.sin(a) * r * 1.25, a + Math.PI / 2, sz, sz, sz / 2, sz / 2);
+  const L = lipsSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2);
+  drawRotated(L.img, hx + Math.cos(a) * r * 1.18, hy + Math.sin(a) * r * 1.18, a - Math.PI / 2, L.w * sc, L.h * sc, L.w * sc / 2, L.top * sc);
   resetWorldT();
 }
 function drawCigar(hx, hy, a, r, time) {
