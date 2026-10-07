@@ -15,6 +15,19 @@ let day = dayOf(Date.now());
 let today = fresh();
 function fresh() { return { visitors: new Set(), players: new Set(), games: 0, peakInGame: 0, peakOnline: 0, phone: new Set(), pc: new Set(), hours: new Array(24).fill(0) }; }
 function roll() { const d = dayOf(Date.now()); if (d !== day) { day = d; today = fresh(); } }
+// Владелец 07.10: посетители за день / 7 дней / 30 дней (уникальные отпечатки по дням; в памяти — при обновлении обнуляется)
+const byDay = new Map(); // 'ГГГГ-ММ-ДД' -> Set(отпечаток)
+function visits() {
+  roll();
+  const now = Date.now(), w = new Set(), m = new Set();
+  for (const [d, set] of byDay) {
+    const age = Math.round((Date.parse(day) - Date.parse(d)) / 864e5);
+    if (age > 30) { byDay.delete(d); continue; }
+    for (const id of set) { m.add(id); if (age < 7) w.add(id); }
+  }
+  void now;
+  return [today.visitors.size, w.size, m.size];
+}
 
 function visitorId(req) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
@@ -28,6 +41,7 @@ function onConnect(c, req) {
   const v = visitorId(req);
   c.statId = v.id;
   today.visitors.add(v.id);
+  let ds = byDay.get(day); if (!ds) { ds = new Set(); byDay.set(day, ds); } ds.add(v.id);
   (v.phone ? today.phone : today.pc).add(v.id);
 }
 // Вызывается, когда человек нажал «Играть»
@@ -90,4 +104,4 @@ p{color:#8a93a8;font-size:12px;max-width:760px}</style></head><body>
   return true;
 }
 
-module.exports = { onConnect, onJoin, sample, handle, enabled: () => !!KEY };
+module.exports = { onConnect, onJoin, sample, handle, visits, enabled: () => !!KEY };
