@@ -7,7 +7,7 @@ const PROTO = 6;        // версия «языка» сервер↔брауз
 let protoOk = false;
 // Рисуем чуть позади сервера, с запасом под неровную доставку. Запас подстраивается сам:
 // замеряем паузы между обновлениями и держим запас чуть больше обычной паузы (от 3 до 9 шагов = 100–300 мс).
-let interpTicks = 3, interpWant = 3, lastArrive = 0;
+let interpTicks = 4, interpWant = 4, lastArrive = 0;
 const gaps = [];
 
 const $ = id => document.getElementById(id);
@@ -424,10 +424,11 @@ function onState(buf) {
   else tickOffset += (est - tickOffset) * 0.02;
   const nowA = performance.now();
   if (lastArrive) {
-    gaps.push(nowA - lastArrive); if (gaps.length > 90) gaps.shift();
+    // Владелец 07.10: запас плавности больше — помним паузы связи за 10 с (а не 3), берём 98-й процент, +2 кадра, от 4 до 12 кадров
+    gaps.push(nowA - lastArrive); if (gaps.length > 300) gaps.shift();
     if (gaps.length >= 20) {
-      const sorted = gaps.slice().sort((a, b) => a - b), p95 = sorted[Math.floor(sorted.length * 0.95)];
-      interpWant = clamp(Math.ceil(p95 / (1000 / TICK_RATE)) + 1, 3, 9);
+      const sorted = gaps.slice().sort((a, b) => a - b), p98 = sorted[Math.floor(sorted.length * 0.98)];
+      interpWant = clamp(Math.ceil(p98 / (1000 / TICK_RATE)) + 2, 4, 12);
     }
   }
   netFrames++; if (lastArrive && nowA - lastArrive > 150) netJerks++;
@@ -1192,7 +1193,7 @@ function frame(time) {
   fpsCount++;
   sendInput();
   const tickMs = 1000 / TICK_RATE;
-  interpTicks += (interpWant - interpTicks) * 0.02; // меняем запас плавно, чтобы картинка не дёргалась
+  interpTicks += (interpWant - interpTicks) * (interpWant > interpTicks ? 0.06 : 0.01); // запас растёт быстро (после рывка), уменьшается медленно — картинка не дёргается
   const renderTick = tickOffset === null ? 0 : performance.now() / tickMs + tickOffset - interpTicks;
   applyFood(renderTick);
   const world = interpolated(renderTick);
