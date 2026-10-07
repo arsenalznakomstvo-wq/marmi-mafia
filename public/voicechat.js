@@ -4,7 +4,7 @@
 // Чтобы не тратить бесплатные минуты LiveKit: подключаемся, только если человек уже играл и на сайте есть ещё кто-то.
 window.VoiceChat = (() => {
   const SDK = 'https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js';
-  const ROOM = 'GLOBAL';
+  let ROOM = new URLSearchParams(location.search).get('mode') === 'team' ? null : 'GLOBAL'; // в командах — комната своей команды (setRoom)
   const $ = id => document.getElementById(id);
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const speaking = new Set();
@@ -19,14 +19,15 @@ window.VoiceChat = (() => {
   const myName = () => (($('nick') && $('nick').value.trim()) || 'Игрок').slice(0, 16);
 
   async function connect() {
-    if (connecting || room || offline) return;
-    connecting = true;
+    if (connecting || room || offline || !ROOM) return;
+    connecting = true; const want = ROOM;
     try {
       await loadSdk();
       const r = await fetch('/voice-token?room=' + ROOM + '&name=' + encodeURIComponent(myName()));
       if (r.status === 503) { offline = true; throw new Error('off'); }
       if (!r.ok) throw new Error('token');
       const { url, token } = await r.json();
+      if (want !== ROOM) throw new Error('room-changed');
       const L = window.LivekitClient;
       const rm = new L.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       rm.on(L.RoomEvent.TrackSubscribed, track => {
@@ -77,7 +78,7 @@ window.VoiceChat = (() => {
     if (offline) return;
     if (alive) played = true;
     const hiddenLong = hiddenSince && Date.now() - hiddenSince > 60000;
-    const want = played && online >= 2 && !hiddenLong;
+    const want = played && online >= 2 && !hiddenLong && !!ROOM;
     if (want) { lowSince = 0; if (!room) connect(); }
     else if (room) {
       if (hiddenLong) disconnect();
@@ -116,5 +117,7 @@ window.VoiceChat = (() => {
     if ('requestIdleCallback' in window) requestIdleCallback(pre, { timeout: 4000 }); else setTimeout(pre, 2500);
   }
 
-  return { init, tick, askMic, speaking, isSpeaking: name => speaking.has(name) };
+  // Командный режим: голос только внутри своей команды; сменилась команда — переподключимся в новую комнату
+  function setRoom(r) { if (r === ROOM) return; ROOM = r; if (room) disconnect(); }
+  return { init, tick, askMic, setRoom, speaking, isSpeaking: name => speaking.has(name) };
 })();

@@ -6,7 +6,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { WebSocketServer } = require('ws');
+const { WebSocketServer, WebSocket } = require('ws');
+const { spawn } = require('child_process');
 const { SKINS, MAX_PATTERN, skinCols } = require('./public/skins.js');
 const stats = require('./stats.js');
 const voice = require('./voice.js');
@@ -14,10 +15,14 @@ const records = require('./records.js');
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
+// ===== Командный режим (владелец 07.10): отдельная арена «Мафия против Полиции» — этот же файл, запущенный с TEAM_MODE=1 =====
+const TEAM = process.env.TEAM_MODE === '1';
+const TEAM_NAMES = ['Мафия', 'Полиция'], TEAM_BOT_NAMES = ['Мафиози', 'Полицейский'];
+const ROUND_SEC = Number(process.env.TEST_ROUND) || 600, ROUND_PAUSE_SEC = 10; // раунд 10 минут, пауза 10 с
 const TICK_RATE = 30;            // шагов мира в секунду
 const TICK_MS = 1000 / TICK_RATE;
 const MAP_R = 5000;              // радиус круглой карты
-const TARGET_SNAKES = 40;        // живые игроки + боты; зашёл человек — бот уступает место
+const TARGET_SNAKES = TEAM ? 30 : 40;        // живые игроки + боты; зашёл человек — бот уступает место
 const FOOD_TARGET = 3490;        // обычной еды на карте: в оригинале её немного, ~25 точек на экран
 const SEG_D = 6;                 // расстояние между точками тела
 const BASE_SPEED = 6;            // за шаг мира (у змейки на старте; дальше см. speedFor)
@@ -34,6 +39,7 @@ const BOT_NAME = 'Bot';
 const { ROLES, DON, rankFor } = require('./public/roles.js');
 let donId = 0;
 function updateRoles() {
+  if (TEAM) return; // в командном режиме ролей нет
   let top = null;
   for (const s of snakes.values()) if (s.alive && (!top || s.mass > top.mass)) top = s;
   for (const s of snakes.values()) {
@@ -55,7 +61,7 @@ function updateRoles() {
 }
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
 const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
-const displayName = s => s.bot ? roleShort(s.role || 0) : s.name + ' ' + roleShort(s.role || 0);
+const displayName = s => TEAM ? s.name : s.bot ? roleShort(s.role || 0) : s.name + ' ' + roleShort(s.role || 0);
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
 const TAU = Math.PI * 2;
@@ -286,7 +292,7 @@ function collisions() {
       const c = grid.get(gkey(cx, cy)); if (!c) continue;
       for (let j = 0; j < c.length; j++) {
         const p = c[j], o = PS[p];
-        if (o === s) continue;           // в себя врезаться нельзя, как в slither.io
+        if (o === s || (TEAM && o.team === s.team)) continue; // в себя и в своих (командный режим) врезаться нельзя
         const dx = PX[p] - hx, dy = PY[p] - hy, rr = o.r + rs * 0.6;
         if (dx * dx + dy * dy < rr * rr) { killer = o; s.hitIdx = PIdx[p]; break outer; }
       }
@@ -321,7 +327,7 @@ function collisions() {
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
 function killSnake(s, killer) {
   if (!s.alive) return;
-  if (!s.bot) records.report(s.name, s.mass);
+  if (!s.bot && !TEAM) records.report(s.name, s.mass);
   if (!s.bot) deathStats.player++; else if (killer) deathStats.botBody++; else deathStats.botWall++;
   s.alive = false;
   snakes.delete(s.id);
@@ -336,6 +342,7 @@ function killSnake(s, killer) {
   }
   if (killer && killer.alive) {
     killer.kills++;
+    if (TEAM && killer.team != null && killer.team !== s.team) teamKills[killer.team]++;
     if (killer.client) sendJSON(killer.client, { t: 'kill', name: s.name });
   }
   const c = s.client;
@@ -420,10 +427,19 @@ function spawnBot() {
   const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
   s.role = rankFor(s.mass, 0);
   s.name = ROLES[s.role].name;
+  if (TEAM) { s.team = teamWithFewer(false); s.name = TEAM_BOT_NAMES[s.team]; s.role = 0; }
   snakes.set(s.id, s);
 }
 
+// Команда, где меньше змей (onlyHumans — считать только людей; при равенстве — по всем змеям)
+function teamWithFewer(onlyHumans) {
+  const h = [0, 0], all = [0, 0];
+  for (const s of snakes.values()) { if (s.team == null) continue; all[s.team]++; if (!s.bot) h[s.team]++; }
+  if (onlyHumans && h[0] !== h[1]) return h[0] < h[1] ? 0 : 1;
+  return all[0] === all[1] ? (Math.random() < 0.5 ? 0 : 1) : all[0] < all[1] ? 0 : 1;
+}
 function maintainBots() {
+  if (TEAM && roundPause) return;
   let players = 0, bots = 0;
   for (const s of snakes.values()) { if (s.bot) bots++; else players++; }
   // Ботов ровно столько, чтобы всего было TARGET_SNAKES; люди вытесняют ботов по мере их гибели
@@ -440,7 +456,7 @@ function gatherObstacles(b, hx, hy, R, ignore) {
     const c = grid.get(gkey(cx, cy)); if (!c) continue;
     for (let j = 0; j < c.length; j++) {
       const p = c[j], o = PS[p];
-      if (o === b || !o.alive) continue;
+      if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
       // Голову жертвы тоже боимся: раньше охотники отключали этот страх и сами врезались в неё (33 из 123 смертей)
       const dx = PX[p] - hx, dy = PY[p] - hy, rr = R + o.r;
       if (dx * dx + dy * dy > rr * rr) continue;
@@ -449,7 +465,7 @@ function gatherObstacles(b, hx, hy, R, ignore) {
   }
   // Куда чужие головы приедут через миг — туда тоже не лезем
   for (const o of snakes.values()) {
-    if (o === b || !o.alive) continue;
+    if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
     const ox = o.xs[0], oy = o.ys[0];
     if (Math.abs(ox - hx) > R || Math.abs(oy - hy) > R) continue;
     const sp = speedFor(o.r, o.boosting);
@@ -512,7 +528,7 @@ function bestFood(b, hx, hy) {
 function findPrey(b, hx, hy) {
   let best = null, bs = 0;
   for (const o of snakes.values()) {
-    if (o === b || !o.alive) continue;
+    if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
     const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = Math.hypot(dx, dy);
     if (d > 550 + b.r * 4) continue;
     const ahead = -(Math.cos(o.a) * dx + Math.sin(o.a) * dy); // я впереди него (+) или сзади (−)
@@ -642,11 +658,13 @@ function handleJSON(c, m) {
     if (c.snake && c.snake.alive) return;
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
     const pos = process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_CENTER — только для проверок
+    if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
+    if (TEAM) s.team = m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true);
     s.client = c; c.snake = s; c.inA = s.a;
     snakes.set(s.id, s);
     stats.onJoin(c);
-    sendJSON(c, { t: 'spawn', id: s.id });
+    sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'ping') {
@@ -710,7 +728,7 @@ function sendState(c) {
     ns++;
     const kn = c.known.get(t.id);
     if (!kn || kn.s !== t || kn.name !== t.name || kn.role !== (t.role || 0)) { // новая змея или сменилась роль
-      (metas || (metas = [])).push([t.id, t.name, t.skin.id, t.skin.c1, t.skin.c2, t.skin.c3, t.bot ? 1 : 0, t.skin.pat || 0, t.role || 0]);
+      (metas || (metas = [])).push([t.id, t.name, t.skin.id, t.skin.c1, t.skin.c2, t.skin.c3, t.bot ? 1 : 0, t.skin.pat || 0, t.role || 0, t.team == null ? -1 : t.team]);
       c.known.set(t.id, { s: t, name: t.name, role: t.role || 0 });
     }
   }
@@ -765,7 +783,7 @@ function sendLeaderboard() {
   const arr = [];
   for (const s of snakes.values()) if (s.alive) arr.push(s);
   arr.sort((a, b) => b.mass - a.mass);
-  const top = arr.slice(0, 10).map(s => [displayName(s), Math.floor(s.mass), s.id]);
+  const top = arr.slice(0, 10).map(s => [displayName(s), Math.floor(s.mass), s.id, s.team == null ? -1 : s.team]);
   const rank = new Map();
   arr.forEach((s, i) => rank.set(s, i + 1));
   // Миникарта как в оригинале: тело каждой змеи — короткая ломаная (до 30 точек, координаты 0..255).
@@ -776,7 +794,7 @@ function sendLeaderboard() {
     const q = v => Math.max(0, Math.min(255, Math.round((v / MAP_R + 1) * 127.5)));
     for (const s of arr) {
       const len = s.xs.length, step = Math.max(Math.round(150 / SEG_D), Math.ceil(len / 30));
-      const line = [s.bot ? 0 : 1];
+      const line = [(s.bot ? 0 : 1) | (s.team == null ? 0 : (s.team + 1) << 1)];
       for (let i = 0; i < len; i += step) line.push(q(s.xs[i]), q(s.ys[i]));
       line.push(q(s.xs[len - 1]), q(s.ys[len - 1]));
       mm.push(line);
@@ -786,9 +804,10 @@ function sendLeaderboard() {
   const pn = arr.filter(s => !s.bot).map(s => [s.name, Math.floor(s.mass)]); // ники живых людей — по нажатию на цифру внизу
   const ev = event ? [event.type, Math.ceil((event.until - tick) / TICK_RATE), Math.round(event.x), Math.round(event.y)] : null;
   const rec = tick % (TICK_RATE * 5) === 0 ? records.view() : null; // рекорды — раз в 5 с
+  const tm = TEAM ? teamScores() : null;
   for (const c of clients) {
     const me = c.snake && c.snake.alive ? c.snake : null;
-    sendJSON(c, { t: 'lb', top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}), ...(ev ? { ev } : {}), ...(rec ? { rec } : {}) });
+    sendJSON(c, { t: 'lb', ...(tm ? { tm } : {}), top, rank: me ? rank.get(me) : 0, score: me ? Math.floor(me.mass) : 0, total: arr.length, players, pn, online: clients.size, ...(mm ? { mm } : {}), ...(ev ? { ev } : {}), ...(rec ? { rec } : {}) });
   }
 }
 
@@ -798,6 +817,7 @@ const EVENT_EVERY = (Number(process.env.TEST_EVENT_EVERY) || 600) * TICK_RATE; /
 const NIGHT_LEN = 60 * TICK_RATE, GOLD_LEN = 45 * TICK_RATE;
 let event = null, nextEventAt = Math.round(EVENT_EVERY / 2), nextEventType = process.env.TEST_EVENT_FIRST || 'gold'; // TEST_EVENT_FIRST — только для проверок
 function runEvents() {
+  if (TEAM) return; // в командном режиме событий нет
   if (event && tick >= event.until) event = null;
   if (event || tick < nextEventAt) return;
   let players = 0; for (const s of snakes.values()) if (!s.bot) players++;
@@ -818,6 +838,7 @@ function runEvents() {
 }
 // Рекорды: раз в 2 секунды сообщаем длину живых людей
 function reportRecords() {
+  if (TEAM) return;
   for (const s of snakes.values()) {
     if (s.bot || !s.alive) continue;
     const hit = records.report(s.name, s.mass);
@@ -825,8 +846,34 @@ function reportRecords() {
   }
 }
 
+// ===== Раунды командного режима =====
+let teamKills = [0, 0], roundEndTick = ROUND_SEC * TICK_RATE, roundPause = false;
+// Счёт команды = длина всех живых змей команды + 300 за каждое убийство соперника
+function teamScores() {
+  const sc = [teamKills[0] * 300, teamKills[1] * 300], hum = [0, 0];
+  for (const s of snakes.values()) if (s.alive && s.team != null) { sc[s.team] += Math.floor(s.mass); if (!s.bot) hum[s.team]++; }
+  return [sc[0], sc[1], Math.max(0, Math.ceil((roundEndTick - tick) / TICK_RATE)), hum[0], hum[1], roundPause ? 1 : 0];
+}
+function runRound() {
+  if (!TEAM || tick < roundEndTick) return;
+  if (!roundPause) { // раунд закончился: объявляем победителя и очищаем карту
+    const [a, b] = teamScores();
+    let best = null; for (const s of snakes.values()) if (s.alive && (!best || s.mass > best.mass)) best = s;
+    const msg = { t: 'roundEnd', winner: a === b ? -1 : a > b ? 0 : 1, scores: [a, b], best: best ? [best.name, Math.floor(best.mass), best.team] : null, pause: ROUND_PAUSE_SEC };
+    for (const c of clients) { sendJSON(c, msg); if (c.snake) { c.snake.client = null; c.snake = null; } c.cells = new Set(); }
+    for (const s of [...snakes.values()]) { s.alive = false; snakes.delete(s.id); diedThisTick.push(s.id); }
+    for (const f of drops) removeFood(f, 0); // останки змей убираем, обычная еда остаётся
+    drops.length = 0; teamKills = [0, 0];
+    roundPause = true; roundEndTick = tick + ROUND_PAUSE_SEC * TICK_RATE;
+  } else { // перерыв прошёл — новый раунд
+    roundPause = false; roundEndTick = tick + ROUND_SEC * TICK_RATE;
+    for (const c of clients) sendJSON(c, { t: 'roundStart' });
+  }
+}
+
 function step() {
   tick++;
+  runRound();
   for (const s of snakes.values()) if (s.bot) botThink(s); // каждый шаг — быстрее реагируют на опасность
   for (const s of snakes.values()) moveSnake(s);
   buildGrid();
@@ -887,14 +934,59 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096, perMessageDeflate: false });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 4096, perMessageDeflate: false });
+// Командная арена — отдельный процесс (этот же файл с TEAM_MODE=1). Запускается, когда кто-то зашёл в «Команды»,
+// и выключается через 3 минуты без игроков — обычная игра от неё не тормозит.
+const TEAM_PORT = Number(process.env.TEAM_PORT) || PORT + 1;
+let teamProc = null, teamReady = null, teamConns = 0, teamIdleT = null;
+function ensureTeamArena() {
+  if (teamReady) return teamReady;
+  teamProc = spawn(process.execPath, [__filename], { env: { ...process.env, TEAM_MODE: '1', PORT: String(TEAM_PORT) }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+  teamProc.on('exit', () => { teamProc = null; teamReady = null; });
+  teamReady = new Promise((ok, fail) => {
+    let n = 0;
+    const t = setInterval(() => {
+      http.get(`http://127.0.0.1:${TEAM_PORT}/health`, r => { r.resume(); if (r.statusCode === 200) { clearInterval(t); ok(); } })
+        .on('error', () => { if (++n > 150) { clearInterval(t); teamReady = null; fail(new Error('team arena did not start')); } });
+    }, 100);
+  });
+  return teamReady;
+}
+const teamWss = TEAM ? null : new WebSocketServer({ noServer: true, maxPayload: 4096, perMessageDeflate: false });
+server.on('upgrade', (req, socket, head) => {
+  const p = (req.url || '').split('?')[0];
+  if (p === '/ws') wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+  else if (p === '/ws-team' && teamWss) teamWss.handleUpgrade(req, socket, head, ws => teamWss.emit('connection', ws, req));
+  else socket.destroy();
+});
+if (teamWss) teamWss.on('connection', (ws, req) => {
+  teamConns++; clearTimeout(teamIdleT);
+  const queue = []; let up = null, closed = false;
+  ws.on('message', (d, bin) => { if (up && up.readyState === 1) up.send(d, { binary: bin }); else if (queue.length < 50) queue.push([d, bin]); });
+  const done = () => {
+    if (closed) return; closed = true; teamConns--;
+    try { ws.close(); } catch {} try { if (up) up.close(); } catch {}
+    if (teamConns <= 0) { teamConns = 0; teamIdleT = setTimeout(() => { if (!teamConns && teamProc) teamProc.kill(); }, 180000); }
+  };
+  ws.on('close', done); ws.on('error', done);
+  ensureTeamArena().then(() => {
+    if (closed) return;
+    up = new WebSocket(`ws://127.0.0.1:${TEAM_PORT}/ws`, { perMessageDeflate: false, headers: { 'x-forwarded-for': String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''), 'user-agent': String(req.headers['user-agent'] || '') } });
+    up.on('open', () => { for (const [d, b] of queue) up.send(d, { binary: b }); queue.length = 0; });
+    up.on('message', (d, bin) => { if (ws.readyState === 1 && !(bin && ws.bufferedAmount > 12000)) ws.send(d, { binary: bin }); }); // медленный телефон — пропускаем кадр, не копим
+    up.on('close', done); up.on('error', done);
+  }).catch(done);
+});
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (teamProc) teamProc.kill(); process.exit(0); });
+process.on('exit', () => { if (teamProc) teamProc.kill(); });
+if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // основной процесс закрылся — арена тоже
 wss.on('connection', (ws, req) => {
   if (clients.size >= MAX_CLIENTS) { ws.close(1013, 'full'); return; }
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c);
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
-  sendJSON(c, { t: 'hello', proto: PROTO, mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   ws.on('message', (data, isBinary) => {
     const now = Date.now();
     if (now - c.msgT > 1000) { c.msgT = now; c.msgs = 0; }
@@ -918,9 +1010,10 @@ wss.on('connection', (ws, req) => {
 
 while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
-records.load();
+if (!TEAM) records.load();
 server.listen(PORT, () => {
-  console.log(`Марми Мафия запущена: http://localhost:${PORT}`);
+  console.log(TEAM ? `Командная арена запущена (порт ${PORT})` : `Марми Мафия запущена: http://localhost:${PORT}`);
+  if (TEAM) { loop(); return; }
   for (const list of Object.values(os.networkInterfaces())) {
     for (const a of list || []) if (a.family === 'IPv4' && !a.internal) console.log(`  с телефона в той же Wi-Fi: http://${a.address}:${PORT}`);
   }

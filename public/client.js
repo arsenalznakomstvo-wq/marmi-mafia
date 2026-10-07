@@ -275,10 +275,15 @@ const lastHeads = new Map(); // id -> {x,y} где голова нарисова
 let tickOffset = null;       // сдвиг серверного времени относительно нашего
 let lb = null, pingMs = 0;
 let myMass = 0;
+// ===== Командный режим (владелец 07.10): ?mode=team — арена «Мафия против Полиции», ?team=0/1 — сразу в команду друга =====
+const QS = new URLSearchParams(location.search);
+const TEAM_MODE = QS.get('mode') === 'team';
+const TEAM_COL = ['#9b4dff', '#2f7bff'], TEAM_NAME = ['Мафия', 'Полиция'], TEAM_ICON = ['🟣', '🔵'];
+let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = new WebSocket(`${proto}://${location.host}/ws${TEAM_MODE ? '-team' : ''}`);
   ws.binaryType = 'arraybuffer';
   setStatus('Подключение к серверу…');
   ws.onopen = () => {
@@ -316,15 +321,18 @@ function onJSON(m) {
       }
       if (!protoOk) { $('play').disabled = true; setStatus('⚠ Сервер устарел — закройте чёрное окно сервера и запустите start заново'); $('status').style.color = '#ff7070'; }
       break;
-    case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat, role] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot, role: role || 0 }); break;
+    case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat, role, team] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot, role: role || 0, team: team == null ? -1 : team }); break;
+    case 'roundEnd': onRoundEnd(m); break;
+    case 'roundStart': $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
+    case 'spawn': if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+      myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
       const prevEv = evNow ? evNow[0] : null;
-      lb = m; if (m.mm) mmLines = m.mm; if (m.rec) { recData = m.rec; renderRecords(); }
+      lb = m; if (m.mm) mmLines = m.mm; if (m.tm) { teamTm = m.tm; renderTeamBar(); } if (m.rec) { recData = m.rec; renderRecords(); }
       evNow = m.ev || null; evAt = performance.now();
       if (evNow && evNow[0] !== prevEv) toast(evNow[0] === 'night' ? '🌙 Ночь мафии! Видно только рядом с собой' : '🍅 Золотая еда! Скорее туда — смотрите на миникарту');
       renderEvent(); renderLb(); break;
@@ -625,10 +633,10 @@ function cacheCanvas(key, w, h, paint) {
   return c;
 }
 // Табличка: фон в цвет змеи, рамка, 1–2 строки текста. Возвращает {img, w, h} в мировых единицах.
-function plateSprite(ri, bodyCol, nick, s) {
-  const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4;
-  const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k;
-  const label = (R.icon ? R.icon + ' ' : '') + (SHORT[R.name] || R.name.toUpperCase());
+function plateSprite(ri, bodyCol, nick, s, team) {
+  const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4, tm = team >= 0 ? team : -1;
+  const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k + '|' + tm;
+  const label = tm >= 0 ? TEAM_NAME[tm].toUpperCase() : (R.icon ? R.icon + ' ' : '') + (SHORT[R.name] || R.name.toUpperCase());
   const fs = 11 * sb, fs2 = 10 * sb;
   const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
   let w = mctx.measureText(label).width + 12 * sb;
@@ -637,7 +645,7 @@ function plateSprite(ri, bodyCol, nick, s) {
   const img = cacheCanvas(key, (w + pad * 2) * k, (h + pad * 2) * k, g => {
     g.scale(k, k); g.translate(pad, pad);
     // Владелец 07.10: все таблички в одном стиле — светлая плашка, тонкая рамка, тёмный текст
-    const bg = '#f4f5f7', fg = '#1a1d24', border = 'rgba(30, 40, 60, 0.45)', rr = 4 * sb;
+    const bg = tm >= 0 ? TEAM_COL[tm] : '#f4f5f7', fg = tm >= 0 ? '#ffffff' : '#1a1d24', border = tm >= 0 ? 'rgba(255,255,255,0.7)' : 'rgba(30, 40, 60, 0.45)', rr = 4 * sb;
     g.beginPath(); g.moveTo(rr, 0); g.arcTo(w, 0, w, h, rr); g.arcTo(w, h, 0, h, rr); g.arcTo(0, h, 0, 0, rr); g.arcTo(0, 0, w, 0, rr); g.closePath();
     g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 4 * sb; g.shadowOffsetY = 1.5 * sb;
     g.fillStyle = bg; g.fill(); g.shadowBlur = 0; g.shadowOffsetY = 0;
@@ -671,7 +679,7 @@ function drawRotated(img, x, y, ang, w, h, ox, oy) {
 }
 function resetWorldT() { ctx.setTransform(worldT.k, 0, 0, worldT.k, worldT.tx, worldT.ty); }
 
-function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
+function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick, team) {
   const R = ROLES[ri]; if (!R) return;
   let st = swing.get(id);
   const now = performance.now();
@@ -690,7 +698,7 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick) {
   ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = Math.max(1, 1.4 * s);
   ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo((x + px) / 2 + Math.sin(hang) * 4 * s, (y + py) / 2 - 3 * s, px, py); ctx.stroke();
   // табличка — готовая картинка, слегка наклонена по качанию
-  const P = plateSprite(ri, bodyCol, nick, s);
+  const P = plateSprite(ri, bodyCol, nick, s, team);
   drawRotated(P.img, px, py, hang * 0.5, P.w, P.h, P.w / 2, P.pad);
   resetWorldT();
   // кружок-крепление на спине
@@ -1070,6 +1078,13 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.restore();
   }
   if (roleIdx && !sk.text) drawRoleUnder(roleIdx, cnt, r, time, view);
+  if (TEAM_MODE && meta && meta.team >= 0 && !fade) { // командный режим: толстая обводка цвета команды вокруг всего тела
+    ctx.strokeStyle = TEAM_COL[meta.team]; ctx.lineWidth = r * 2 + Math.max(5, r * 0.55); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = fade ? 1 - fade : 0.95;
+    ctx.beginPath(); ctx.moveTo(SX[0], SY[0]);
+    for (let k = 1; k < cnt; k++) { if (k + 1 < cnt && k % 2) continue; ctx.lineTo(SX[k], SY[k]); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
   if (sn.boost && !fade) { // при ускорении тело светится и пульсирует
     const hs = size * 2.2, hh = hs / 2;
     ctx.globalCompositeOperation = 'lighter';
@@ -1103,7 +1118,11 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && meta.role === DON) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
-    if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
+    if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
+      const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
+      const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
+      if (bk > 2) drawBackPlate(sn.id, 0, SX[bk], SY[bk], a, sn.r, sn.boost, time, '', meta.bot ? '' : (talkingP ? '🔊 ' : '') + meta.name, meta.team);
+    } else if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
       if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0), meta.bot ? '' : (talkingP ? '🔊 ' : '') + meta.name);
@@ -1257,6 +1276,7 @@ function drawNight(me) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 function renderRecords() {
+  if (TEAM_MODE) { $('records').classList.add('hide'); return; } // в командах рекордов нет
   const el = $('records'); if (!recData) return;
   const row = (list, i) => list[i] ? `<div class="rr"><span>${i + 1}. ${esc(list[i][0])}</span><b>${list[i][1]}</b></div>` : '';
   const col = (title, list) => `<div class="rc"><div class="rt">${title}</div>${list.length ? list.map((_, i) => row(list, i)).join('') : '<div class="rr empty">пока пусто</div>'}</div>`;
@@ -1281,9 +1301,12 @@ function drawMinimap(me) {
   mctx.lineCap = 'round'; mctx.lineJoin = 'round';
   for (let pass = 0; pass < 2; pass++) { // сначала боты, поверх — люди
     for (const line of mmLines) {
-      const human = line[0] === 1;
+      const human = (line[0] & 1) === 1, lt = (line[0] >> 1) - 1;
       if (human !== (pass === 1)) continue;
-      mctx.strokeStyle = human ? 'rgba(255, 213, 79, 0.9)' : 'rgba(200, 205, 215, 0.55)';
+      // Командный режим: свои — цвет своей команды, соперники — красные
+      mctx.strokeStyle = TEAM_MODE && lt >= 0 ? (lt === myTeam || myTeam < 0 ? (human ? '#d9c2ff' : TEAM_COL[lt]) : (human ? '#ff6b6b' : 'rgba(255, 70, 70, 0.75)'))
+        : human ? 'rgba(255, 213, 79, 0.9)' : 'rgba(200, 205, 215, 0.55)';
+      if (TEAM_MODE && lt >= 0 && myTeam < 0) mctx.strokeStyle = TEAM_COL[lt];
       mctx.lineWidth = (human ? 1.8 : 1.1) * k;
       mctx.beginPath(); mctx.moveTo(P(line[1]), P(line[2]));
       if (line.length <= 5) mctx.lineTo(P(line[1]) + 0.5, P(line[2]) + 0.5);
@@ -1308,14 +1331,55 @@ const LB_COLORS = ['#ff9d9d', '#ffc09d', '#ffe39d', '#d4ff9d', '#9dffb4', '#9dff
 function renderLb() {
   if (!lb) return;
   let html = '';
-  lb.top.forEach(([name, score, id], i) => {
+  lb.top.forEach(([name, score, id, tm], i) => {
     const me = id === myId && alive;
-    html += `<div class="row${me ? ' me' : ''}" style="color:${LB_COLORS[i]}"><span class="p">#${i + 1}</span><span class="n">${esc(name)}</span><span class="s">${score}</span></div>`;
+    html += `<div class="row${me ? ' me' : ''}" style="color:${TEAM_MODE && tm >= 0 ? (tm ? '#8fb8ff' : '#c9a8ff') : LB_COLORS[i]}"><span class="p">#${i + 1}</span><span class="n">${esc(name)}</span><span class="s">${score}</span></div>`;
   });
   if (alive && lb.rank > 10) html += `<div class="row me sep"><span class="p">#${lb.rank}</span><span class="n">${esc(myName())}</span><span class="s">${lb.score}</span></div>`;
   $('lb-rows').innerHTML = html;
   $('rank').innerHTML = alive && lb.rank ? `Ваше место: <b>${lb.rank}</b> из ${lb.total}` : '';
 }
+
+// ===== Командный режим: счёт, таймер, конец раунда, меню =====
+const mmss = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+function renderTeamBar() {
+  const b = $('teamBar');
+  if (!TEAM_MODE || !teamTm) { b.classList.add('hide'); return; }
+  const [a, c, left, h0, h1, pause] = teamTm;
+  b.classList.remove('hide');
+  b.innerHTML = `<span class="t0${myTeam === 0 ? ' me' : ''}">🟣 Мафия ${a}</span><span class="clk">⏱ ${pause ? 'перерыв' : mmss(left)}</span><span class="t1${myTeam === 1 ? ' me' : ''}">${c} Полиция 🔵</span>`;
+  b.title = `Людей: Мафия ${h0}, Полиция ${h1}`;
+}
+function onRoundEnd(m) {
+  const wasAlive = alive;
+  alive = false; myId = 0; predStop();
+  const w = m.winner, mine = myTeam >= 0 && w === myTeam;
+  const head = w < 0 ? '🤝 Ничья!' : `🏆 Победила ${TEAM_ICON[w]} ${TEAM_NAME[w]}!`;
+  const best = m.best ? `<div class="sub">Лучший игрок: <b>${esc(m.best[0])}</b> ${m.best[2] >= 0 ? TEAM_ICON[m.best[2]] : ''} — длина ${m.best[1]}</div>` : '';
+  $('roundBanner').innerHTML = `<div class="big">${head}</div>${myTeam >= 0 && w >= 0 ? `<div>${mine ? 'Ваша команда победила! 🎉' : 'Ваша команда проиграла'}</div>` : ''}`
+    + `<div class="sc">🟣 ${m.scores[0]} : ${m.scores[1]} 🔵</div>${best}<div class="sub" id="rbLeft">Новый раунд через ${m.pause} с</div>`;
+  $('roundBanner').classList.remove('hide');
+  let left = m.pause; const t = setInterval(() => { left--; const e = $('rbLeft'); if (!e || left <= 0) { clearInterval(t); return; } e.textContent = `Новый раунд через ${left} с`; }, 1000);
+  if (wasAlive) { rejoinAfterRound = true; Sound.kill(); } // играл — после перерыва зайдёт в новый раунд сам
+}
+function setupModeMenu() {
+  $('modeBtn').textContent = TEAM_MODE ? '← Обычная игра' : '👥 Команда на команду';
+  $('modeBtn').addEventListener('click', () => { location.href = location.pathname + (TEAM_MODE ? '' : '?mode=team'); });
+  if (!TEAM_MODE) return;
+  document.body.classList.add('team-mode');
+  $('teamPick').classList.remove('hide'); $('inviteBtn').classList.remove('hide'); $('records').classList.add('records-off');
+  const mark = () => { for (const b of document.querySelectorAll('#teamPick .tp')) b.classList.toggle('sel', String(teamChoice) === b.dataset.team); };
+  for (const b of document.querySelectorAll('#teamPick .tp')) b.addEventListener('click', () => { teamChoice = b.dataset.team === 'auto' ? 'auto' : +b.dataset.team; mark(); Sound.click(); });
+  mark();
+  $('inviteBtn').addEventListener('click', async () => {
+    const t = myTeam >= 0 ? myTeam : teamChoice === 'auto' ? null : teamChoice;
+    const url = location.origin + location.pathname + '?mode=team' + (t === null ? '' : '&team=' + t);
+    const text = t === null ? 'Заходи в Марми Мафию — команда на команду!' : `Заходи ко мне в команду ${TEAM_NAME[t]} в Марми Мафии!`;
+    try { if (navigator.share) { await navigator.share({ title: 'Марми Мафия', text, url }); return; } } catch (e) { return; }
+    try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована — отправьте другу'); } catch (e) { prompt('Скопируйте ссылку:', url); }
+  });
+}
+setupModeMenu();
 
 let toastT = 0;
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
@@ -1524,7 +1588,7 @@ function play() {
   goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
-  sendJSON({ t: 'join', name, skin, w: W, h: H });
+  sendJSON({ t: 'join', name, skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
 }
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
