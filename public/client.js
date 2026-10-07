@@ -513,9 +513,10 @@ function sendInput() {
   ws.send(new Uint8Array([1, q & 255, q >> 8, inBoost ? 1 : 0]));
   lastSentA = inAngle; lastSentB = inBoost; lastSentT = now;
 }
-// Телефон: «джойстик» — левая половина экрана рулит (джойстик появляется под пальцем),
-// правая половина — ускорение, пока держите палец. «Палец» — змейка ползёт к месту касания, ⚡ слева.
-let ctrlMode = (() => { try { return localStorage.getItem('mm_ctrl') || 'joy'; } catch (e) { return 'joy'; } })();
+// Телефон: «джойстик» — владелец 07.10: первый палец в ЛЮБОМ месте становится джойстиком прямо под ним (левша, правша — неважно),
+// второй палец в любом месте — ускорение, пока держите. «Палец» — змейка ползёт к месту касания, ⚡ слева.
+// Выбор хранится под новым именем mm_ctrl2: у всех, у кого застрял режим «палец», снова джойстик.
+let ctrlMode = (() => { try { return localStorage.getItem('mm_ctrl2') || 'joy'; } catch (e) { return 'joy'; } })();
 const JOY_R = 56;
 const look = { x: 0, y: 0 }; // сдвиг камеры вперёд по ходу змеи
 let steerId = null, joy = null, boostId = null;
@@ -534,8 +535,8 @@ canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
   if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && myRockets > 0) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
-    if (e.clientX < W / 2) { if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } }
-    else if (boostId === null) boostOn(e.pointerId);
+    if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } // первый палец — джойстик под ним
+    else if (boostId === null) boostOn(e.pointerId); // второй палец — ускорение
     return;
   }
   if (steerId === null) { steerId = e.pointerId; setAngleFrom(e.clientX, e.clientY); }
@@ -1793,12 +1794,12 @@ sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click
 
 function showHelp() {
   $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. Голосовой чат включается сам; V — выключить свой микрофон.'
-    : ctrlMode === 'joy' ? 'Левая половина экрана — джойстик. Держите палец на правой половине — ускорение. Голосовой чат включается сам; 🎤 — выключить свой микрофон.'
+    : ctrlMode === 'joy' ? 'Первый палец в любом месте — джойстик. Второй палец в любом месте — ускорение, пока держите. Голосовой чат включается сам; 🎤 — выключить свой микрофон.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
 if (isTouch) {
   $('ctrlBtn').classList.remove('hide');
-  $('ctrlBtn').addEventListener('click', () => { ctrlMode = ctrlMode === 'joy' ? 'finger' : 'joy'; try { localStorage.setItem('mm_ctrl', ctrlMode); } catch (e) {} Sound.click(); applyCtrlMode(); showHelp(); });
+  $('ctrlBtn').addEventListener('click', () => { ctrlMode = ctrlMode === 'joy' ? 'finger' : 'joy'; try { localStorage.setItem('mm_ctrl2', ctrlMode); } catch (e) {} Sound.click(); applyCtrlMode(); showHelp(); });
 }
 applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
