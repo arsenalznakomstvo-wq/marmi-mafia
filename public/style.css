@@ -424,3 +424,10 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
 #netInfo { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(max(4px, env(safe-area-inset-bottom)) + 24px); z-index: 5; pointer-events: none;
   font: 12px Arial, sans-serif; color: #aeb6c2; background: rgba(10, 12, 18, 0.55); border-radius: 10px; padding: 3px 10px; white-space: nowrap; }
 #netInfo:empty { display: none; }
+/* Владелец 07.10: отдельная кнопка 👥 справа от цифры внизу — посетители за день/неделю/месяц; подсказки выше строки замеров */
+#visBtn { position: fixed; z-index: 45; left: calc(50% + 18px); bottom: max(2px, env(safe-area-inset-bottom)); font-size: 13px; padding: 4px 8px; cursor: pointer; opacity: 0.55; user-select: none; }
+#visList { position: fixed; z-index: 46; left: 50%; transform: translateX(-50%); bottom: calc(max(4px, env(safe-area-inset-bottom)) + 52px);
+  background: rgba(10, 12, 22, 0.85); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: #c9cfd8; pointer-events: none; white-space: nowrap; line-height: 1.5; }
+#visList .vh { color: #8a93a8; font-size: 11px; text-transform: uppercase; }
+#visList b { color: #ffd52e; }
+#pnList { bottom: calc(max(4px, env(safe-area-inset-bottom)) + 52px); }

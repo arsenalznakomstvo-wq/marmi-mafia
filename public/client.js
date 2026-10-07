@@ -584,7 +584,7 @@ function applyCtrlMode() {
 // Сервер главный: с каждым его обновлением положение мягко подтягивается к настоящему; при большом расхождении — сразу встаёт на место.
 // Тело тянется за головой по пройденному пути.
 const MIN_BOOST = 12;
-function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * ((1000 / TICK_RATE) / 8) * scang * 1.3; } // ×1.3 — как TURN_BOOST в server.js
+function turnRate(r) { const sc = r / 10, scang = 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2); return 0.033 * ((1000 / TICK_RATE) / 8) * scang * 1.5; } // ×1.5 — как TURN_BOOST в server.js
 function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 / 4.75; }
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
 window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
@@ -1179,17 +1179,24 @@ setInterval(() => {
   $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
   if (window.VoiceChat) VoiceChat.tick(alive, lb && typeof lb.online === 'number' ? lb.online : 0); // общий голос: когда на сайте есть кто-то ещё
   if (pnShowUntil > Date.now()) showPlayerNames(); else $('pnList').classList.add('hide');
+  if (visShowUntil > Date.now()) showVisits(); else $('visList').classList.add('hide');
 }, 1000);
 // Нажатие на цифру внизу — на 5 секунд показать ники живых людей в игре
 let pnShowUntil = 0, visData = null; // посетители [сегодня, 7 дней, 30 дней]
 function showPlayerNames() {
   const list = (lb && lb.pn) || [], el = $('pnList');
-  // Владелец 07.10: сверху — сколько людей заходили в игру за день, неделю и месяц
-  const vis = visData ? `<div class="vis">👥 Сегодня <b>${visData[0]}</b> · Неделя <b>${visData[1]}</b> · Месяц <b>${visData[2]}</b></div>` : '';
-  el.innerHTML = vis + (list.length ? list.map(([n, sc]) => `<div>${esc(n)} <span>${sc}</span></div>`).join('') : '<div>в игре никого</div>');
+  el.innerHTML = list.length ? list.map(([n, sc]) => `<div>${esc(n)} <span>${sc}</span></div>`).join('') : '<div>в игре никого</div>';
   el.classList.remove('hide');
 }
-$('ping').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = Date.now() + 5000; showPlayerNames(); });
+$('ping').addEventListener('pointerdown', e => { e.stopPropagation(); visShowUntil = 0; $('visList').classList.add('hide'); pnShowUntil = Date.now() + 5000; showPlayerNames(); });
+// Владелец 07.10: отдельная кнопка 👥 — сколько людей заходили в игру за день, неделю и месяц (на 5 секунд)
+let visShowUntil = 0;
+function showVisits() {
+  const v = visData, el = $('visList');
+  el.innerHTML = v ? `<div class="vh">Заходили в игру</div><div>Сегодня <b>${v[0]}</b></div><div>За неделю <b>${v[1]}</b></div><div>За месяц <b>${v[2]}</b></div>` : '<div>считаем…</div>';
+  el.classList.remove('hide');
+}
+$('visBtn').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = 0; $('pnList').classList.add('hide'); visShowUntil = Date.now() + 5000; showVisits(); });
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
