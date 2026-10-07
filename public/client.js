@@ -1161,7 +1161,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
 
 // Строка замеров внизу экрана: кадры в секунду, пинг, запас плавности — чтобы видеть, что тормозит
 let lowSecs = 0, autoLow = 0; // 1 — чёткость 1×, 2 — ещё и упрощённые змеи
-let fpsCount = 0, fpsT = performance.now(), netFrames = 0, netJerks = 0; // кадров от сервера за секунду; пауз между ними дольше 150 мс
+let fpsCount = 0, fpsT = performance.now(), netFrames = 0, netJerks = 0, netT = performance.now(); // кадров от сервера за секунду; пауз между ними дольше 150 мс
 setInterval(() => {
   const now = performance.now(), fps = Math.round(fpsCount * 1000 / (now - fpsT));
   // Авто-облегчение на телефоне: если кадров мало несколько секунд подряд — сначала снижаем чёткость, потом упрощаем змей
@@ -1171,7 +1171,7 @@ setInterval(() => {
   }
   fpsCount = 0; fpsT = now;
   // Владелец 07.10: надпись-замер во время игры — что тормозит: связь (пинг, кадры от сервера, рывки) или телефон (кадры экрана)
-  { const srv = netFrames, jerks = netJerks; netFrames = 0; netJerks = 0;
+  { const secs = Math.max(1, (now - netT) / 1000), srv = Math.round(netFrames / secs), jerks = netJerks; netFrames = 0; netJerks = 0; netT = now; // делим на настоящее прошедшее время (вкладка могла уходить в фон)
     const bad = (v, b) => v ? ' style="color:#ff6b6b"' : '';
     $('netInfo').innerHTML = alive ? `<span${bad(pingMs > 150)}>📶 ${pingMs} мс</span> · <span${bad(srv < 26)}>сервер ${srv}/30</span>${jerks ? ` · <span style="color:#ff6b6b">рывки ${jerks}</span>` : ''} · <span${bad(fps < 40)}>экран ${fps} к/с</span>` : ''; }
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
