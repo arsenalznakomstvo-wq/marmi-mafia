@@ -623,21 +623,48 @@ function predStep(srv) {
   const tr0 = pred.trail[0];
   if (!tr0 || Math.hypot(pred.x - tr0[0], pred.y - tr0[1]) > 1.5) pred.trail.unshift([pred.x, pred.y]);
   else { tr0[0] = pred.x; tr0[1] = pred.y; }
-  const need = (srv.len - 1) * SEG_D;
+  // Владелец 07.10 («змея проползла под другой»): по предсказанию рисуем только голову и шею — до места на следе, где сейчас
+  // голова на сервере; дальше тело строго по данным сервера. Раньше всё тело шло по следу предсказания, и его ошибки
+  // (замер при пинге 166 мс: в среднем 21, до 49 единиц вбок) оставались в теле — на экране оно пересекало чужих.
+  const shx = srv.xs[0], shy = srv.ys[0];
+  let D = 0, best = 1e9, accS = 0, cut = pred.trail.length;
+  for (let j = 1; j < pred.trail.length; j++) {
+    const [x0, y0] = pred.trail[j - 1], [x1, y1] = pred.trail[j];
+    accS += Math.hypot(x1 - x0, y1 - y0);
+    const d = Math.hypot(x1 - shx, y1 - shy); if (d < best) { best = d; D = accS; }
+    if (accS > 900) { cut = j + 1; break; }
+  }
+  if (best > 150) D = 0; // след не совпадает с сервером (после перескока) — всё тело с сервера
+  pred.D = pred.D == null ? D : pred.D + (D - pred.D) * 0.3; // сглаживаем, чтобы узор на теле не прыгал
+  const Dk = Math.max(0, Math.min(srv.len - 1, Math.round(pred.D / SEG_D)));
   const idx = [0], xs = [pred.x], ys = [pred.y], gap = [false];
-  let acc = 0, nextAt = SEG_D, seg = 1, cut = pred.trail.length;
-  for (let j = 1; j < pred.trail.length && seg < srv.len; j++) {
+  // шея: точки следа через SEG_D до Dk, с плавной поправкой, чтобы последняя точка легла ровно на голову с сервера
+  let acc = 0, nextAt = SEG_D, seg = 1;
+  for (let j = 1; j < pred.trail.length && seg <= Dk; j++) {
     const [x0, y0] = pred.trail[j - 1], [x1, y1] = pred.trail[j];
     const L = Math.hypot(x1 - x0, y1 - y0);
-    while (acc + L >= nextAt && seg < srv.len) {
-      const f = L ? (nextAt - acc) / L : 0;
-      idx.push(seg); xs.push(x0 + (x1 - x0) * f); ys.push(y0 + (y1 - y0) * f); gap.push(false);
-      seg++; nextAt += SEG_D;
-    }
+    while (acc + L >= nextAt && seg <= Dk) { const f = L ? (nextAt - acc) / L : 0; idx.push(seg); xs.push(x0 + (x1 - x0) * f); ys.push(y0 + (y1 - y0) * f); gap.push(false); seg++; nextAt += SEG_D; }
     acc += L;
-    if (acc > need + 300) { cut = j + 1; break; } // запас следа на случай, если змейка подросла
+  }
+  const last = xs.length - 1;
+  if (last > 0) { const cx = shx - xs[last], cy = shy - ys[last]; for (let k = 1; k <= last; k++) { xs[k] += cx * k / last; ys[k] += cy * k / last; } }
+  // тело: точки с сервера (без его головы), номера сдвинуты на длину шеи
+  const off = last;
+  for (let j = 1; j < srv.xs.length; j++) {
+    const id = srv.idx[j] + off; if (id > srv.len - 1) break;
+    idx.push(id); xs.push(srv.xs[j]); ys.push(srv.ys[j]); gap.push(srv.gap[j]);
   }
   pred.trail.length = Math.min(pred.trail.length, cut + 1);
+  if (window.__mmTrailCheck) { // только для проверки: насколько нарисованное тело уходит вбок от настоящего (с сервера)
+    let mx = 0, bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+    for (let j = 0; j < srv.xs.length; j++) { bx0 = Math.min(bx0, srv.xs[j]); bx1 = Math.max(bx1, srv.xs[j]); by0 = Math.min(by0, srv.ys[j]); by1 = Math.max(by1, srv.ys[j]); }
+    for (let i = 40; i < xs.length; i += 5) {
+      if (xs[i] < bx0 + 60 || xs[i] > bx1 - 60 || ys[i] < by0 + 60 || ys[i] > by1 - 60) continue; // сравниваем только там, где сервер прислал тело
+      let best = 1e9; for (let j = 0; j < srv.xs.length; j++) { const d = Math.hypot(xs[i] - srv.xs[j], ys[i] - srv.ys[j]); if (d < best) best = d; }
+      if (best < 1e8 && best > mx) mx = best;
+    }
+    const st = window.__mmTrailCheck; st.n++; if (mx > st.max) st.max = mx; st.sum += mx;
+  }
   return { id: srv.id, boost: boosting, mass: srv.mass, len: srv.len, r, a: pred.a, idx, xs, ys, gap };
 }
 
