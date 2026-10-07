@@ -357,14 +357,14 @@ body:not(.in-menu) #menuPhotos { display: none; }
 /* ===== Командный режим (владелец 07.10) ===== */
 #teamPick { display: flex; gap: 8px; justify-content: center; margin: 2px 0 10px; }
 #teamPick .tp { border: 2px solid rgba(255,255,255,0.25); background: rgba(20,24,32,0.75); color: #fff; font: bold 15px Arial, sans-serif; padding: 9px 14px; border-radius: 12px; cursor: pointer; }
-#teamPick .tp0.sel { background: #7b3fe4; border-color: #c9a8ff; }
-#teamPick .tp1.sel { background: #2f7bff; border-color: #a8c8ff; }
+#teamPick .tp0.sel { background: #f2f2f2; border-color: #ffffff; color: #1a1d24; }
+#teamPick .tp1.sel { background: #1c1c1e; border-color: #ff8a1f; color: #ff8a1f; }
 #teamPick .tpa.sel { background: #3a4252; border-color: #fff; }
 #modeRow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
-#modeBtn, #inviteBtn { border: 0; border-radius: 12px; padding: 9px 14px; font: bold 14px Arial, sans-serif; cursor: pointer; color: #fff; background: linear-gradient(90deg, #7b3fe4, #2f7bff); }
+#modeBtn, #inviteBtn { border: 0; border-radius: 12px; padding: 9px 14px; font: bold 14px Arial, sans-serif; cursor: pointer; color: #fff; background: linear-gradient(90deg, #8a8f99, #1c1c1e 55%, #ff8a1f); }
 #inviteBtn { background: rgba(40,46,58,0.9); }
 #teamBar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 5px 12px; border-radius: 14px; background: rgba(10,12,18,0.72); color: #fff; font: bold 15px Arial, sans-serif; pointer-events: none; white-space: nowrap; z-index: 5; }
-#teamBar .t0 { color: #c9a8ff; } #teamBar .t1 { color: #8fb8ff; } #teamBar .me { text-decoration: underline; }
+#teamBar .t0 { color: #ffffff; } #teamBar .t1 { color: #ff8a1f; } #teamBar .me { text-decoration: underline; }
 #teamBar .clk { color: #fff; opacity: 0.9; font-size: 14px; padding: 0 4px; }
 #roundBanner { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; background: rgba(10,12,18,0.88); color: #fff; border-radius: 18px; padding: 18px 26px; text-align: center; font: bold 16px Arial, sans-serif; min-width: 260px; box-shadow: 0 6px 30px rgba(0,0,0,0.5); }
 #roundBanner .big { font-size: 26px; margin-bottom: 8px; }

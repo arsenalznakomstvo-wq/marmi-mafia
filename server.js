@@ -15,9 +15,11 @@ const records = require('./records.js');
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
-// ===== Командный режим (владелец 07.10): отдельная арена «Мафия против Полиции» — этот же файл, запущенный с TEAM_MODE=1 =====
+// ===== Командный режим (владелец 07.10): отдельная арена «Мирные (белые) против Мафии (чёрно-оранжевые)» — этот же файл, запущенный с TEAM_MODE=1 =====
 const TEAM = process.env.TEAM_MODE === '1';
-const TEAM_NAMES = ['Мафия', 'Полиция'], TEAM_BOT_NAMES = ['Мафиози', 'Полицейский'];
+const TEAM_NAMES = ['Мирные', 'Мафия'], TEAM_BOT_NAMES = ['Мирный', 'Мафиози'];
+// Владелец 07.10: вся команда одного цвета — Мирные белые, Мафия чёрно-оранжевая (свой скин в командах не действует)
+const TEAM_SKIN_NAMES = ['Белый', 'Чёрно-оранжевый'];
 const ROUND_SEC = Number(process.env.TEST_ROUND) || 600, ROUND_PAUSE_SEC = 10; // раунд 10 минут, пауза 10 с
 const TICK_RATE = 30;            // шагов мира в секунду
 const TICK_MS = 1000 / TICK_RATE;
@@ -427,10 +429,15 @@ function spawnBot() {
   const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
   s.role = rankFor(s.mass, 0);
   s.name = ROLES[s.role].name;
-  if (TEAM) { s.team = teamWithFewer(false); s.name = TEAM_BOT_NAMES[s.team]; s.role = 0; }
+  if (TEAM) { s.team = teamWithFewer(false); s.name = TEAM_BOT_NAMES[s.team]; s.role = 0; setTeamSkin(s); }
   snakes.set(s.id, s);
 }
 
+function setTeamSkin(s) {
+  const id = SKINS.findIndex(d => d.name === TEAM_SKIN_NAMES[s.team]);
+  s.skin = { id, c1: '#ffffff', c2: '#ffffff', c3: '#ffffff' };
+  s.dropCols = [...new Set(skinCols(s.skin))].map(hexTo565);
+}
 // Команда, где меньше змей (onlyHumans — считать только людей; при равенстве — по всем змеям)
 function teamWithFewer(onlyHumans) {
   const h = [0, 0], all = [0, 0];
@@ -660,7 +667,7 @@ function handleJSON(c, m) {
     const pos = process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_CENTER — только для проверок
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
-    if (TEAM) s.team = m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true);
+    if (TEAM) { s.team = m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true); setTeamSkin(s); }
     s.client = c; c.snake = s; c.inA = s.a;
     snakes.set(s.id, s);
     stats.onJoin(c);

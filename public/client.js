@@ -275,10 +275,11 @@ const lastHeads = new Map(); // id -> {x,y} где голова нарисова
 let tickOffset = null;       // сдвиг серверного времени относительно нашего
 let lb = null, pingMs = 0;
 let myMass = 0;
-// ===== Командный режим (владелец 07.10): ?mode=team — арена «Мафия против Полиции», ?team=0/1 — сразу в команду друга =====
+// ===== Командный режим (владелец 07.10): ?mode=team — арена «Мирные (белые) против Мафии (чёрно-оранжевые)», ?team=0/1 — сразу в команду друга =====
 const QS = new URLSearchParams(location.search);
 const TEAM_MODE = QS.get('mode') === 'team';
-const TEAM_COL = ['#9b4dff', '#2f7bff'], TEAM_NAME = ['Мафия', 'Полиция'], TEAM_ICON = ['🟣', '🔵'];
+const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
+const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
 
 function connect() {
@@ -645,7 +646,7 @@ function plateSprite(ri, bodyCol, nick, s, team) {
   const img = cacheCanvas(key, (w + pad * 2) * k, (h + pad * 2) * k, g => {
     g.scale(k, k); g.translate(pad, pad);
     // Владелец 07.10: все таблички в одном стиле — светлая плашка, тонкая рамка, тёмный текст
-    const bg = tm >= 0 ? TEAM_COL[tm] : '#f4f5f7', fg = tm >= 0 ? '#ffffff' : '#1a1d24', border = tm >= 0 ? 'rgba(255,255,255,0.7)' : 'rgba(30, 40, 60, 0.45)', rr = 4 * sb;
+    const bg = tm >= 0 ? TEAM_PLATE[tm][0] : '#f4f5f7', fg = tm >= 0 ? TEAM_PLATE[tm][1] : '#1a1d24', border = tm >= 0 ? TEAM_PLATE[tm][2] : 'rgba(30, 40, 60, 0.45)', rr = 4 * sb;
     g.beginPath(); g.moveTo(rr, 0); g.arcTo(w, 0, w, h, rr); g.arcTo(w, h, 0, h, rr); g.arcTo(0, h, 0, 0, rr); g.arcTo(0, 0, w, 0, rr); g.closePath();
     g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 4 * sb; g.shadowOffsetY = 1.5 * sb;
     g.fillStyle = bg; g.fill(); g.shadowBlur = 0; g.shadowOffsetY = 0;
@@ -1078,13 +1079,6 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.restore();
   }
   if (roleIdx && !sk.text) drawRoleUnder(roleIdx, cnt, r, time, view);
-  if (TEAM_MODE && meta && meta.team >= 0 && !fade) { // командный режим: толстая обводка цвета команды вокруг всего тела
-    ctx.strokeStyle = TEAM_COL[meta.team]; ctx.lineWidth = r * 2 + Math.max(5, r * 0.55); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.globalAlpha = fade ? 1 - fade : 0.95;
-    ctx.beginPath(); ctx.moveTo(SX[0], SY[0]);
-    for (let k = 1; k < cnt; k++) { if (k + 1 < cnt && k % 2) continue; ctx.lineTo(SX[k], SY[k]); }
-    ctx.stroke(); ctx.globalAlpha = 1;
-  }
   if (sn.boost && !fade) { // при ускорении тело светится и пульсирует
     const hs = size * 2.2, hh = hs / 2;
     ctx.globalCompositeOperation = 'lighter';
@@ -1304,7 +1298,7 @@ function drawMinimap(me) {
       const human = (line[0] & 1) === 1, lt = (line[0] >> 1) - 1;
       if (human !== (pass === 1)) continue;
       // Командный режим: свои — цвет своей команды, соперники — красные
-      mctx.strokeStyle = TEAM_MODE && lt >= 0 ? (lt === myTeam || myTeam < 0 ? (human ? '#d9c2ff' : TEAM_COL[lt]) : (human ? '#ff6b6b' : 'rgba(255, 70, 70, 0.75)'))
+      mctx.strokeStyle = TEAM_MODE && lt >= 0 ? (lt === myTeam || myTeam < 0 ? TEAM_COL[lt] : (human ? '#ff6b6b' : 'rgba(255, 70, 70, 0.75)'))
         : human ? 'rgba(255, 213, 79, 0.9)' : 'rgba(200, 205, 215, 0.55)';
       if (TEAM_MODE && lt >= 0 && myTeam < 0) mctx.strokeStyle = TEAM_COL[lt];
       mctx.lineWidth = (human ? 1.8 : 1.1) * k;
@@ -1333,7 +1327,7 @@ function renderLb() {
   let html = '';
   lb.top.forEach(([name, score, id, tm], i) => {
     const me = id === myId && alive;
-    html += `<div class="row${me ? ' me' : ''}" style="color:${TEAM_MODE && tm >= 0 ? (tm ? '#8fb8ff' : '#c9a8ff') : LB_COLORS[i]}"><span class="p">#${i + 1}</span><span class="n">${esc(name)}</span><span class="s">${score}</span></div>`;
+    html += `<div class="row${me ? ' me' : ''}" style="color:${TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i]}"><span class="p">#${i + 1}</span><span class="n">${esc(name)}</span><span class="s">${score}</span></div>`;
   });
   if (alive && lb.rank > 10) html += `<div class="row me sep"><span class="p">#${lb.rank}</span><span class="n">${esc(myName())}</span><span class="s">${lb.score}</span></div>`;
   $('lb-rows').innerHTML = html;
@@ -1347,8 +1341,8 @@ function renderTeamBar() {
   if (!TEAM_MODE || !teamTm) { b.classList.add('hide'); return; }
   const [a, c, left, h0, h1, pause] = teamTm;
   b.classList.remove('hide');
-  b.innerHTML = `<span class="t0${myTeam === 0 ? ' me' : ''}">🟣 Мафия ${a}</span><span class="clk">⏱ ${pause ? 'перерыв' : mmss(left)}</span><span class="t1${myTeam === 1 ? ' me' : ''}">${c} Полиция 🔵</span>`;
-  b.title = `Людей: Мафия ${h0}, Полиция ${h1}`;
+  b.innerHTML = `<span class="t0${myTeam === 0 ? ' me' : ''}">⚪ Мирные ${a}</span><span class="clk">⏱ ${pause ? 'перерыв' : mmss(left)}</span><span class="t1${myTeam === 1 ? ' me' : ''}">${c} Мафия 🟠</span>`;
+  b.title = `Людей: Мирные ${h0}, Мафия ${h1}`;
 }
 function onRoundEnd(m) {
   const wasAlive = alive;
@@ -1357,7 +1351,7 @@ function onRoundEnd(m) {
   const head = w < 0 ? '🤝 Ничья!' : `🏆 Победила ${TEAM_ICON[w]} ${TEAM_NAME[w]}!`;
   const best = m.best ? `<div class="sub">Лучший игрок: <b>${esc(m.best[0])}</b> ${m.best[2] >= 0 ? TEAM_ICON[m.best[2]] : ''} — длина ${m.best[1]}</div>` : '';
   $('roundBanner').innerHTML = `<div class="big">${head}</div>${myTeam >= 0 && w >= 0 ? `<div>${mine ? 'Ваша команда победила! 🎉' : 'Ваша команда проиграла'}</div>` : ''}`
-    + `<div class="sc">🟣 ${m.scores[0]} : ${m.scores[1]} 🔵</div>${best}<div class="sub" id="rbLeft">Новый раунд через ${m.pause} с</div>`;
+    + `<div class="sc">⚪ ${m.scores[0]} : ${m.scores[1]} 🟠</div>${best}<div class="sub" id="rbLeft">Новый раунд через ${m.pause} с</div>`;
   $('roundBanner').classList.remove('hide');
   let left = m.pause; const t = setInterval(() => { left--; const e = $('rbLeft'); if (!e || left <= 0) { clearInterval(t); return; } e.textContent = `Новый раунд через ${left} с`; }, 1000);
   if (wasAlive) { rejoinAfterRound = true; Sound.kill(); } // играл — после перерыва зайдёт в новый раунд сам
