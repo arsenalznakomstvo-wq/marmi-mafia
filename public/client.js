@@ -1079,7 +1079,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.restore();
   }
   if (roleIdx && !sk.text) drawRoleUnder(roleIdx, cnt, r, time, view);
-  if (sn.boost && !fade) { // при ускорении тело светится и пульсирует
+  if (sn.boost && !fade && !(TEAM_MODE && meta && meta.team === 1)) { // при ускорении тело светится и пульсирует (у Мафии в командах — без свечения, владелец 07.10)
     const hs = size * 2.2, hh = hs / 2;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.45 + 0.25 * Math.sin(time * 0.015);

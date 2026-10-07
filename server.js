@@ -24,7 +24,7 @@ const ROUND_SEC = Number(process.env.TEST_ROUND) || 600, ROUND_PAUSE_SEC = 10; /
 const TICK_RATE = 30;            // шагов мира в секунду
 const TICK_MS = 1000 / TICK_RATE;
 const MAP_R = 5000;              // радиус круглой карты
-const TARGET_SNAKES = TEAM ? 30 : 40;        // живые игроки + боты; зашёл человек — бот уступает место
+const TARGET_SNAKES = 40;        // живые игроки + боты; зашёл человек — бот уступает место
 const FOOD_TARGET = 3490;        // обычной еды на карте: в оригинале её немного, ~25 точек на экран
 const SEG_D = 6;                 // расстояние между точками тела
 const BASE_SPEED = 6;            // за шаг мира (у змейки на старте; дальше см. speedFor)
@@ -449,8 +449,25 @@ function maintainBots() {
   if (TEAM && roundPause) return;
   let players = 0, bots = 0;
   for (const s of snakes.values()) { if (s.bot) bots++; else players++; }
-  // Ботов ровно столько, чтобы всего было TARGET_SNAKES; люди вытесняют ботов по мере их гибели
+  // Ботов ровно столько, чтобы всего было TARGET_SNAKES
   for (let i = 0; i < 2 && players + bots < TARGET_SNAKES; i++) { spawnBot(); bots++; }
+  // Владелец 07.10: пришли новые люди — лишние боты исчезают по одному (раз в 1,5 с), подальше от людей, чтобы не пропадали на глазах
+  if (players + bots > TARGET_SNAKES && bots > 0 && tick >= nextBotLeave) { nextBotLeave = tick + Math.round(TICK_RATE * 1.5); removeOneBot(); }
+}
+let nextBotLeave = 0;
+function removeOneBot() {
+  let from = -1; // командный режим: убираем бота из команды, где змей больше
+  if (TEAM) { const n = [0, 0]; for (const s of snakes.values()) if (s.team != null) n[s.team]++; from = n[0] === n[1] ? -1 : n[0] > n[1] ? 0 : 1; }
+  const heads = []; for (const s of snakes.values()) if (!s.bot && s.alive) heads.push(s);
+  let best = null, bestD = -1;
+  for (const b of snakes.values()) {
+    if (!b.bot || !b.alive || (from >= 0 && b.team !== from)) continue;
+    let d = 1e12; for (const h of heads) d = Math.min(d, (b.xs[0] - h.xs[0]) ** 2 + (b.ys[0] - h.ys[0]) ** 2);
+    d -= b.mass * 400; // при равном расстоянии уходит бот поменьше
+    if (d > bestD) { bestD = d; best = b; }
+  }
+  if (!best) return;
+  best.alive = false; snakes.delete(best.id); diedThisTick.push(best.id); // тело тихо тает, еды не оставляет
 }
 
 const OBX = [], OBY = [], OBR = [];
