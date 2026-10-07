@@ -440,3 +440,5 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
   body:not(.team-mode) #records .rr { font-size: 10px; line-height: 1.3; gap: 6px; }
   body:not(.team-mode) #records .rr span { max-width: 90px; }
 }
+/* Владелец 07.10: на телефоне вся игра ярче — как будто прибавили яркость экрана */
+@media (pointer: coarse) { #game { filter: brightness(1.15) saturate(1.05); } }

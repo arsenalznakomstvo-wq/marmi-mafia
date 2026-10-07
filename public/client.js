@@ -203,6 +203,8 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
 
 // ===== Фон: крупные тёмно-синие объёмные соты, как в оригинале =====
 let bgPattern = null, bgTileURL = '', bgTileSize = '';
+// Владелец 07.10: на телефоне фон светлее (экраны телефонов темнее и бликуют); плюс вся игра ярче (+15%, style.css)
+const BG = isTouch ? { floor: '#1a2433', top: '#33476a', bot: '#26364f' } : { floor: '#0b1018', top: '#1e2a3d', bot: '#141c2a' };
 function makeBg() {
   // Владелец 06.10: соты чёткие — плитку рисуем в 4 раза детальнее и уменьшаем при заливке (раньше 50×87 точек растягивались)
   const s = 29, w = s * Math.sqrt(3), h = s * 3, K = 4;
@@ -210,11 +212,11 @@ function makeBg() {
   const g = c.getContext('2d');
   const kx = c.width / w, ky = c.height / h;
   g.scale(kx, ky);
-  g.fillStyle = '#0b1018'; g.fillRect(0, 0, w, h);
+  g.fillStyle = BG.floor; g.fillRect(0, 0, w, h);
   const hex = (cx, cy) => {
     const path = rr => { g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); };
     path(s - 7); // широкие промежутки между сотами, как в оригинале
-    const gr = g.createLinearGradient(cx, cy - s, cx, cy + s); gr.addColorStop(0, '#1e2a3d'); gr.addColorStop(1, '#141c2a');
+    const gr = g.createLinearGradient(cx, cy - s, cx, cy + s); gr.addColorStop(0, BG.top); gr.addColorStop(1, BG.bot);
     g.fillStyle = gr; g.fill();
     g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.04)'; g.stroke();
   };
@@ -1245,7 +1247,7 @@ function frame(time) {
 
   const s = cam.s;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = '#0b1018'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = BG.floor; ctx.fillRect(0, 0, W, H);
   const shk = shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
   const shx = shk ? (Math.random() - 0.5) * 2 * shk : 0, shy = shk ? (Math.random() - 0.5) * 2 * shk : 0;
   ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s + shx), DPR * (H / 2 - cam.y * s + shy));
