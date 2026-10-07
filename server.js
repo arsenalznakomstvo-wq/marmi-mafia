@@ -290,7 +290,7 @@ function buildGrid() {
 function collisions() {
   const dead = [];
   for (const s of snakes.values()) {
-    if (!s.alive) continue;
+    if (!s.alive || s.ghostUntil > tick) continue; // Доктор после спасения 2 с проходит сквозь всё
     const hx = s.xs[0], hy = s.ys[0], rs = s.r;
     const lim = MAP_R - rs * 0.3;
     if (hx * hx + hy * hy > lim * lim) { dead.push(s, null); continue; }
@@ -332,10 +332,21 @@ function collisions() {
     }
     spare.add(loser === a ? b : a);
   }
-  for (let i = 0; i < dead.length; i += 2) if (!spare.has(dead[i])) killSnake(dead[i], dead[i + 1]);
+  for (let i = 0; i < dead.length; i += 2) if (!spare.has(dead[i]) && !docSave(dead[i])) killSnake(dead[i], dead[i + 1]);
 }
 
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
+// Владелец 07.10: Доктор один раз за жизнь не умирает — 2 с «призрака» (сквозь змей и край), у края разворачивается к центру
+const DOCTOR = ROLES.findIndex(r => r.name === 'Доктор'), GHOST_TICKS = 2 * TICK_RATE;
+function docSave(s) {
+  if (TEAM || s.docUsed || (s.role || 0) !== DOCTOR || !s.alive) return false;
+  s.docUsed = true; s.ghostUntil = tick + GHOST_TICKS;
+  const hx = s.xs[0], hy = s.ys[0];
+  if (hx * hx + hy * hy > (MAP_R - 300) * (MAP_R - 300)) { s.a = s.ta = Math.atan2(-hy, -hx); } // у края — сразу к центру
+  for (const c of clients) sendJSON(c, { t: 'docSave', id: s.id, ms: GHOST_TICKS * TICK_MS });
+  if (s.client) sendJSON(s.client, { t: 'tmsgMe', text: '🩺 Доктор спас вас! 2 секунды вы призрак — уползайте. Второго раза не будет' });
+  return true;
+}
 function killSnake(s, killer) {
   if (!s.alive) return;
   if (!s.bot) records.report(s.name, s.mass);
@@ -1046,7 +1057,7 @@ function stepRockets() {
     if (hit || out || tick >= r.die) {
       rockets.splice(i, 1);
       for (const c of clients) sendJSON(c, { t: 'boom', id: r.id, x: Math.round(r.x), y: Math.round(r.y), hit: hit ? 1 : 0, o: r.owner.id });
-      if (hit) { const killer = r.owner.alive ? r.owner : null; if (!hit.bot || (killer && !killer.bot)) teamMsg(`💥 ${r.owner.name} подбил базукой ${hit.name}!`); killSnake(hit, killer); }
+      if (hit && !docSave(hit)) { const killer = r.owner.alive ? r.owner : null; if (!hit.bot || (killer && !killer.bot)) teamMsg(`💥 ${r.owner.name} подбил базукой ${hit.name}!`); killSnake(hit, killer); }
     }
   }
 }
