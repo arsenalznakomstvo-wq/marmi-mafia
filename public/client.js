@@ -280,6 +280,7 @@ const QS = new URLSearchParams(location.search);
 const TEAM_MODE = QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
+const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
 let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
 
 function connect() {
@@ -324,6 +325,9 @@ function onJSON(m) {
       break;
     case 'meta': for (const [id, name, skid, c1, c2, c3, bot, pat, role, team] of m.list) metas.set(id, { name, sk: prepSkin({ id: skid, c1, c2, c3, pat: pat || null }), bot, role: role || 0, team: team == null ? -1 : team }); break;
     case 'roundEnd': onRoundEnd(m); break;
+    case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
+      if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } } break; }
+    case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
     case 'roundStart': $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
@@ -1208,6 +1212,20 @@ function frame(time) {
     const sz = f.r * pulse * (hiQ ? SPR / FOOD_CORE : 3.2), spr = hiQ ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
+  // Светящиеся шары (командный режим): плавно между обновлениями, пульсирующее сияние
+  if (orbs.size) {
+    const nowO = performance.now();
+    for (const o of orbs.values()) {
+      const k = Math.min(1.5, (nowO - o.t) / 100), x = o.px + (o.x - o.px) * k, y = o.py + (o.y - o.py) * k;
+      if (x < view.x0 - 120 || x > view.x1 + 120 || y < view.y0 - 120 || y > view.y1 + 120) continue;
+      const p = 1 + 0.18 * Math.sin(time * 0.012 + o.x * 0.01), hs = 22 * 7 * p;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(haloSprite('#7df9ff'), x - hs / 2, y - hs / 2, hs, hs);
+      ctx.drawImage(haloSprite('#ffffff'), x - hs / 4, y - hs / 4, hs / 2, hs / 2);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 22 * 0.55 * p, 0, TAU); ctx.fill();
+    }
+  }
   // Еда, которую засасывает в рот
   const now = performance.now();
   for (let i = eatAnims.length - 1; i >= 0; i--) {
@@ -1311,6 +1329,9 @@ function drawMinimap(me) {
   if (me) {
     const x = c + me.xs[0] / MAP_R * R, y = c + me.ys[0] / MAP_R * R;
     mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.arc(x, y, 3.2 * k, 0, TAU); mctx.fill();
+  }
+  for (const o of orbs.values()) { // светящиеся шары на миникарте — голубые точки
+    mctx.fillStyle = '#7df9ff'; mctx.beginPath(); mctx.arc(c + o.x / MAP_R * R, c + o.y / MAP_R * R, 2.6 * k, 0, TAU); mctx.fill();
   }
   if (evNow && evNow[0] === 'gold') { // золотая еда на миникарте — пульсирующая точка
     const gx = c + evNow[2] / MAP_R * R, gy = c + evNow[3] / MAP_R * R, p = 1 + 0.35 * Math.sin(performance.now() * 0.008);

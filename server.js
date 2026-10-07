@@ -685,6 +685,7 @@ function handleJSON(c, m) {
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
     if (TEAM) { s.team = m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true); setTeamSkin(s); }
+    if (TEAM && process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     s.client = c; c.snake = s; c.inA = s.a;
     snakes.set(s.id, s);
     stats.onJoin(c);
@@ -863,6 +864,48 @@ function runEvents() {
   nextEventType = goldRun >= 2 ? 'night' : 'gold';
   nextEventAt = tick + EVENT_EVERY;
 }
+// ===== Светящиеся шары (командный режим, владелец 07.10): убегают от змей, догнал — змея сразу заметно длиннее =====
+const ORB_N = 4, ORB_R = 22, ORB_VALUE = 150, ORB_FLEE = 9, ORB_WANDER = 2, ORB_SEE = 450, ORB_RESPAWN = 8 * TICK_RATE;
+const orbs = [];
+function placeOrb(o) {
+  const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (MAP_R - 800);
+  o.x = Math.cos(a) * d; o.y = Math.sin(a) * d; o.a = rand(0, TAU); o.alive = true; o.back = 0;
+}
+for (let i = 0; i < ORB_N; i++) { const o = { i }; placeOrb(o); orbs.push(o); }
+function stepOrbs() {
+  if (!TEAM || roundPause) return;
+  for (const o of orbs) {
+    if (!o.alive) { if (tick >= o.back) placeOrb(o); continue; }
+    // ближайшая голова: от неё убегаем (быстрее обычной змеи, медленнее ускорения — догнать можно только с ускорением)
+    let near = null, nd = ORB_SEE * ORB_SEE;
+    for (const s of snakes.values()) {
+      if (!s.alive) continue;
+      const dx = o.x - s.xs[0], dy = o.y - s.ys[0], d = dx * dx + dy * dy, rr = ORB_R + s.r;
+      if (d < rr * rr) { // поймали
+        s.mass += ORB_VALUE; o.alive = false; o.back = tick + ORB_RESPAWN;
+        if (s.client) sendJSON(s.client, { t: 'orbEat', v: ORB_VALUE });
+        break;
+      }
+      if (d < nd) { nd = d; near = s; }
+    }
+    if (!o.alive) continue;
+    let sp = ORB_WANDER;
+    if (near) { o.a = Math.atan2(o.y - near.ys[0], o.x - near.xs[0]) + Math.sin(tick * 0.15 + o.i) * 0.5; sp = ORB_FLEE; } // убегает зигзагом
+    else o.a += rand(-0.15, 0.15);
+    const dc = Math.hypot(o.x, o.y);
+    if (dc > MAP_R - 300) { // у края разворачивается к центру, чтобы не застрять
+      const toC = Math.atan2(-o.y, -o.x);
+      o.a = toC + clamp(angDiffS(toC, o.a), -1.2, 1.2);
+    }
+    o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
+  }
+  if (tick % 3 === 0) { // 10 раз в секунду: где шары
+    const msg = JSON.stringify({ t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) });
+    for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+  }
+}
+function angDiffS(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }
+
 // Рекорды: раз в 2 секунды сообщаем длину живых людей
 function reportRecords() {
   if (TEAM) return;
@@ -914,6 +957,7 @@ function step() {
   diedThisTick.length = 0;
   if (tick % (TICK_RATE / 2) === 0) sendLeaderboard(); // рейтинг и миникарта — 2 раза в секунду
   runEvents();
+  stepOrbs();
   if (tick % (TICK_RATE * 2) === 0) reportRecords();
 }
 
