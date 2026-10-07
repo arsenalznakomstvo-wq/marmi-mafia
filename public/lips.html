@@ -1,0 +1,22 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Губы — проба</title><style>canvas{max-width:100%;height:auto;display:block}</style></head><body style="margin:0;background:#161c22"><canvas id="c" width="1000" height="420"></canvas><script>
+const TAU=Math.PI*2, ctx=document.getElementById('c').getContext('2d');
+ctx.fillStyle='#1d2530';ctx.fillRect(0,0,1000,420);
+function snake(HX,HY,R0,a){ctx.save();ctx.translate(HX,HY);ctx.rotate(a);for(let i=7;i>=0;i--){const x=-i*R0*0.6;const g=ctx.createRadialGradient(x-R0*0.3,-R0*0.3,R0*0.1,x,0,R0);g.addColorStop(0,'#ff9ad1');g.addColorStop(1,'#d81b7a');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,0,R0,0,TAU);ctx.fill();}
+ for(const s of [-1,1]){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(R0*0.35,s*R0*0.42,R0*0.3,0,TAU);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(R0*0.45,s*R0*0.42,R0*0.15,0,TAU);ctx.fill();}ctx.restore();}
+// Ровные губы: линия рта поперёк морды, верхняя губа «бантиком», нижняя пухлая, блик
+function lips(hx,hy,a,r){const W=r*0.72,H=r*0.42;ctx.save();ctx.translate(hx+Math.cos(a)*r*1.18,hy+Math.sin(a)*r*1.18);ctx.rotate(a-Math.PI/2);
+ // в этих координатах: ось x — поперёк морды, ось y — вперёд (верхняя губа ближе к морде)
+ const g=ctx.createLinearGradient(0,-H*1.2,0,H*1.4);g.addColorStop(0,'#ff4f8f');g.addColorStop(0.5,'#e8115b');g.addColorStop(1,'#a50d44');
+ ctx.fillStyle=g;ctx.strokeStyle='#7a0a33';ctx.lineWidth=Math.max(1,r*0.05);ctx.lineJoin='round';
+ ctx.beginPath(); // верхняя губа (ближе к морде)
+ ctx.moveTo(-W,0);ctx.bezierCurveTo(-W*0.75,-H*0.9,-W*0.25,-H*1.25,0,-H*0.62);ctx.bezierCurveTo(W*0.25,-H*1.25,W*0.75,-H*0.9,W,0);ctx.quadraticCurveTo(0,H*0.22,-W,0);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.beginPath(); // нижняя губа (впереди)
+ ctx.moveTo(-W,0);ctx.quadraticCurveTo(0,H*0.22,W,0);ctx.bezierCurveTo(W*0.7,H*1.5,-W*0.7,H*1.5,-W,0);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.strokeStyle='#5c0726';ctx.lineWidth=Math.max(1,r*0.06);ctx.beginPath();ctx.moveTo(-W*0.95,0);ctx.quadraticCurveTo(0,H*0.22,W*0.95,0);ctx.stroke(); // линия рта
+ ctx.fillStyle='rgba(255,255,255,0.6)';ctx.beginPath();ctx.ellipse(-W*0.25,H*0.75,W*0.22,H*0.14,0,0,TAU);ctx.fill(); // блик на нижней
+ ctx.fillStyle='rgba(255,255,255,0.35)';ctx.beginPath();ctx.ellipse(W*0.35,-H*0.6,W*0.14,H*0.1,0,0,TAU);ctx.fill();
+ ctx.restore();}
+snake(260,210,60,0);lips(260,210,0,60);
+snake(700,240,40,-0.6);lips(700,240,-0.6,40);
+ctx.fillStyle='#c9cfd8';ctx.font='18px Arial';ctx.fillText('Ровные губы: строго поперёк морды (справа — змея поворачивает)',20,395);
+</script>
