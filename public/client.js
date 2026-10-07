@@ -337,7 +337,7 @@ function onJSON(m) {
     case 'tmsg': bigToast(m.text); Sound.alert(); break;
     case 'final': finalMinute = true; break;
     case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(); break;
-    case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit }); if (m.hit) Sound.boom(); break;
+    case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit, mine: m.o === myId, parts: m.hit ? makeDebris() : null }); if (m.hit) { Sound.boom(); if (m.o === myId) shakeUntil = performance.now() + 450; } break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
@@ -523,7 +523,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 0 || e.button === 2) mouseBoost = true; return; }
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && TEAM_MODE && myRockets > 0) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (e.clientX < W / 2) { if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } }
     else if (boostId === null) boostOn(e.pointerId);
@@ -1206,8 +1206,10 @@ function frame(time) {
   const s = cam.s;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#0b1018'; ctx.fillRect(0, 0, W, H);
-  ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s), DPR * (H / 2 - cam.y * s));
-  worldT.k = DPR * s; worldT.tx = DPR * (W / 2 - cam.x * s); worldT.ty = DPR * (H / 2 - cam.y * s);
+  const shk = TEAM_MODE && shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
+  const shx = shk ? (Math.random() - 0.5) * 2 * shk : 0, shy = shk ? (Math.random() - 0.5) * 2 * shk : 0;
+  ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s + shx), DPR * (H / 2 - cam.y * s + shy));
+  worldT.k = DPR * s; worldT.tx = DPR * (W / 2 - cam.x * s + shx); worldT.ty = DPR * (H / 2 - cam.y * s + shy);
   const view = { x0: cam.x - W / 2 / s, x1: cam.x + W / 2 / s, y0: cam.y - H / 2 / s, y1: cam.y + H / 2 / s };
 
   // Фон и граница карты
@@ -1481,13 +1483,28 @@ function drawRockets(time) {
     ctx.fillStyle = '#ff2b2b'; ctx.beginPath(); ctx.arc(x + c * 9, y + s * 9, 5, 0, TAU); ctx.fill();
   }
   for (let i = booms.length - 1; i >= 0; i--) { // взрыв: вспышка и расходящееся кольцо
-    const b = booms[i], k = (now - b.t0) / (b.big ? 700 : 400); if (k >= 1) { booms.splice(i, 1); continue; }
+    const b = booms[i], k = (now - b.t0) / (b.big ? 1100 : 400); if (k >= 1) { booms.splice(i, 1); continue; }
+    if (b.big) { // попадание: белая вспышка, вторая волна, разлетающиеся горящие осколки
+      const e = 1 - Math.pow(1 - k, 3);
+      ctx.globalCompositeOperation = 'lighter';
+      if (k < 0.25) { ctx.globalAlpha = 1 - k / 0.25; const F = 320 * (0.5 + k * 2); ctx.drawImage(haloSprite('#ffffff'), b.x - F, b.y - F, F * 2, F * 2); }
+      for (const p of b.parts) {
+        const px = b.x + p.vx * e, py = b.y + p.vy * e, s = p.s * (1 - k * 0.7);
+        ctx.globalAlpha = 1 - k; ctx.drawImage(haloSprite(p.c), px - s, py - s, s * 2, s * 2);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = '#ff5a1f'; ctx.lineWidth = 10 * (1 - k); ctx.beginPath(); ctx.arc(b.x, b.y, 60 + 380 * e, 0, TAU); ctx.stroke();
+      if (b.mine) { const fs = 70 / Math.max(0.35, cam.s) * (k < 0.15 ? 0.6 + k / 0.15 * 0.4 : 1); ctx.globalAlpha = Math.min(1, (1 - k) * 1.6); ctx.font = `bold ${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs * 0.12; ctx.strokeStyle = '#3a0a00'; ctx.strokeText('💥 ПОПАЛ!', b.x, b.y - 90 - 160 * e); ctx.fillStyle = '#ffd52e'; ctx.fillText('💥 ПОПАЛ!', b.x, b.y - 90 - 160 * e); } // надпись над целью — только у того, кто попал
+      ctx.globalAlpha = 1;
+    }
     const R = (b.big ? 170 : 80) * (0.3 + k);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - k;
     ctx.drawImage(haloSprite('#ff8a1f'), b.x - R, b.y - R, R * 2, R * 2); ctx.drawImage(haloSprite('#ffd52e'), b.x - R / 2, b.y - R / 2, R, R);
     ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = '#ffd52e'; ctx.lineWidth = 6 * (1 - k); ctx.beginPath(); ctx.arc(b.x, b.y, R * 0.8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
   }
 }
+let shakeUntil = 0;
+function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
 function fire() { if (myRockets > 0 && alive) { sendJSON({ t: 'fire' }); Sound.click(); } }
 function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(TEAM_MODE && myRockets > 0 && alive)); b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
 {

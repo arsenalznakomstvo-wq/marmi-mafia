@@ -951,8 +951,10 @@ function stepFlags() {
       if (Math.hypot(f.x - b[0], f.y - b[1]) < BASE_R) {
         teamCaps[k.team]++; if (k.client && k.client.rs) k.client.rs.caps++;
         // Владелец 07.10: довёз знамя — вся база вспыхивает огнями (еды на «вырасти в 5 раз»), собирай и расти; плюс сигара «Гавана»
-        k.havana = true; k.caps = (k.caps || 0) + 1; k.rockets = (k.rockets || 0) + 1; // и выстрел из базуки
-        if (k.client) sendJSON(k.client, { t: 'tmsgMe', text: '🚀 У вас базука! Жмите 🚀' + (isTouchUA(k.client) ? '' : ' или F') + ' — две ракеты по бокам' });
+        k.havana = true; k.caps = (k.caps || 0) + 1;
+        const add = k.caps === 1 ? 2 : k.caps === 2 ? 4 : 5; // владелец 07.10: за 1-е знамя 2 ракеты, за 2-е ещё 4, дальше по 5
+        k.rockets = (k.rockets || 0) + add;
+        if (k.client) sendJSON(k.client, { t: 'tmsgMe', text: `🚀 +${add} ракет${add === 2 || add === 4 ? 'ы' : ''} в базуку (всего ${k.rockets})! Жмите 🚀` + (isTouchUA(k.client) ? '' : ', правую кнопку мыши или F') });
         baseFire(k.team, Math.min(20000, Math.max(k.mass * 4, 1000)));
         teamMsg(`🏁 ${k.name} довёз знамя ${TEAM_GEN[t]}! +${FLAG_POINTS} команде — база ${TEAM_GEN[k.team]} засияла огнями, собирайте! 🚬`);
         flagHome(f, t);
@@ -994,10 +996,11 @@ function fireRocket(s) {
   if (!s.rockets) return;
   s.rockets--;
   const px = -Math.sin(s.a), py = Math.cos(s.a), off = s.r * 1.6;
-  for (const side of [-1, 1]) {
+  s.rSide = -(s.rSide || 1); // владелец 07.10: одна ракета за выстрел, по очереди из левой и правой трубы
+  for (const side of [s.rSide]) {
     const r = { id: ++rocketSeq, owner: s, team: s.team, x: s.xs[0] + px * off * side, y: s.ys[0] + py * off * side, vx: Math.cos(s.a) * ROCKET_SP, vy: Math.sin(s.a) * ROCKET_SP, die: tick + ROCKET_LIFE };
     rockets.push(r);
-    for (const c of clients) sendJSON(c, { t: 'rocket', id: r.id, x: Math.round(r.x), y: Math.round(r.y), vx: r.vx, vy: r.vy, life: ROCKET_LIFE * TICK_MS });
+    for (const c of clients) sendJSON(c, { t: 'rocket', id: r.id, x: Math.round(r.x), y: Math.round(r.y), vx: r.vx, vy: r.vy, life: ROCKET_LIFE * TICK_MS, o: s.id });
   }
 }
 function stepRockets() {
@@ -1020,7 +1023,7 @@ function stepRockets() {
     const out = Math.hypot(r.x, r.y) > MAP_R;
     if (hit || out || tick >= r.die) {
       rockets.splice(i, 1);
-      for (const c of clients) sendJSON(c, { t: 'boom', id: r.id, x: Math.round(r.x), y: Math.round(r.y), hit: hit ? 1 : 0 });
+      for (const c of clients) sendJSON(c, { t: 'boom', id: r.id, x: Math.round(r.x), y: Math.round(r.y), hit: hit ? 1 : 0, o: r.owner.id });
       if (hit) { const killer = r.owner.alive ? r.owner : null; if (!hit.bot || (killer && !killer.bot)) teamMsg(`💥 ${r.owner.name} подбил базукой ${hit.name}!`); killSnake(hit, killer); }
     }
   }
