@@ -76,7 +76,8 @@
     { name: 'Лёд', cols: ['#dff6ff'], style: 'water', water: { core: '#bfe9ff', rim: '#ffffff', kind: 'ice' } },
     { name: 'Мыльный пузырь', cols: ['#ffffff'], style: 'water', water: { core: '#e8f4ff', rim: '#ffffff', kind: 'soap' } },
     // Владелец 11.10: секретный скин владельца — видит на 30% больше всех; включается только тайной ссылкой с кодом (?eye=…)
-    { name: 'Всевидящее око', cols: ['#2a1450', '#2a1450', '#3b1d6e', '#3b1d6e'], text: 'ВИЖУ ВСЁ', textColor: '#ffd52e', eyes: 'eye', secret: true },
+    // владелец 11.10: прозрачное «фиолетовое стекло» с золотистой кромкой, пузырьки и блики внутри
+    { name: 'Всевидящее око', cols: ['#8a5cff'], style: 'water', water: { core: '#8a5cff', rim: '#ffd27a', kind: 'eye' }, text: 'ВИЖУ ВСЁ', textColor: '#ffd52e', eyes: 'eye', secret: true },
   ];
   const EYE_ID = SKINS.findIndex(d => d.name === 'Всевидящее око');
   const EYE_ZOOM = 1 / 1.3; // обзор на 30% больше

@@ -138,7 +138,7 @@ function bandColor(cols, u) {
 }
 // Водный шарик: прозрачная середина, плотнее к краю (кромка-поверхность), блик сверху. Внахлёст даёт «толщу воды».
 const waterBall = w => sprite('w' + w.kind, g => {
-  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
+  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
   const gr = g.createRadialGradient(32 - 5, 32 - 6, 1, 32, 32, SR);
   gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
@@ -1251,7 +1251,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (!fade && bombIds.has(sn.id)) { drawCarriedBomb(hx, hy, a, r, time, 1); if (bombIds.get(sn.id) > 1) drawCarriedBomb(hx, hy, a, r, time + 400, -1); } // вторая бомба — с другого бока
-    if (meta && !fade && !TEAM_MODE && meta.role === KILLER && (meta.bot || knifeIds.has(sn.id))) drawKnives(sn.id, hx, hy, a, r, sn.boost, time);
+    if (meta && !fade && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1714,29 +1714,31 @@ function knifeSprite(r) {
     g.beginPath(); g.moveTo(bx0, -bw); g.lineTo(L * 0.8, -bw * 0.8); g.lineTo(L, 0); g.lineTo(L * 0.8, bw * 0.8); g.lineTo(bx0, bw); g.stroke();
   }), L, W };
 }
-const knifeSwing = new Map(); // id → разворот ножей (0 — по бокам, 1 — вперёд при ускорении)
-function drawKnives(id, hx, hy, a, r, boost, time) {
-  const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2);
-  let k = knifeSwing.get(id) || 0; k += ((boost ? 1 : 0) - k) * 0.18; knifeSwing.set(id, k);
-  if (knifeSwing.size > 300) knifeSwing.clear();
-  const px = -Math.sin(a), py = Math.cos(a), sway = Math.sin(time * 0.004 + id) * 0.12;
-  for (const side of [1]) { // владелец 11.10: один кинжал — справа (его и метают)
-    const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15, by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15;
-    const ang = a + side * (0.75 * (1 - k) + 0.12 + sway * (1 - k)); // в сторону; при ускорении — почти вперёд
-    drawRotated(S.img, bx, by, ang, S.L * sc, S.W * sc, 0, S.W * sc / 2);
+// Владелец 11.10: кинжал не болтается — висит на ремне. Ремень опоясывает шею змеи (кожа, строчка, золотая пряжка),
+// справа на ремне ножны вдоль тела, из них вперёд торчит рукоять. Метнул — на ремне остаются пустые ножны.
+function drawKillerBelt(neck, r, hasKnife) {
+  const [nx, ny, na] = neck, c = Math.cos(na), s = Math.sin(na), px = -s, py = c;
+  ctx.save(); ctx.translate(nx, ny); ctx.rotate(na); // x — вперёд по ходу, y — поперёк (вправо)
+  // ремень поперёк тела
+  const bw = r * 0.42, bl = r * 1.08;
+  const lg = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0); lg.addColorStop(0, '#2b1709'); lg.addColorStop(0.5, '#6b3f1d'); lg.addColorStop(1, '#2b1709');
+  ctx.fillStyle = lg; ctx.fillRect(-bw / 2, -bl, bw, bl * 2);
+  ctx.strokeStyle = 'rgba(230, 200, 150, 0.55)'; ctx.lineWidth = Math.max(0.6, r * 0.04); ctx.setLineDash([r * 0.12, r * 0.09]); // строчка
+  ctx.beginPath(); ctx.moveTo(-bw * 0.32, -bl); ctx.lineTo(-bw * 0.32, bl); ctx.moveTo(bw * 0.32, -bl); ctx.lineTo(bw * 0.32, bl); ctx.stroke(); ctx.setLineDash([]);
+  // золотая пряжка сверху (слева по ходу)
+  const gb = ctx.createLinearGradient(0, -bl * 0.75, 0, -bl * 0.25); gb.addColorStop(0, '#fff1b0'); gb.addColorStop(0.5, '#d4a017'); gb.addColorStop(1, '#7a5a08');
+  ctx.strokeStyle = gb; ctx.lineWidth = Math.max(1, r * 0.11); ctx.strokeRect(-bw * 0.62, bl * 0.3, bw * 1.24, bl * 0.42); // пряжка — справа, ножны — слева (справа их закрывала табличка)
+  // ножны: справа, вдоль тела назад; рукоять кинжала торчит вперёд
+  const sx = -r * 0.15, sy = -r * 1.02, sl = r * 3.0, sw = r * 0.36; // ножны длиннее клинка — острие не торчит
+  if (hasKnife) { // рукоять и гарда кинжала (клинок спрятан в ножнах)
+    const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), L = S.L * sc, W = S.W * sc;
+    ctx.save(); ctx.translate(sx + L * 0.31, sy); ctx.rotate(Math.PI); ctx.drawImage(S.img, 0, -W / 2, L, W); ctx.restore();
   }
-  resetWorldT();
-  // блик бежит по клинкам каждые ~2,5 с (и сразу при ускорении)
-  const ph = boost ? (time * 0.004) % 1 : (time * 0.0009 + id * 0.13) % 1; // металл переливается: блик бежит от гарды к острию
-  if (ph < 0.3) {
-    ctx.globalCompositeOperation = 'lighter';
-    for (const side of [1]) {
-      const ang = a + side * (0.75 * (1 - k) + 0.12), d = r * 1.15 + S.L * sc * (0.32 + ph / 0.3 * 0.66);
-      const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15 + Math.cos(ang) * (d - r * 1.15), by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15 + Math.sin(ang) * (d - r * 1.15);
-      const hs = r * 1.1; ctx.globalAlpha = 0.85 * Math.sin(ph / 0.3 * Math.PI); ctx.drawImage(haloSprite('#ffffff'), bx - hs / 2, by - hs / 2, hs, hs);
-    }
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  }
+  const sg = ctx.createLinearGradient(0, sy - sw, 0, sy + sw); sg.addColorStop(0, '#5a3418'); sg.addColorStop(0.45, '#8a5428'); sg.addColorStop(1, '#2a1608');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.moveTo(sx, sy - sw); ctx.lineTo(sx - sl * 0.85, sy - sw * 0.7); ctx.quadraticCurveTo(sx - sl, sy, sx - sl * 0.85, sy + sw * 0.7); ctx.lineTo(sx, sy + sw); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(20, 10, 4, 0.7)'; ctx.lineWidth = Math.max(0.6, r * 0.05); ctx.stroke();
+  ctx.fillStyle = '#c9a227'; ctx.fillRect(sx - sl * 0.08, sy - sw, r * 0.12, sw * 2); ctx.fillRect(sx - sl * 0.92, sy - sw * 0.6, r * 0.1, sw * 1.2); // латунные накладки
+  ctx.restore();
 }
 // ===== Потайные ходы (владелец 11.10): тёмная нора с оранжевым мерцающим краем и вихрем; вспышка, когда кто-то прошёл =====
 const portalFx = [];
