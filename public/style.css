@@ -594,3 +594,25 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
 #landing .lhint { color: #9aa3b2; font-size: 12px; margin: 10px 0 4px; }
 #lHere { margin-top: 10px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.22); color: #e8ecf1; border-radius: 22px; padding: 9px 22px; font: 700 14px Arial, sans-serif; cursor: pointer; }
 @media (max-height: 500px) { #landing .licon { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 8px; } #landing .ltitle { font-size: 22px; } #landing .lsub { margin: 4px 0 12px; } #lOpen { padding: 11px; font-size: 16px; } }
+/* Владелец 11.10: место на карточке — чёткой меткой «🥇 1 место» (медаль с цифрой была не видна на телефоне) */
+#winCards .wmedal, #winCards .wc4 .wmedal, #winCards .wc5 .wmedal { width: auto; height: auto; left: 8px; top: 8px; padding: 3px 9px 3px 7px; border-radius: 12px;
+  background: rgba(10, 12, 20, 0.78); border: 1px solid rgba(255, 213, 46, 0.55); color: #ffe27a; font: 700 13px Arial, sans-serif; line-height: 1.25; filter: none;
+  display: inline-flex; align-items: center; white-space: nowrap; }
+#winCards .wc1 .wmedal { background: rgba(60, 45, 0, 0.85); border-color: #ffd52e; }
+/* Карточка может быть шире, чем высота фото: --ih — высота фото (по умолчанию квадрат) */
+#winCards { --ih: calc(var(--cw) - 4px); }
+#winCards .wimg { height: var(--ih); }
+/* Телефон: карточки шире (владелец 11.10), «Ваша итоговая длина» не показываем — остаётся только «Вы на N-м месте» */
+@media (pointer: coarse) {
+  #result .rlen { display: none; }
+  #result .wpOffer { margin-top: 0; }
+}
+@media (pointer: coarse) and (max-height: 500px) {
+  #winCards { --cw: 184px; --ih: 112px; right: calc(max(8px, env(safe-area-inset-right)) + 22px); }
+  #winCards .deck { height: calc(var(--ih) + 4px + 40px); }
+  #winCards .wmedal, #winCards .wc4 .wmedal, #winCards .wc5 .wmedal { font-size: 11px; padding: 2px 7px 2px 5px; left: 6px; top: 6px; }
+}
+@media (pointer: coarse) and (max-width: 600px) and (min-height: 501px) {
+  #winCards { --cw: 220px; --ih: 140px; }
+  #winCards .deck { height: calc(var(--ih) + 4px + 44px); }
+}

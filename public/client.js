@@ -1429,7 +1429,7 @@ function renderRecords() {
   else { // владелец 11.10: топ-5 всех времён — карточки с фото колонкой справа (без фото — первая буква ника); внизу — только «Сегодня»
     const medal = ['🥇', '🥈', '🥉', '4', '5'];
     const cards = recData.all.map(([n, sc, v], i) => `<div class="wcard wc${i + 1}" data-i="${i}"><div class="wimg">${v ? `<img src="/wp?n=${encodeURIComponent(n)}&v=${v}" alt="">` : `<span>${esc(([...n][0] || '?').toUpperCase())}</span>`}</div>`
-      + `<i class="wmedal">${medal[i]}</i><div class="wcap"><b>${esc(n)}</b><span>${sc}</span></div></div>`).join('');
+      + `<i class="wmedal">${i < 3 ? medal[i] + ' ' : ''}${i + 1} место</i><div class="wcap"><b>${esc(n)}</b><span>${sc}</span></div></div>`).join('');
     const dots = recData.all.map((_, i) => `<button data-i="${i}" aria-label="Место ${i + 1}"></button>`).join('');
     const wHtml = cards ? `<div class="wtitle">🏆 Топ-5 всех времён</div><div class="deck">${cards}</div><div class="wdots">${dots}</div>` : '';
     if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; deckShow(Math.min(deckCur, recData.all.length - 1), true); } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
@@ -1997,7 +1997,7 @@ function showMenu(m) {
   const r = $('result');
   if (m) {
     const who = m.killer ? `Вас съел: <b>${esc(m.killer)}</b>` : 'Вы врезались в край карты';
-    r.innerHTML = `Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div>`
+    r.innerHTML = `<div class="rlen">Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div></div>` // .rlen на телефоне скрыта (владелец 11.10)
       + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!</div>` : '');
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
     wpToken = m.photo ? m.photo.t : null;
