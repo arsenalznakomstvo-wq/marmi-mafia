@@ -1274,7 +1274,7 @@ $('ping').addEventListener('pointerdown', e => { e.stopPropagation(); visShowUnt
 let visShowUntil = 0;
 function showVisits() {
   const v = visData, el = $('visList');
-  el.innerHTML = v ? `<div class="vh">Заходили в игру</div><div>Сегодня <b>${v[0]}</b></div><div>За неделю <b>${v[1]}</b></div><div>За месяц <b>${v[2]}</b></div>` : '<div>считаем…</div>';
+  el.innerHTML = v ? `<div class="vh">Заходили в игру</div><div>Сегодня <b>${v[0]}</b></div><div>За неделю <b>${v[1]}</b></div><div>За месяц <b>${v[2]}</b></div>${v[3] != null ? `<div>📲 Установили <b>${v[3]}</b></div>` : ''}` : '<div>считаем…</div>';
   el.classList.remove('hide');
 }
 $('visBtn').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = 0; $('pnList').classList.add('hide'); visShowUntil = Date.now() + 5000; showVisits(); });
@@ -2064,6 +2064,14 @@ applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
 // владелец 07.10: вместо слайд-шоу — два фото по бокам меню (index.html)
+// Владелец 11.10: считаем установки — один раз с телефона: Android сообщает сам (appinstalled), iPhone — первым запуском с иконки
+function reportInstall() {
+  if (load('mm_inst_sent')) return;
+  let id = load('mm_dev'); if (!id) { id = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store('mm_dev', id); }
+  fetch('/installed?id=' + id, { method: 'POST', keepalive: true }).then(r => { if (r.ok) store('mm_inst_sent', '1'); }).catch(() => {});
+}
+if (isApp) reportInstall();
+window.addEventListener('appinstalled', reportInstall);
 // «Установить на телефон»: Android — системное окно установки; iPhone — короткая подсказка «Поделиться → На экран Домой»
 (() => {
   if (isApp || !isTouch) return;

@@ -26,8 +26,26 @@ function visits() {
     for (const id of set) { m.add(id); if (age < 7) w.add(id); }
   }
   void now;
-  return [today.visitors.size, w.size, m.size];
+  return [today.visitors.size, w.size, m.size, installCount()];
 }
+
+// ===== Установки приложения (владелец 11.10: «чтобы я видел, сколько раз её скачали») =====
+// Каждый телефон считается один раз (свой случайный номер устройства). Android сообщает об установке сам,
+// iPhone — первым запуском с иконки на экране «Домой». С Upstash (как у рекордов) число не обнуляется при обновлениях.
+const R_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, ''), R_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const installs = new Set(); let installsSaved = 0;
+async function redis(cmd) {
+  const r = await fetch(R_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + R_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+  if (!r.ok) throw new Error('upstash ' + r.status); return (await r.json()).result;
+}
+if (R_URL && R_TOKEN) redis(['SCARD', 'mm:installs']).then(n => { installsSaved = Number(n) || 0; }).catch(() => {});
+const installCount = () => Math.max(installs.size, installsSaved);
+function onInstall(id) {
+  if (installs.has(id)) return;
+  installs.add(id);
+  if (R_URL && R_TOKEN) redis(['SADD', 'mm:installs', id]).then(added => { if (Number(added)) installsSaved = Math.max(installsSaved + 1, installs.size); }).catch(() => {});
+}
+let instHits = 0; setInterval(() => { instHits = 0; }, 60000); // не больше 300 отметок в минуту — от баловства
 
 function visitorId(req) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
@@ -63,6 +81,11 @@ function fmtDur(ms) { const m = Math.floor(ms / 60000); return m < 60 ? m + ' м
 
 // Отдаёт страницу; возвращает true, если запрос был к /stats
 function handle(req, res, url, live) {
+  if (url === '/installed') { // POST /installed?id=… — телефон сообщает, что игру установили
+    const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
+    if (req.method === 'POST' && /^[a-z0-9]{8,32}$/.test(id) && ++instHits <= 300) onInstall(id);
+    res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return true;
+  }
   if (url !== '/stats') return false;
   const q = new URL(req.url, 'http://x').searchParams.get('key') || '';
   const ok = KEY && q.length === KEY.length && crypto.timingSafeEqual(Buffer.from(q), Buffer.from(KEY));
@@ -87,6 +110,7 @@ p{color:#8a93a8;font-size:12px;max-width:760px}</style></head><body>
 <div class="c big"><b>${L.inGame}</b><small>людей играют сейчас</small></div>
 <div class="c"><b>${L.inMenu}</b><small>в меню сейчас</small></div>
 <div class="c"><b>${L.bots}</b><small>ботов на карте</small></div>
+<div class="c big"><b>${installCount()}</b><small>📲 установили приложение (всего)</small></div>
 </div>
 <h2>Сегодня (${day})</h2>
 <div class="g">
