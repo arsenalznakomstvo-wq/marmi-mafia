@@ -80,8 +80,8 @@ function updateRoles() {
     if (!top.bot) for (const c of clients) if (c !== top.client) sendJSON(c, { t: 'don', name: top.name });
     // Владелец 07.10: человек стал Доном — 4 выстрела из базуки (один раз за жизнь змеи)
     if (!top.bot && !top.donGun) {
-      top.donGun = true; top.rockets = (top.rockets || 0) + 4;
-      if (top.client) sendJSON(top.client, { t: 'tmsgMe', text: '👑 Вы Дон Мафии! У вас базука: 4 ракеты — 🚀' + (isTouchUA(top.client) ? '' : ', правая кнопка мыши или F') });
+      top.donGun = true; top.rockets = (top.rockets || 0) + 2; // владелец 11.10: всего 2 выстрела (было 4), один раз за жизнь
+      if (top.client) sendJSON(top.client, { t: 'tmsgMe', text: '👑 Вы Дон Мафии! У вас базука: 2 ракеты — 🚀' + (isTouchUA(top.client) ? '' : ', правая кнопка мыши или F') });
     }
   }
 }
@@ -1287,11 +1287,19 @@ function runRound() {
 // ===== Потайные ходы (владелец 11.10): голова в норе — вся змея переносится к другой норе и ползёт дальше в ту же сторону.
 // После прохода 2 с ход не срабатывает (иначе сразу обратно), на выходе 0,4 с неуязвимости — вдруг там кто-то ползёт.
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
+// Владелец 11.10 («глюк, особенно когда большой червяк лазит»): нора узкая — пролезают только змеи потоньше (длина примерно до 1000).
+// Длинное тело долго тянулось через нору, делало петли и «кольца»; большие теперь просто проползают мимо.
+const PORTAL_MAX_R = 20;
 function stepPortals() {
   if (TEAM) return;
   for (const s of snakes.values()) {
     if (!s.alive || s.portalCd > tick || s.tun) continue; // пока хвост ещё в тоннеле — в другую нору нельзя
     const hx = s.xs[0], hy = s.ys[0];
+    if (s.r > PORTAL_MAX_R) { // толстая — не пролезает; человеку подсказка (не чаще раза в 10 с)
+      if (s.client && !(s.portalHint > tick)) for (const pair of PORTALS) for (const [px, py] of pair)
+        if ((hx - px) ** 2 + (hy - py) ** 2 < (PORTAL_R + s.r) ** 2) { s.portalHint = tick + 10 * TICK_RATE; sendJSON(s.client, { t: 'tmsgMe', text: '🕳 Нора узкая — толстой змее не пролезть' }); }
+      continue;
+    }
     hop: for (const pair of PORTALS) for (let e = 0; e < 2; e++) {
       const [px, py] = pair[e], rr = PORTAL_R + s.r * 0.4;
       if ((hx - px) ** 2 + (hy - py) ** 2 > rr * rr) continue;
