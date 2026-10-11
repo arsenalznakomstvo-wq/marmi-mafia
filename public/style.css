@@ -445,3 +445,53 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
 /* Владелец 07.10: сообщение о золотой еде — мельче, округлым шрифтом (как название), золотом на полупрозрачном фоне, чтобы не отвлекало */
 #toast.ev { font-family: 'Comfortaa', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ffd52e; letter-spacing: 0.3px;
   background: rgba(10, 12, 18, 0.55); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 14px; padding: 5px 14px; text-shadow: none; top: 16%; }
+/* ===== Карточки победителей (владелец 11.10): топ-5 всех времён с фото — колонкой справа ===== */
+#winCards { position: fixed; right: max(14px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); z-index: 31; width: 210px; box-sizing: border-box;
+  background: rgba(10, 12, 22, 0.62); border: 1px solid rgba(255, 213, 46, 0.3); border-radius: 14px; padding: 8px 10px; }
+#winCards .rh { text-align: center; color: #ffd52e; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+#winCards .wc { display: flex; align-items: center; gap: 10px; padding: 5px 0; min-width: 0; }
+#winCards .wc + .wc { border-top: 1px solid rgba(255, 255, 255, 0.07); }
+#winCards .wph { position: relative; flex: none; width: 54px; height: 54px; border-radius: 11px;
+  background: linear-gradient(160deg, #2b3446, #161c28); border: 2px solid rgba(255, 255, 255, 0.25); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45); }
+#winCards .wph img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; display: block; }
+#winCards .wph span { display: flex; align-items: center; justify-content: center; height: 100%; font: 700 24px Comfortaa, Arial, sans-serif; color: #c9d2e0; }
+#winCards .wph i { position: absolute; right: -7px; bottom: -6px; font-style: normal; font-size: 16px; line-height: 1;
+  min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+#winCards .wc4 .wph i, #winCards .wc5 .wph i { background: #2b3446; border: 1.5px solid rgba(255, 255, 255, 0.35); font: bold 11px Arial, sans-serif; color: #d4dae3; }
+#winCards .wc1 .wph { border-color: #ffd52e; box-shadow: 0 0 14px rgba(255, 213, 46, 0.45), 0 3px 10px rgba(0, 0, 0, 0.45); }
+#winCards .wc2 .wph { border-color: #d7dde6; }
+#winCards .wc3 .wph { border-color: #d9965b; }
+#winCards .wt { min-width: 0; }
+#winCards .wn { font-size: 14px; color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#winCards .ws { font-size: 13px; color: #ffd52e; font-weight: bold; }
+#winCards .empty { color: #5a6270; font-size: 13px; text-align: center; }
+body:not(.in-menu) #winCards { display: none; }
+.wpOffer { margin-top: 8px; font-size: 14px; color: #ffd52e; }
+#wpBtn { display: block; margin: 6px auto 0; padding: 9px 16px; border: 0; border-radius: 22px; cursor: pointer;
+  background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00; font: bold 15px Arial, sans-serif; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
+#wpBtn:disabled { opacity: 0.75; cursor: default; }
+/* телефон лёжа: колонка справа поменьше; список «Сегодня» внизу не показываем — он налезал на «Играть» */
+@media (max-height: 500px) {
+  #winCards { width: 168px; padding: 4px 8px; right: max(8px, env(safe-area-inset-right)); }
+  #winCards .rh { font-size: 11px; margin-bottom: 1px; }
+  #winCards .wc { gap: 8px; padding: 3px 0; }
+  #winCards .wph { width: 40px; height: 40px; border-radius: 8px; }
+  #winCards .wph img { border-radius: 6px; }
+  #winCards .wph span { font-size: 18px; }
+  #winCards .wph i { font-size: 12px; min-width: 16px; height: 16px; right: -6px; bottom: -5px; }
+  #winCards .wc4 .wph i, #winCards .wc5 .wph i { font-size: 9px; }
+  #winCards .wn { font-size: 12px; } #winCards .ws { font-size: 11px; }
+  body:not(.team-mode) #records { display: none; }
+  .wpOffer { font-size: 12px; margin-top: 4px; }
+  #wpBtn { padding: 6px 12px; font-size: 13px; margin-top: 4px; }
+}
+/* телефон стоя: справа места нет — карточки строкой под кнопками */
+@media (max-width: 600px) and (min-height: 501px) {
+  #winCards { position: static; transform: none; width: auto; max-width: calc(100vw - 24px); margin-top: 10px; padding: 6px 8px; }
+  #winCards .wcards { display: flex; gap: 4px; justify-content: center; }
+  #winCards .wc { flex-direction: column; gap: 2px; width: 56px; padding: 0; text-align: center; }
+  #winCards .wc + .wc { border-top: 0; }
+  #winCards .wph { width: 46px; height: 46px; }
+  #winCards .wt { width: 100%; }
+  #winCards .wn, #winCards .ws { font-size: 10px; }
+}

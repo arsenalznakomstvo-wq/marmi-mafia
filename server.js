@@ -12,6 +12,9 @@ const { SKINS, MAX_PATTERN, skinCols } = require('./public/skins.js');
 const stats = require('./stats.js');
 const voice = require('./voice.js');
 const records = require('./records.js');
+const winners = require('./winners.js');
+// Рекорды для браузера: у топ-5 всех времён третьим числом — версия фото на карточке (0 — фото нет)
+const recView = () => { const v = records.view(); if (!TEAM) v.all = v.all.map(([n, s]) => [n, s, winners.ver(n)]); return v; };
 
 // ===== Настройки =====
 const PORT = Number(process.env.PORT) || 7777; // 8080 занят сайтом бота недвижимости
@@ -382,7 +385,10 @@ function killSnake(s, killer) {
   if (TEAM && c && c.rs) { c.rs.life = Math.max(c.rs.life, Math.round((tick - (s.born || tick)) / TICK_RATE)); addAlarm(s.team, s.xs[0], s.ys[0]); }
   if (c) {
     c.snake = null; c.diedAt = Date.now();
-    sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null });
+    // В топ-5 рекордов всех времён — пропуск, чтобы поставить своё фото на карточку победителя (владелец 11.10)
+    const place = TEAM ? 0 : records.placeAll(s.name);
+    const photo = place ? { t: winners.invite(s.name), place, has: winners.has(s.name) } : null;
+    sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null, ...(photo ? { photo } : {}) });
   }
 }
 
@@ -873,7 +879,7 @@ function sendLeaderboard() {
   const players = arr.reduce((n, s) => n + (s.bot ? 0 : 1), 0);
   const pn = arr.filter(s => !s.bot).map(s => [s.name, Math.floor(s.mass)]); // ники живых людей — по нажатию на цифру внизу
   const ev = event ? [event.type, Math.ceil((event.until - tick) / TICK_RATE), Math.round(event.x), Math.round(event.y)] : null;
-  const rec = tick % (TICK_RATE * 5) === 0 ? records.view() : null; // рекорды — раз в 5 с
+  const rec = tick % (TICK_RATE * 5) === 0 ? recView() : null; // рекорды — раз в 5 с
   const vis = rec ? (TEAM ? teamVis : stats.visits()) : null; // посетители за день/неделю/месяц — раз в 5 с
   const tm = TEAM ? teamScores() : null;
   for (const c of clients) {
@@ -1173,6 +1179,7 @@ const server = http.createServer((req, res) => {
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
+  if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
@@ -1240,7 +1247,7 @@ wss.on('connection', (ws, req) => {
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c); c.ua = String(req.headers['user-agent'] || '');
   stats.onConnect(c, req);
-  sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: records.view() });
+  sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: recView() });
   sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   if (process.env.TEST_LAG) { // только для проверок: искусственная задержка связи в каждую сторону (мс), как у далёкого игрока
     const LAG = Number(process.env.TEST_LAG), send0 = ws.send.bind(ws), on0 = ws.on.bind(ws);
@@ -1270,7 +1277,10 @@ wss.on('connection', (ws, req) => {
 
 while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
-records.load();
+if (process.env.TEST_SEED_RECORDS) for (const [n, sc] of [['BBB', 12061], ['Двойник', 11694], ['Bekhruz', 11105], ['Я сам в шоке', 9852], ['альмано', 9609]]) records.report(n, sc); // только для проверок
+records.load().then(() => { if (!TEAM) winners.load(records.allNames()); });
+// Фото тех, кто выпал из топ-5, больше нигде не видно — убираем (раз в 30 с)
+if (!TEAM) setInterval(() => winners.prune(records.allNames()), 30000);
 // Рекорды командной арены живут в основном процессе: арена шлёт их при каждом изменении и получает обратно при запуске
 let teamRecStore = null, teamVis = null;
 if (TEAM && process.send) {

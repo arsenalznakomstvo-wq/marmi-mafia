@@ -1364,7 +1364,7 @@ function frame(time) {
 // Миникарта как в оригинале: змеи — серыми линиями (где их много, там гуще), живые игроки — жёлтыми, вы — белая точка
 let mmLines = [];
 // ===== События и рекорды (владелец 06.10) =====
-let evNow = null, evAt = 0, recData = null;
+let evNow = null, evAt = 0, recData = null, recHtml = '', winHtml = '';
 function evLeft() { return evNow ? Math.max(0, evNow[1] - Math.floor((performance.now() - evAt) / 1000)) : 0; }
 function renderEvent() {
   const el = $('evPill');
@@ -1395,7 +1395,17 @@ function renderRecords() {
   const el = $('records'); if (!recData) return;
   const row = (list, i) => list[i] ? `<div class="rr"><span>${i + 1}. ${esc(list[i][0])}</span><b>${list[i][1]}</b></div>` : '';
   const col = (title, list) => `<div class="rc"><div class="rt">${title}</div>${list.length ? list.map((_, i) => row(list, i)).join('') : '<div class="rr empty">пока пусто</div>'}</div>`;
-  el.innerHTML = `<div class="rh">🏆 Рекорды${TEAM_MODE ? ' команд' : ''}</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
+  let html;
+  if (TEAM_MODE) html = `<div class="rh">🏆 Рекорды команд</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
+  else { // владелец 11.10: топ-5 всех времён — карточки с фото колонкой справа (без фото — первая буква ника); внизу — только «Сегодня»
+    const medal = ['🥇', '🥈', '🥉', '4', '5'];
+    const cards = recData.all.map(([n, sc, v], i) => `<div class="wc wc${i + 1}"><div class="wph">${v ? `<img src="/wp?n=${encodeURIComponent(n)}&v=${v}" alt="">` : `<span>${esc(([...n][0] || '?').toUpperCase())}</span>`}<i>${medal[i]}</i></div><div class="wt"><div class="wn">${esc(n)}</div><div class="ws">${sc}</div></div></div>`).join('');
+    const wHtml = `<div class="rh">🏆 Топ-5 всех времён</div><div class="wcards">${cards || '<div class="empty">пока пусто</div>'}</div>`;
+    if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
+    $('winCards').classList.remove('hide');
+    html = `<div class="rh">🏆 Рекорды дня</div><div class="rcols">${col('Сегодня', recData.day)}</div>`;
+  }
+  if (html !== recHtml) { el.innerHTML = html; recHtml = html; }
   el.classList.remove('hide');
 }
 function showRecord(kind) {
@@ -1824,13 +1834,44 @@ function showMenu(m) {
   const r = $('result');
   if (m) {
     const who = m.killer ? `Вас съел: <b>${esc(m.killer)}</b>` : 'Вы врезались в край карты';
-    r.innerHTML = `Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div>`;
+    r.innerHTML = `Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div>`
+      + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!<button id="wpBtn">📷 ${m.photo.has ? 'Сменить фото' : 'Добавить своё фото'} на карточку</button></div>` : '');
+    if (m.photo) { wpToken = m.photo.t; $('wpBtn').addEventListener('click', () => { Sound.click(); $('wpFile').click(); }); }
     r.classList.remove('hide');
     $('play').textContent = 'Играть снова';
   }
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
   document.body.classList.add('in-menu');
 }
+// ===== Фото на карточку победителя (владелец 11.10): топ-5 рекордов всех времён ставят своё фото =====
+// Фото сжимается прямо в телефоне до квадрата 320×320 (~25 КБ) и уходит на сервер с одноразовым пропуском из 'dead'.
+let wpToken = null;
+async function squareJpeg(file, S) {
+  let img;
+  try { img = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch (e) { img = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(file); }); }
+  const w = img.width, h = img.height, s = Math.min(w, h);
+  const c = document.createElement('canvas'); c.width = c.height = S;
+  c.getContext('2d').drawImage(img, (w - s) / 2, (h - s) / 2 * 0.6, s, s, 0, 0, S, S); // лицо обычно выше центра — квадрат берём чуть выше середины
+  for (const q of [0.85, 0.7, 0.55]) { const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q)); if (b && b.size < 110000) return b; }
+  throw new Error('big');
+}
+$('wpFile').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0]; e.target.value = '';
+  const btn = $('wpBtn'); if (!file || !wpToken || !btn) return;
+  btn.disabled = true; btn.textContent = '⏳ Загружаю фото…';
+  try {
+    const r = await fetch('/wp?t=' + wpToken, { method: 'POST', body: await squareJpeg(file, 320), headers: { 'Content-Type': 'image/jpeg' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || String(r.status));
+    if (recData) { const row = recData.all.find(x => x[0] === j.name); if (row) { row[2] = j.ver; renderRecords(); } }
+    btn.textContent = '✅ Фото на карточке!';
+  } catch (err) {
+    btn.disabled = err.message === 'expired' || err.message === 'not-top';
+    btn.textContent = err.message === 'expired' ? 'Время вышло — сыграйте ещё раз' : err.message === 'not-top' ? 'Вас уже обогнали в рекордах' : '⚠ Не получилось — выберите другое фото';
+  }
+});
+
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
 sb.addEventListener('pointerdown', e => e.stopPropagation());

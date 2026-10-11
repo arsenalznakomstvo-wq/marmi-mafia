@@ -71,4 +71,7 @@ function restore(d) {
   if (d.day === day) for (const r of d.today || []) put(today, r.name, r.score);
   for (const r of d.allTime || []) put(allTime, r.name, r.score);
 }
-module.exports = { load, report, view, enabled, dump, restore, setOnChange: f => { onChange = f; } };
+// Карточки победителей (владелец 11.10): ники топ-5 всех времён и место ника (1–5, 0 — не в топе)
+const allNames = () => allTime.map(r => r.name);
+const placeAll = name => allTime.findIndex(r => r.name === name) + 1;
+module.exports = { load, report, view, enabled, dump, restore, allNames, placeAll, setOnChange: f => { onChange = f; } };
