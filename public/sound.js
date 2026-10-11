@@ -281,5 +281,13 @@ window.Sound = (() => {
   // Кинжал: свист броска и сочный «чвак» удара по телу
   function knifeThrow(v) { if (!ok()) return; v = v == null ? 1 : v; const t = ac.currentTime; nz('bandpass', 3200, 1200, 4, 0.12 * v, 0.02, 0.35, t, sfx); nz('bandpass', 5200, 2600, 6, 0.05 * v, 0.02, 0.25, t + 0.05, sfx); }
   function knifeHit(v) { if (!ok()) return; v = v == null ? 1 : v; const d = weaponBus(), t = ac.currentTime; nz('highpass', 2600, 1800, 1.5, 0.35 * v, 0.002, 0.07, t, d); nz('lowpass', 900, 200, 1, 0.3 * v, 0.004, 0.22, t, d); thump(140, 70, 0.25 * v, 0.15, t, d); }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit };
+  // Стук каблука по паркету (владелец 12.10, видео в меню): короткий звонкий щелчок + глухой удар доски + лёгкое эхо зала
+  function heel(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    nz('highpass', 3800, 2600, 1.2, 0.16 * v, 0.001, 0.035, t, d);   // щелчок набойки
+    nz('bandpass', 1200, 700, 2.5, 0.12 * v, 0.002, 0.06, t, d);     // каблук
+    thump(180, 90, 0.10 * v, 0.07, t, d);                            // доска
+  }
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel };
 })();

@@ -2313,8 +2313,22 @@ function mvDraw() {
   }
 }
 if (MENU_VIDEO) { document.body.classList.add('mvid'); if (MV_CANVAS) document.body.classList.add('mvcanvas'); menuVideo(true); }
+// Шаги каблуков под видео (владелец 12.10): пока открыто меню с видео; звук включается после первого касания (так требуют браузеры).
+// Две девушки идут не в ногу — шаги чуть вразнобой, громче/тише.
+var stepT = 0, stepN = 0; // var: menuVideo(true) вызывается выше по файлу, до этой строки
+function menuSteps(on) {
+  clearTimeout(stepT); if (!on) return;
+  const tick = () => {
+    if (!document.body.classList.contains('in-menu') || document.hidden || menuVid.paused) { stepT = setTimeout(tick, 400); return; }
+    const p = (menuVid.currentTime || 0) / (menuVid.duration || 8); // вторая половина ролика — «обратный ход», шаги тише
+    Sound.heel((stepN % 2 ? 0.55 : 0.8) * (p > 0.5 ? 0.7 : 1)); stepN++;
+    stepT = setTimeout(tick, stepN % 2 ? 230 : 330); // неровный ритм двух пар каблуков
+  };
+  stepT = setTimeout(tick, 300);
+}
 function menuVideo(on) {
   if (!MENU_VIDEO) return;
+  menuSteps(on);
   if (on) {
     if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4';
     menuVid.play().catch(() => {});
@@ -2328,7 +2342,7 @@ function menuVideo(on) {
 // потом меню плавно появляется; касание или клавиша — меню сразу. Не мешаем, если человек пришёл по ссылке ?name= (сразу в игру).
 if (MENU_VIDEO && !new URLSearchParams(location.search).get('name')) {
   document.body.classList.add('intro');
-  const endIntro = () => { document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
+  const endIntro = () => { Sound.init(); document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
   const introT = setTimeout(endIntro, 6500); // владелец 12.10: 6–7 секунд
   ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, endIntro, true));
 }
