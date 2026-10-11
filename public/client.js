@@ -517,7 +517,7 @@ function interpolated(renderTick) {
     if (a && a !== b && !jumped) {
       for (let j = 0; j < n; j++) {
         const k = findIdx(a.idx, b.idx[j]);
-        if (k >= 0) { xs[j] = a.xs[k] + (b.xs[j] - a.xs[k]) * t; ys[j] = a.ys[k] + (b.ys[j] - a.ys[k]) * t; }
+        if (k >= 0 && Math.abs(b.xs[j] - a.xs[k]) + Math.abs(b.ys[j] - a.ys[k]) < 200) { xs[j] = a.xs[k] + (b.xs[j] - a.xs[k]) * t; ys[j] = a.ys[k] + (b.ys[j] - a.ys[k]) * t; } // точка прошла нору — без пролёта
         else { xs[j] = b.xs[j]; ys[j] = b.ys[j]; }
       }
     } else { for (let j = 0; j < n; j++) { xs[j] = b.xs[j]; ys[j] = b.ys[j]; } }
@@ -1136,6 +1136,7 @@ setInterval(() => { if (roleFlash.size > 400) roleFlash.clear(); }, 15000);
 
 // ===== Отрисовка =====
 const cam = { x: 0, y: 0, s: 0.8 };
+const camLag = { x: 0, y: 0, tx: 0, ty: 0, has: false }; // плавный перелёт камеры после потайного хода
 const SX = [], SY = [], SI = [];
 const lastDrawn = new Map();   // id -> змейка, как она нарисована в прошлом кадре (для таяния при смерти)
 const dying = [];              // тающие тела погибших змей
@@ -1161,8 +1162,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   let rem = sp;
   for (let j = 1; j < n; j++) {
     const x0 = sn.xs[j - 1], y0 = sn.ys[j - 1], x1 = sn.xs[j], y1 = sn.ys[j];
-    if (sn.gap[j]) { SX[cnt] = x1; SY[cnt] = y1; SI[cnt] = sn.idx[j]; cnt++; rem = sp; continue; }
     const dx = x1 - x0, dy = y1 - y0, L = Math.sqrt(dx * dx + dy * dy);
+    if (sn.gap[j] || L > Math.max(90, sn.r * 4)) { SX[cnt] = x1; SY[cnt] = y1; SI[cnt] = sn.idx[j]; cnt++; rem = sp; continue; } // разрыв: часть тела у входа, часть у выхода норы
     const i0 = sn.idx[j - 1], i1 = sn.idx[j];
     let t = rem;
     while (t <= L) {
@@ -1312,7 +1313,12 @@ function frame(time) {
     // «Взгляд вперёд» (владелец 06.10): камера плавно сдвигается по ходу движения — впереди видно больше
     const L = Math.min(W, H) / 2 / cam.s * 0.22, tx = Math.cos(me.a) * L, ty = Math.sin(me.a) * L;
     look.x += (tx - look.x) * 0.04; look.y += (ty - look.y) * 0.04;
-    cam.x = me.xs[0] + look.x; cam.y = me.ys[0] + look.y;
+    // Владелец 11.10: камера не прыгает (потайной ход, появление) — плавно доплывает за ~0,5 с
+    const nx = me.xs[0] + look.x, ny = me.ys[0] + look.y;
+    if (camLag.has && Math.abs(nx - camLag.tx) + Math.abs(ny - camLag.ty) > 300) { camLag.x = cam.x - nx; camLag.y = cam.y - ny; } // голова перескочила — камера начинает с того места, где была
+    camLag.tx = nx; camLag.ty = ny; camLag.has = true;
+    camLag.x *= 0.9; camLag.y *= 0.9; if (Math.abs(camLag.x) + Math.abs(camLag.y) < 0.5) camLag.x = camLag.y = 0;
+    cam.x = nx + camLag.x; cam.y = ny + camLag.y;
   } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
   const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0);
   farView = TEAM_MODE && me && teamZoom(me.mass) < 0.8; // камера высоко — рисуем проще, чтобы телефон не тормозил

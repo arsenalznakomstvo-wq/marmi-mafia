@@ -216,11 +216,18 @@ function moveSnake(s) {
   const step = Math.max(1, Math.ceil(spd / SEG_D));
   if (n > target) { n = Math.max(target, n - step); xs.length = n; ys.length = n; }
   s.r = radiusForPoints(n);
+  // Тоннель (владелец 11.10: «плавно заползала»): точки 0..T.k-1 уже вылезли у выхода B, остальные ещё ползут к входу A.
+  // Первая невылезшая точка тянется не к соседу у B, а к его «отражению» у A — так тело втягивается в нору,
+  // а перейдя плоскость норы, точка переносится к выходу. Когда втянулся хвост — тоннель закончен.
+  const T = s.tun, ox = T ? T.bx - T.ax : 0, oy = T ? T.by - T.ay : 0;
   for (let i = 1; i < n; i++) {
-    const dx = xs[i] - xs[i - 1], dy = ys[i] - ys[i - 1];
+    const lx = T && i === T.k ? xs[i - 1] - ox : xs[i - 1], ly = T && i === T.k ? ys[i - 1] - oy : ys[i - 1];
+    const dx = xs[i] - lx, dy = ys[i] - ly;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d > SEG_D) { const k = SEG_D / d; xs[i] = xs[i - 1] + dx * k; ys[i] = ys[i - 1] + dy * k; }
+    if (d > SEG_D) { const k = SEG_D / d; xs[i] = lx + dx * k; ys[i] = ly + dy * k; }
+    if (T && i === T.k && (xs[i] - T.ax) * T.ux + (ys[i] - T.ay) * T.uy >= 0) { xs[i] += ox; ys[i] += oy; T.k++; } // прошла нору
   }
+  if (T && T.k >= n) s.tun = null;
   s.bbox();
 }
 
@@ -757,6 +764,7 @@ function handleJSON(c, m) {
     const s = new Snake(pos.x, pos.y, START_MASS, false, cleanName(m.name), cleanSkin(m.skin));
     if (TEAM) { s.team = team; setTeamSkin(s); s.born = tick; c.rs = c.rs || { kills: 0, orbs: 0, caps: 0, life: 0 }; c.rs.name = s.name; c.rs.team = team; }
     if (process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
+    if (process.env.TEST_SPAWN_AT && process.env.TEST_SPAWN_AT.split(',')[2]) { const an = +process.env.TEST_SPAWN_AT.split(',')[2]; s.a = s.ta = an; for (let i = 0; i < s.xs.length; i++) { s.xs[i] = pos.x - Math.cos(an) * i * SEG_D; s.ys[i] = pos.y - Math.sin(an) * i * SEG_D; } s.bbox(); } // только для проверок: куда смотрит
     s.client = c; c.snake = s; c.inA = s.a;
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
@@ -787,7 +795,9 @@ function sendState(c) {
   else { vx = c.vx; vy = c.vy; }
   const sc = viewScale(c.w, c.h, r, me && me.alive ? me.role : 0, TEAM && me && me.alive ? me.mass : 0);
   const hw = c.w / 2 / sc + 260, hh = c.h / 2 / sc + 260; // запас под «взгляд вперёд» камеры в браузере
-  const x0 = vx - hw, x1 = vx + hw, y0 = vy - hh, y1 = vy + hh;
+  let x0 = vx - hw, x1 = vx + hw, y0 = vy - hh, y1 = vy + hh;
+  // Своя змея в тоннеле: камера плавно переплывает от входа к выходу — шлём картинку вокруг обеих нор
+  if (me && me.alive && me.tun) { const T = me.tun; x0 = Math.min(x0, T.ax - hw); x1 = Math.max(x1, T.ax + hw); y0 = Math.min(y0, T.ay - hh); y1 = Math.max(y1, T.ay + hh); }
 
   let o = 0, metas = null;
   OUT[o++] = 1;
@@ -1194,14 +1204,15 @@ const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
 function stepPortals() {
   if (TEAM) return;
   for (const s of snakes.values()) {
-    if (!s.alive || s.portalCd > tick) continue;
+    if (!s.alive || s.portalCd > tick || s.tun) continue; // пока хвост ещё в тоннеле — в другую нору нельзя
     const hx = s.xs[0], hy = s.ys[0];
     hop: for (const pair of PORTALS) for (let e = 0; e < 2; e++) {
       const [px, py] = pair[e], rr = PORTAL_R + s.r * 0.4;
       if ((hx - px) ** 2 + (hy - py) ** 2 > rr * rr) continue;
-      const [qx, qy] = pair[1 - e], out = PORTAL_R + s.r + 14;
-      const dx = qx + Math.cos(s.a) * out - hx, dy = qy + Math.sin(s.a) * out - hy;
-      for (let i = 0; i < s.xs.length; i++) { s.xs[i] += dx; s.ys[i] += dy; }
+      const [qx, qy] = pair[1 - e];
+      // Голова ныряет в нору и показывается из другой (с тем же сдвигом), тело втягивается следом по точкам (moveSnake)
+      s.xs[0] += qx - px; s.ys[0] += qy - py;
+      s.tun = { ax: px, ay: py, bx: qx, by: qy, k: 1, ux: Math.cos(s.a), uy: Math.sin(s.a) };
       s.bbox(); s.portalCd = tick + PORTAL_CD; s.ghostUntil = tick + PORTAL_GHOST;
       const msg = JSON.stringify({ t: 'portal', id: s.id, f: [px, py], d: [qx, qy] });
       for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
@@ -1406,4 +1417,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake } }; // _test — для проверок подрезки
