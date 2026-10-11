@@ -1,5 +1,15 @@
 'use strict';
 // Марми Мафия — клиент. Рисует то, что прислал сервер, и отправляет, куда повернуть.
+// «Чёрный ящик» (владелец 11.10: в установленном приложении — только тёмный экран): любая ошибка на телефоне
+// уходит на сервер (/clienterr), её видно на /errs — так можно понять, что ломается на чужом телефоне
+(() => {
+  const app = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+  let sent = 0;
+  const report = (msg, where) => { if (sent++ > 5) return; try { navigator.sendBeacon('/clienterr', JSON.stringify({ msg: String(msg).slice(0, 300), where: String(where || '').slice(0, 120), app, w: innerWidth, h: innerHeight })); } catch (e) {} };
+  window.addEventListener('error', e => report(e.message, (e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno));
+  window.addEventListener('unhandledrejection', e => report('promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason), ''));
+  window.__mmReport = report;
+})();
 (() => {
 const TAU = Math.PI * 2;
 let MAP_R = 5000, TICK_RATE = 30, SEG_D = 6, FCELL = 250;
