@@ -756,3 +756,17 @@ body.vidpaused.in-menu::after { bottom: auto; top: 50%; font-size: 26px; transfo
 body.vidpaused.in-menu::after { content: none !important; display: none !important; } /* владелец 12.10: значок паузы не показываем */
 /* Компьютер (владелец 12.10): название «марми мафия» чуть выше */
 @media (pointer: fine) { #menu { padding-top: 14px !important; } #menu .title { margin-top: 0 !important; } }
+/* Миникарта на телефоне (владелец 12.10: «не видно, кто где, и себя»): крупнее и не блёклая */
+@media (pointer: coarse) {
+  body.ctrl-joy #minimap, body:not(.ctrl-joy) #minimap { width: 118px !important; height: 118px !important; opacity: 0.92 !important; }
+}
+/* Телефон лёжа v7 (владелец 12.10): карточка вертикальная и большая — сверху донизу справа; «Загрузите фото» — левее карточки внизу */
+@media (pointer: coarse) and (orientation: landscape) {
+  body.mvid #winCards { --cw: 196px !important; --ih: calc(100vh - 128px) !important; top: 6px !important; bottom: auto !important; transform: none !important; right: max(12px, env(safe-area-inset-right)) !important; }
+  body.mvid #winCards .deck { height: calc(var(--ih) + 46px) !important; }
+  body.mvid #winCards .wtitle { margin-bottom: 10px !important; }
+  body.mvid #winCards .wdots { margin-top: 6px !important; }
+  body.mvid #wpBtn { right: calc(max(12px, env(safe-area-inset-right)) + 210px) !important; bottom: max(10px, env(safe-area-inset-bottom)) !important; top: auto !important; }
+  body.mvid #menu .title { font-size: min(11vh, 6vw) !important; }
+}
+@media (pointer: coarse) and (orientation: landscape) { body.mvid #wpBtn { right: auto !important; left: max(10px, env(safe-area-inset-left)) !important; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 82px) !important; font-size: 12px !important; padding: 7px 12px !important; } }

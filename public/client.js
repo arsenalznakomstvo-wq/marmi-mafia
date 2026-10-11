@@ -1317,7 +1317,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
-    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r); } // владелец 12.10: без шляпы — жетон и тёмные очки
+    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r, sn.id); } // владелец 12.10: без шляпы — жетон и тёмные очки (у каждого свой стиль)
     if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка') drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
@@ -1588,16 +1588,20 @@ function drawMinimap(me) {
       mctx.strokeStyle = TEAM_MODE && lt >= 0 ? (lt === myTeam || myTeam < 0 ? TEAM_COL[lt] : (human ? '#ff6b6b' : 'rgba(255, 70, 70, 0.75)'))
         : human ? 'rgba(255, 213, 79, 0.9)' : 'rgba(200, 205, 215, 0.55)';
       if (TEAM_MODE && lt >= 0 && myTeam < 0) mctx.strokeStyle = TEAM_COL[lt];
-      mctx.lineWidth = (human ? 1.8 : 1.1) * k;
+      mctx.lineWidth = (human ? 2.4 : 1.3) * k; // люди — толще и ярче (владелец 12.10)
       mctx.beginPath(); mctx.moveTo(P(line[1]), P(line[2]));
       if (line.length <= 5) mctx.lineTo(P(line[1]) + 0.5, P(line[2]) + 0.5);
       for (let i = 3; i < line.length; i += 2) mctx.lineTo(P(line[i]), P(line[i + 1]));
       mctx.stroke();
     }
   }
-  if (me) {
-    const x = c + me.xs[0] / MAP_R * R, y = c + me.ys[0] / MAP_R * R;
-    mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.arc(x, y, 3.2 * k, 0, TAU); mctx.fill();
+  if (me) { // владелец 12.10 («себя не видно»): своя змея — крупная белая стрелка по направлению движения + пульсирующее кольцо
+    const x = c + me.xs[0] / MAP_R * R, y = c + me.ys[0] / MAP_R * R, an = me.a, pr = (performance.now() % 1200) / 1200;
+    mctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - pr)})`; mctx.lineWidth = 1.5 * k; mctx.beginPath(); mctx.arc(x, y, (4 + 8 * pr) * k, 0, TAU); mctx.stroke();
+    mctx.save(); mctx.translate(x, y); mctx.rotate(an);
+    mctx.fillStyle = '#ffffff'; mctx.strokeStyle = '#000000'; mctx.lineWidth = 1.2 * k;
+    mctx.beginPath(); mctx.moveTo(6 * k, 0); mctx.lineTo(-4 * k, -4 * k); mctx.lineTo(-2 * k, 0); mctx.lineTo(-4 * k, 4 * k); mctx.closePath(); mctx.fill(); mctx.stroke();
+    mctx.restore();
   }
   if (BASES) { // базы — кольца цвета команды, знамёна — квадратики, тревога своих — мигающие красные круги
     BASES.forEach(([bx, by], t) => { mctx.strokeStyle = TEAM_COL[t]; mctx.lineWidth = 1.6 * k; mctx.beginPath(); mctx.arc(c + bx / MAP_R * R, c + by / MAP_R * R, Math.max(4 * k, BASE_R / MAP_R * R), 0, TAU); mctx.stroke(); });
@@ -1917,21 +1921,54 @@ function drawSheriffBadge(neck, r) {
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 * glint; const hs = S * 0.9; ctx.drawImage(haloSprite('#fff1b0'), nx - hs / 2, ny - hs / 2, hs, hs); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
 // Очень крутые тёмные очки: широкие «спортивные» линзы с зеркальным переливом (фиолетово-оранжевым), тонкая чёрная оправа, блик
-function drawCoolShades(hx, hy, a, r) {
-  // широкие тёмные «спортивные» линзы полностью закрывают глаза; зеркальный перелив фиолетовый → оранжевый
-  ctx.save(); ctx.translate(hx + Math.cos(a) * r * 0.32, hy + Math.sin(a) * r * 0.32); ctx.rotate(a); // x — вперёд, y — поперёк
-  const gap = r * 0.48, x0 = -r * 0.5, x1 = r * 0.52, h0 = r * 0.5;
-  for (const sg of [-1, 1]) {
-    const yIn = sg * (gap - h0 * 0.85), yOut = sg * (gap + h0 * 1.05);
-    ctx.beginPath(); ctx.moveTo(x0, yIn); ctx.lineTo(x1, yIn); ctx.quadraticCurveTo(x1 + r * 0.06, (yIn + yOut) / 2, x1 - r * 0.05, yOut);
-    ctx.quadraticCurveTo((x0 + x1) / 2, yOut + sg * r * 0.12, x0, yOut - sg * r * 0.05); ctx.quadraticCurveTo(x0 - r * 0.08, (yIn + yOut) / 2, x0, yIn); ctx.closePath();
-    const lg = ctx.createLinearGradient(x0, yIn, x1, yOut); lg.addColorStop(0, '#08080c'); lg.addColorStop(0.45, '#1a1430'); lg.addColorStop(0.72, '#5a2d6e'); lg.addColorStop(0.9, '#d0702c'); lg.addColorStop(1, '#120e16');
-    ctx.fillStyle = lg; ctx.fill(); ctx.strokeStyle = '#030304'; ctx.lineWidth = Math.max(1.2, r * 0.1); ctx.lineJoin = 'round'; ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(r * 0.12, sg * gap - sg * r * 0.12, r * 0.24, r * 0.06, -0.4 * sg, 0, TAU); ctx.fill(); // блик
+// Очки Шерифа (владелец 12.10: «у всех разные, у кого-то зеркальные, как настоящие»). Стиль — по номеру змеи, у одной змеи не меняется.
+// В системе координат головы: x — вперёд, y — поперёк; глаза на (0.32r вперёд, ±0.48r вбок).
+const SHADES = [
+  { name: 'sport',    lens: ['#08080c', '#1a1430', '#5a2d6e', '#d0702c', '#120e16'], frame: '#030304' },          // спортивные, фиолетово-оранжевое зеркало
+  { name: 'aviator',  lens: ['#cfd8e3', '#7b8ea8', '#2c3c56', '#9fb6d0', '#e9eef4'], frame: '#c9a227', thin: true }, // «капли», серебряное зеркало, золотая оправа
+  { name: 'wayfarer', lens: ['#050506', '#14161b', '#22262e', '#0d0e11', '#050506'], frame: '#0b0b0c', thick: true }, // классика, толстая чёрная
+  { name: 'round',    lens: ['#0f2a1c', '#1e4a32', '#2f6b4a', '#173826', '#0b1f14'], frame: '#b38b2a', thin: true }, // круглые зелёные, тонкая золотая
+  { name: 'ice',      lens: ['#0a1c2e', '#1d5a8a', '#55b8e8', '#bff0ff', '#1d5a8a'], frame: '#0c0d10' },            // спортивные, голубое «ледяное» зеркало
+  { name: 'gold',     lens: ['#3a2600', '#8c6410', '#f2c94c', '#fff2b0', '#8c6410'], frame: '#1a1206', thin: true }, // «капли», золотое зеркало
+  { name: 'visor',    lens: ['#0b0b10', '#2a1a40', '#c0306a', '#ff9a3c', '#2a1a40'], frame: '#030304', visor: true },// сплошной визор, закатное зеркало
+  { name: 'red',      lens: ['#1a0406', '#5a0c12', '#c42430', '#ff8c6a', '#5a0c12'], frame: '#0c0c0e', thick: true }, // классика, красное зеркало
+];
+function drawCoolShades(hx, hy, a, r, id) {
+  const st = SHADES[((id || 0) * 2654435761 >>> 0) % SHADES.length];
+  ctx.save(); ctx.translate(hx + Math.cos(a) * r * 0.32, hy + Math.sin(a) * r * 0.32); ctx.rotate(a);
+  const gap = r * 0.48, lw = st.thick ? r * 0.15 : st.thin ? r * 0.06 : r * 0.1;
+  const lensGrad = (x0, y0, x1, y1) => { const g = ctx.createLinearGradient(x0, y0, x1, y1); st.lens.forEach((c, i) => g.addColorStop(i / (st.lens.length - 1), c)); return g; };
+  const shine = (cx, cy, rx, ry, ang) => { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, ang, 0, TAU); ctx.fill(); };
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = st.frame;
+  if (st.visor) { // одна сплошная линза поперёк лица
+    const x0 = -r * 0.45, x1 = r * 0.5, h = gap + r * 0.55;
+    ctx.beginPath(); ctx.moveTo(x0, -h); ctx.quadraticCurveTo(x1 + r * 0.15, -h * 0.9, x1, 0); ctx.quadraticCurveTo(x1 + r * 0.15, h * 0.9, x0, h); ctx.quadraticCurveTo(x0 + r * 0.2, 0, x0, -h); ctx.closePath();
+    ctx.fillStyle = lensGrad(x0, -h, x1, h); ctx.fill(); ctx.lineWidth = Math.max(1.2, lw); ctx.stroke();
+    shine(r * 0.15, -gap * 0.6, r * 0.3, r * 0.06, -0.3);
+  } else for (const sg of [-1, 1]) {
+    const cy = sg * gap;
+    ctx.beginPath();
+    if (st.name === 'round') ctx.arc(0, cy, r * 0.44, 0, TAU);
+    else if (st.name === 'aviator' || st.name === 'gold') { // «капля»: шире сверху (к носу), сужается к щеке
+      ctx.moveTo(r * 0.45, cy - sg * r * 0.42); ctx.quadraticCurveTo(r * 0.62, cy + sg * r * 0.2, r * 0.1, cy + sg * r * 0.52);
+      ctx.quadraticCurveTo(-r * 0.5, cy + sg * r * 0.55, -r * 0.48, cy); ctx.quadraticCurveTo(-r * 0.42, cy - sg * r * 0.45, r * 0.45, cy - sg * r * 0.42);
+    } else if (st.thick) { // wayfarer: трапеция, верхняя кромка толще
+      ctx.moveTo(r * 0.52, cy - sg * r * 0.4); ctx.lineTo(r * 0.48, cy + sg * r * 0.5); ctx.lineTo(-r * 0.4, cy + sg * r * 0.42); ctx.lineTo(-r * 0.48, cy - sg * r * 0.4); ctx.closePath();
+    } else { // спортивные: широкие, обтекаемые
+      const yIn = sg * (gap - r * 0.42) - cy, yOut = sg * r * 0.55;
+      ctx.moveTo(-r * 0.5, cy + yIn); ctx.lineTo(r * 0.52, cy + yIn); ctx.quadraticCurveTo(r * 0.58, cy + (yIn + yOut) / 2, r * 0.47, cy + yOut);
+      ctx.quadraticCurveTo(0, cy + yOut + sg * r * 0.12, -r * 0.5, cy + yOut - sg * r * 0.05); ctx.quadraticCurveTo(-r * 0.58, cy, -r * 0.5, cy + yIn); ctx.closePath();
+    }
+    ctx.fillStyle = lensGrad(-r * 0.5, cy - r * 0.5, r * 0.5, cy + r * 0.5); ctx.fill();
+    ctx.lineWidth = Math.max(1, lw); ctx.stroke();
+    shine(r * 0.12, cy - sg * r * 0.12, r * 0.22, r * 0.055, -0.4 * sg);
   }
-  ctx.strokeStyle = '#030304'; ctx.lineWidth = Math.max(1.4, r * 0.14); ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x1 - r * 0.05, -(gap - h0 * 0.85)); ctx.lineTo(x1 - r * 0.05, gap - h0 * 0.85); ctx.stroke(); // перемычка
-  for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x0, sg * (gap + h0 * 0.6)); ctx.lineTo(-r * 1.05, sg * (gap + h0 * 0.4)); ctx.stroke(); } // дужки
+  if (!st.visor) { // перемычка и дужки
+    ctx.lineWidth = Math.max(1, lw * 1.1);
+    ctx.beginPath(); ctx.moveTo(r * 0.38, -gap + r * 0.38); ctx.quadraticCurveTo(r * (st.name === 'round' ? 0.55 : 0.48), 0, r * 0.38, gap - r * 0.38); ctx.stroke();
+  }
+  ctx.lineWidth = Math.max(1, lw);
+  for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-r * 0.45, sg * (gap + r * 0.3)); ctx.lineTo(-r * 1.05, sg * (gap + r * 0.2)); ctx.stroke(); }
   ctx.restore();
 }
 function drawSheriffHat(hx, hy, a, r) {
