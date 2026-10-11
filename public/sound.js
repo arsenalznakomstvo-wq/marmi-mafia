@@ -270,5 +270,13 @@ window.Sound = (() => {
     nz('lowpass', 260, 60, 0.9, 0.35 * v, 0.25, 2.4, t + 0.05, d);   // долгий рокот
     for (let i = 0; i < 9; i++) nz('bandpass', 2000 + Math.random() * 2500, 900, 4, (0.05 + Math.random() * 0.06) * v, 0.002, 0.05, t + 0.15 + Math.random() * 0.9, d); // обломки
   }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom };
+  // Потайной ход: «вжух» — шум уходит вниз и тут же поднимается (провалился и вынырнул)
+  function portal(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const t = ac.currentTime;
+    nz('bandpass', 2400, 300, 2.5, 0.22 * v, 0.03, 0.28, t, sfx);
+    nz('bandpass', 300, 2600, 2.5, 0.2 * v, 0.12, 0.32, t + 0.22, sfx);
+    tone(520, 0.4, 'sine', 0.05 * v, t + 0.2, 1040);
+  }
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal };
 })();

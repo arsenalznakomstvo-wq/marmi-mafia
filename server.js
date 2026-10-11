@@ -44,6 +44,7 @@ const MAX_CLIENTS = 150;
 const BOT_NAME = 'Bot';
 // Роли из «Мафии» по длине — для всех: людей и ботов (владелец 06.10). Дон Мафии — самая длинная змея на карте.
 const { ROLES, DON, rankFor } = require('./public/roles.js');
+const { PORTALS, PORTAL_R } = require('./public/portals.js');
 let donId = 0;
 function updateRoles() {
   if (TEAM) return; // в командном режиме ролей нет
@@ -749,7 +750,7 @@ function handleJSON(c, m) {
   if (m.t === 'join') {
     if (c.snake && c.snake.alive) return;
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
-    const pos = process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_CENTER — только для проверок
+    const pos = process.env.TEST_SPAWN_AT ? { x: +process.env.TEST_SPAWN_AT.split(',')[0], y: +process.env.TEST_SPAWN_AT.split(',')[1] } : process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_AT / TEST_SPAWN_CENTER — только для проверок
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const team = TEAM ? (m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true)) : null;
     if (TEAM && !process.env.TEST_SPAWN_CENTER) { const p = findSpawn(false, BASES[team][0], BASES[team][1], 1300); pos.x = p.x; pos.y = p.y; } // у своей базы
@@ -1187,11 +1188,33 @@ function runRound() {
   }
 }
 
+// ===== Потайные ходы (владелец 11.10): голова в норе — вся змея переносится к другой норе и ползёт дальше в ту же сторону.
+// После прохода 2 с ход не срабатывает (иначе сразу обратно), на выходе 0,4 с неуязвимости — вдруг там кто-то ползёт.
+const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
+function stepPortals() {
+  if (TEAM) return;
+  for (const s of snakes.values()) {
+    if (!s.alive || s.portalCd > tick) continue;
+    const hx = s.xs[0], hy = s.ys[0];
+    hop: for (const pair of PORTALS) for (let e = 0; e < 2; e++) {
+      const [px, py] = pair[e], rr = PORTAL_R + s.r * 0.4;
+      if ((hx - px) ** 2 + (hy - py) ** 2 > rr * rr) continue;
+      const [qx, qy] = pair[1 - e], out = PORTAL_R + s.r + 14;
+      const dx = qx + Math.cos(s.a) * out - hx, dy = qy + Math.sin(s.a) * out - hy;
+      for (let i = 0; i < s.xs.length; i++) { s.xs[i] += dx; s.ys[i] += dy; }
+      s.bbox(); s.portalCd = tick + PORTAL_CD; s.ghostUntil = tick + PORTAL_GHOST;
+      const msg = JSON.stringify({ t: 'portal', id: s.id, f: [px, py], d: [qx, qy] });
+      for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+      break hop;
+    }
+  }
+}
 function step() {
   tick++;
   runRound();
   for (const s of snakes.values()) if (s.bot) botThink(s); // каждый шаг — быстрее реагируют на опасность
   for (const s of snakes.values()) moveSnake(s);
+  stepPortals();
   buildGrid();
   collisions();
   for (const s of snakes.values()) if (s.alive) eat(s);
@@ -1383,4 +1406,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS } }; // _test — для проверок подрезки

@@ -371,6 +371,7 @@ function onJSON(m) {
     case 'final': finalMinute = true; break;
     case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(nearVol(m.x, m.y)); break;
     case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit, mine: m.o === myId, parts: m.hit ? makeDebris() : null }); if (!m.hit) Sound.boom(nearVol(m.x, m.y) * 0.4); /* промах — граната рвётся в конце полёта, тише */ if (m.hit) { Sound.boom(nearVol(m.x, m.y)); if (m.o === myId) shakeUntil = performance.now() + 450; } break;
+    case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
@@ -512,7 +513,8 @@ function interpolated(renderTick) {
   for (const b of B.sn.values()) {
     const a = A.sn.get(b.id);
     const n = b.idx.length, xs = new Array(n), ys = new Array(n);
-    if (a && a !== b) {
+    const jumped = a && a !== b && a.xs.length && b.xs.length && Math.abs(a.xs[0] - b.xs[0]) + Math.abs(a.ys[0] - b.ys[0]) > 300; // прошла потайным ходом
+    if (a && a !== b && !jumped) {
       for (let j = 0; j < n; j++) {
         const k = findIdx(a.idx, b.idx[j]);
         if (k >= 0) { xs[j] = a.xs[k] + (b.xs[j] - a.xs[k]) * t; ys[j] = a.ys[k] + (b.ys[j] - a.ys[k]) * t; }
@@ -1332,6 +1334,7 @@ function frame(time) {
   ctx.fillStyle = 'rgba(90, 0, 10, 0.55)'; ctx.fill('evenodd');
   ctx.beginPath(); ctx.arc(0, 0, MAP_R, 0, TAU); ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(255, 50, 70, 0.75)'; ctx.stroke();
   drawPosters(view);
+  drawPortals(view, time);
 
   // Еда
   const tt = time * 0.003;
@@ -1501,6 +1504,9 @@ function drawMinimap(me) {
     teamFlags.forEach((f, t) => { const s = 4.5 * k; mctx.fillStyle = TEAM_COL[t]; mctx.strokeStyle = '#000'; mctx.lineWidth = 1; mctx.fillRect(c + f[0] / MAP_R * R - s / 2, c + f[1] / MAP_R * R - s / 2, s, s); mctx.strokeRect(c + f[0] / MAP_R * R - s / 2, c + f[1] / MAP_R * R - s / 2, s, s); });
     if (teamAlarms.length && Math.floor(performance.now() / 300) % 2) for (const [ax, ay] of teamAlarms) { mctx.strokeStyle = '#ff2b2b'; mctx.lineWidth = 2 * k; mctx.beginPath(); mctx.arc(c + ax / MAP_R * R, c + ay / MAP_R * R, 5 * k, 0, TAU); mctx.stroke(); }
   }
+  if (!TEAM_MODE) for (const pair of window.Portals.PORTALS) for (const [px, py] of pair) { // потайные ходы — оранжевые точки
+    mctx.fillStyle = '#ff9a2e'; mctx.beginPath(); mctx.arc(c + px / MAP_R * R, c + py / MAP_R * R, 2.4 * k, 0, TAU); mctx.fill();
+  }
   for (const o of orbs.values()) { // светящиеся шары на миникарте — голубые точки
     mctx.fillStyle = '#7df9ff'; mctx.beginPath(); mctx.arc(c + o.x / MAP_R * R, c + o.y / MAP_R * R, 2.6 * k, 0, TAU); mctx.fill();
   }
@@ -1651,21 +1657,33 @@ function drawBazooka(x, y, a, r) { // два гранатомёта по бок�
 // при ускорении разворачиваются вперёд, как для удара. На силу в игре не влияют. Заготовка рисуется один раз на размер.
 const KILLER = ROLES.findIndex(x => x.name === 'Киллер');
 function knifeSprite(r) {
-  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), L = R * 3.6, W = R * 0.78;
-  return { img: cacheCanvas('knife|' + R + '|' + k, L * k, W * k, g => {
+  // Владелец 11.10: не ножи, а кинжалы — обоюдоострый клинок с ребром посередине (одна грань светлая, другая тёмная — как
+  // настоящая сталь), стальная гарда с утолщениями, рукоять в кожаной обмотке, навершие. По металлу бежит блеск (drawKnives).
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), L = R * 4.0, W = R * 1.0;
+  return { img: cacheCanvas('dagger|' + R + '|' + k, L * k, W * k, g => {
     g.scale(k, k); g.translate(0, W / 2);
-    // рукоять: чёрная, с насечками; гарда — сталь
-    const h = g.createLinearGradient(0, -W * 0.22, 0, W * 0.22); h.addColorStop(0, '#3a3a3e'); h.addColorStop(0.5, '#141416'); h.addColorStop(1, '#050506');
-    g.fillStyle = h; g.beginPath(); g.moveTo(0, -W * 0.18); g.lineTo(L * 0.3, -W * 0.22); g.lineTo(L * 0.3, W * 0.22); g.lineTo(0, W * 0.18); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = Math.max(0.5, W * 0.04);
-    for (let x = L * 0.05; x < L * 0.28; x += L * 0.05) { g.beginPath(); g.moveTo(x, -W * 0.18); g.lineTo(x, W * 0.18); g.stroke(); }
-    const gu = g.createLinearGradient(0, -W * 0.45, 0, W * 0.45); gu.addColorStop(0, '#e9edf1'); gu.addColorStop(0.5, '#8d949c'); gu.addColorStop(1, '#4b5157');
-    g.fillStyle = gu; g.fillRect(L * 0.3, -W * 0.45, L * 0.04, W * 0.9);
-    // клинок: сталь с бликом по обуху и тёмным спуском к лезвию, острие
-    const bl = g.createLinearGradient(0, -W * 0.3, 0, W * 0.3); bl.addColorStop(0, '#f7f9fb'); bl.addColorStop(0.35, '#c4cad1'); bl.addColorStop(0.7, '#8a929b'); bl.addColorStop(1, '#5b626a');
-    g.fillStyle = bl; g.beginPath(); g.moveTo(L * 0.34, -W * 0.28); g.lineTo(L * 0.86, -W * 0.28); g.quadraticCurveTo(L * 0.97, -W * 0.22, L, 0); g.lineTo(L * 0.34, W * 0.3); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(40, 46, 54, 0.55)'; g.lineWidth = Math.max(0.5, W * 0.04); g.stroke();
-    g.strokeStyle = 'rgba(70, 78, 88, 0.6)'; g.lineWidth = Math.max(0.5, W * 0.05); g.beginPath(); g.moveTo(L * 0.37, -W * 0.08); g.lineTo(L * 0.78, -W * 0.08); g.stroke(); // дол
+    const steel = (y0, y1, c) => { const gr = g.createLinearGradient(0, y0, 0, y1); c.forEach(([o, col]) => gr.addColorStop(o, col)); return gr; };
+    // навершие — стальной шар с бликом
+    g.fillStyle = steel(-W * 0.16, W * 0.16, [[0, '#f2f5f8'], [0.45, '#9aa2ab'], [1, '#3d434a']]);
+    g.beginPath(); g.arc(L * 0.035, 0, W * 0.15, 0, TAU); g.fill();
+    // рукоять: тёмная кожа с косой обмоткой
+    g.fillStyle = steel(-W * 0.11, W * 0.11, [[0, '#5a3a22'], [0.5, '#2c1a0e'], [1, '#140b05']]);
+    g.fillRect(L * 0.06, -W * 0.11, L * 0.2, W * 0.22);
+    g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = Math.max(0.6, W * 0.035);
+    for (let x = L * 0.07; x < L * 0.26; x += L * 0.028) { g.beginPath(); g.moveTo(x, -W * 0.11); g.lineTo(x + L * 0.02, W * 0.11); g.stroke(); }
+    // гарда: стальная перекладина с утолщениями на концах
+    g.fillStyle = steel(-W * 0.48, W * 0.48, [[0, '#ffffff'], [0.3, '#c9cfd6'], [0.65, '#7c848d'], [1, '#30353b']]);
+    g.beginPath(); g.moveTo(L * 0.26, -W * 0.4); g.lineTo(L * 0.3, -W * 0.4); g.lineTo(L * 0.3, W * 0.4); g.lineTo(L * 0.26, W * 0.4); g.closePath(); g.fill();
+    for (const sy of [-1, 1]) { g.beginPath(); g.arc(L * 0.28, sy * W * 0.42, W * 0.08, 0, TAU); g.fill(); }
+    // клинок: верхняя грань светлая, нижняя тёмная, по середине — ребро
+    const bx0 = L * 0.3, bw = W * 0.24;
+    g.fillStyle = steel(-bw, 0, [[0, '#d6dce2'], [1, '#ffffff']]);
+    g.beginPath(); g.moveTo(bx0, -bw); g.lineTo(L * 0.8, -bw * 0.8); g.lineTo(L, 0); g.lineTo(bx0, 0); g.closePath(); g.fill();
+    g.fillStyle = steel(0, bw, [[0, '#8d959e'], [1, '#4a5058']]);
+    g.beginPath(); g.moveTo(bx0, 0); g.lineTo(L, 0); g.lineTo(L * 0.8, bw * 0.8); g.lineTo(bx0, bw); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(0.6, W * 0.025); g.beginPath(); g.moveTo(bx0, 0); g.lineTo(L * 0.98, 0); g.stroke(); // ребро
+    g.strokeStyle = 'rgba(25, 30, 36, 0.7)'; g.lineWidth = Math.max(0.6, W * 0.03); // режущие кромки
+    g.beginPath(); g.moveTo(bx0, -bw); g.lineTo(L * 0.8, -bw * 0.8); g.lineTo(L, 0); g.lineTo(L * 0.8, bw * 0.8); g.lineTo(bx0, bw); g.stroke();
   }), L, W };
 }
 const knifeSwing = new Map(); // id → разворот ножей (0 — по бокам, 1 — вперёд при ускорении)
@@ -1681,15 +1699,39 @@ function drawKnives(id, hx, hy, a, r, boost, time) {
   }
   resetWorldT();
   // блик бежит по клинкам каждые ~2,5 с (и сразу при ускорении)
-  const ph = boost ? (time * 0.004) % 1 : (time * 0.0004 + id * 0.13) % 1;
-  if (ph < 0.18) {
+  const ph = boost ? (time * 0.004) % 1 : (time * 0.0009 + id * 0.13) % 1; // металл переливается: блик бежит от гарды к острию
+  if (ph < 0.3) {
     ctx.globalCompositeOperation = 'lighter';
     for (const side of [-1, 1]) {
-      const ang = a + side * (0.75 * (1 - k) + 0.12), d = r * 1.05 + S.L * sc * (0.35 + ph / 0.18 * 0.6);
-      const bx = hx - Math.cos(a) * r * 0.7 + px * side * r * 1.05 + Math.cos(ang) * (d - r * 1.05), by = hy - Math.sin(a) * r * 0.7 + py * side * r * 1.05 + Math.sin(ang) * (d - r * 1.05);
-      const hs = r * 1.1; ctx.globalAlpha = 0.8 * Math.sin(ph / 0.18 * Math.PI); ctx.drawImage(haloSprite('#ffffff'), bx - hs / 2, by - hs / 2, hs, hs);
+      const ang = a + side * (0.75 * (1 - k) + 0.12), d = r * 1.15 + S.L * sc * (0.32 + ph / 0.3 * 0.66);
+      const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15 + Math.cos(ang) * (d - r * 1.15), by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15 + Math.sin(ang) * (d - r * 1.15);
+      const hs = r * 1.1; ctx.globalAlpha = 0.85 * Math.sin(ph / 0.3 * Math.PI); ctx.drawImage(haloSprite('#ffffff'), bx - hs / 2, by - hs / 2, hs, hs);
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  }
+}
+// ===== Потайные ходы (владелец 11.10): тёмная нора с оранжевым мерцающим краем и вихрем; вспышка, когда кто-то прошёл =====
+const portalFx = [];
+function drawPortals(view, time) {
+  if (TEAM_MODE) return;
+  const R = window.Portals.PORTAL_R, now = performance.now();
+  for (const pair of window.Portals.PORTALS) for (const [x, y] of pair) {
+    if (x < view.x0 - 120 || x > view.x1 + 120 || y < view.y0 - 120 || y > view.y1 + 120) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.004 + x);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 + 0.25 * pulse;
+    const hs = R * 4.2; ctx.drawImage(haloSprite('#ff8a1f'), x - hs / 2, y - hs / 2, hs, hs);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, '#000000'); g.addColorStop(0.7, '#0a0604'); g.addColorStop(1, '#3a1a06');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255, ${150 + 60 * pulse | 0}, 40, 0.9)`; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255, 170, 60, 0.55)'; // вихрь затягивает внутрь
+    for (let i = 0; i < 3; i++) { const a0 = time * 0.003 + i * TAU / 3; ctx.beginPath(); ctx.arc(x, y, R * (0.35 + 0.18 * i), a0, a0 + 1.6); ctx.stroke(); }
+  }
+  for (let i = portalFx.length - 1; i >= 0; i--) { // вспышка-кольцо при проходе
+    const f = portalFx[i], k = (now - f.t0) / 600; if (k >= 1) { portalFx.splice(i, 1); continue; } if (k < 0) continue;
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - k;
+    const hs = R * (2 + 5 * k); ctx.drawImage(haloSprite('#ffb040'), f.x - hs / 2, f.y - hs / 2, hs, hs);
+    ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 4 * (1 - k); ctx.beginPath(); ctx.arc(f.x, f.y, R * (1 + 2.5 * k), 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
   }
 }
 // Граната в полёте: головная часть с хвостовыми перьями
