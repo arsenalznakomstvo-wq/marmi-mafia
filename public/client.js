@@ -2298,8 +2298,19 @@ function mvDraw() {
   if (menuVid.readyState < 2) return;
   const cw = mvCanvas.clientWidth, ch = mvCanvas.clientHeight; if (!cw || !ch) return;
   if (mvCanvas.width !== cw || mvCanvas.height !== ch) { mvCanvas.width = cw; mvCanvas.height = ch; }
-  const vw = menuVid.videoWidth, vh = menuVid.videoHeight, k = Math.max(cw / vw, ch / vh), w = vw * k, h = vh * k; // как object-fit: cover
-  mvCanvas.getContext('2d').drawImage(menuVid, (cw - w) / 2, (ch - h) / 2, w, h);
+  const g = mvCanvas.getContext('2d'), vw = menuVid.videoWidth, vh = menuVid.videoHeight;
+  if (cw / ch > vw / vh) {
+    // Владелец 12.10 («лиц не видно на телефоне»): телефон лёжа — видео целиком по высоте в центре (как на компьютере),
+    // по бокам размытый фон (#mvBack); раньше видео растягивалось на всю ширину и от него оставались только руки с пистолетами
+    const h = ch, w = vw * ch / vh, x = (cw - w) / 2;
+    g.clearRect(0, 0, cw, ch); g.drawImage(menuVid, x, 0, w, h);
+    const f = Math.min(w * 0.12, 60); // мягкие края
+    for (const [x0, dir] of [[x, 1], [x + w, -1]]) { const gr = g.createLinearGradient(x0, 0, x0 + dir * f, 0); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.globalCompositeOperation = 'destination-out'; g.fillStyle = gr; g.fillRect(dir > 0 ? x0 : x0 - f, 0, f, ch); g.globalCompositeOperation = 'source-over'; }
+  } else { // телефон стоя: на весь экран, лица сверху не обрезаем
+    const k = Math.max(cw / vw, ch / vh), w = vw * k, h = vh * k;
+    g.drawImage(menuVid, (cw - w) / 2, (ch - h) * 0.2, w, h);
+  }
 }
 if (MENU_VIDEO) { document.body.classList.add('mvid'); if (MV_CANVAS) document.body.classList.add('mvcanvas'); menuVideo(true); }
 function menuVideo(on) {
