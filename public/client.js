@@ -128,7 +128,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -829,7 +829,7 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
     while (t <= L) { px.push(SX[k] + dx * t / L); py.push(SY[k] + dy * t / L); pa.push(Math.atan2(dy, dx)); t += slot; }
     carry = t - L;
   }
-  const fill = fillCol || '#ffd52e', fillHi = fillCol ? '#9b6bff' : '#fff7cc', stroke = strokeCol || 'rgba(40, 25, 0, 0.9)';
+  const fill = fillCol || '#ffd52e', fillHi = fillCol ? (strokeCol === '#ffffff' ? fillCol : '#9b6bff') : '#fff7cc', stroke = strokeCol || 'rgba(40, 25, 0, 0.9)';
   const shine = (time * 0.0004) % 1, n = unit.length, gs = Math.round(fs) * 1.6;
   const m = r * 2, x0 = view.x0 - m, x1 = view.x1 + m, y0 = view.y0 - m, y1 = view.y1 + m;
   for (let c0 = 0; c0 < px.length; c0 += n) {
@@ -1209,7 +1209,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     }
   }
   const roleIdx = meta && meta.bot && !fade ? (meta.role || 0) : 0; // детали ролей (сердечки, звёзды, шляпы) — только у ботов
-  if (!fade && sk.text) { // особый скин: мягкое золотое сияние вокруг тела
+  if (!fade && sk.text && !sk.plain) { // особый скин: мягкое золотое сияние вокруг тела («Марми» — без него, только 2 цвета)
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.22 + 0.08 * Math.sin(time * 0.004);
     const halo = haloSprite('#ffc23a'), hs = r * 2 * 2.1 * SPR / (SR * 2) / 1.6;
     for (let k = 0; k < cnt; k += 3) { const x = SX[k], y = SY[k]; if (x < view.x0 - hs || x > view.x1 + hs || y < view.y0 - hs || y > view.y1 + hs) continue; ctx.drawImage(halo, x - hs / 2, y - hs / 2, hs, hs); }
