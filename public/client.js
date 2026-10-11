@@ -128,7 +128,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain, bag: !!def.bag };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -155,6 +155,30 @@ function skinSprite(sk, u) {
 }
 const headColor = sk => sk.style === 'space' ? '#7a7aff' : sk.cols[0];
 
+// Оранжевая сумка на плече (скин «Марми», владелец 11.10): ремешок через «плечо» (шею), сумка висит сбоку и слегка покачивается.
+// Кожа с бликом, клапан, золотая застёжка, строчка по краю.
+function drawShoulderBag(g, hx, hy, a, r, neck) {
+  const [nx, ny, na] = neck, c = Math.cos(na), s = Math.sin(na), px = s, py = -c, sw = Math.sin(performance.now() * 0.003) * r * 0.08; // сумка — на левом боку (справа висит табличка роли)
+  const bx = nx - c * r * 0.6 + px * r * 1.55 + px * sw, by = ny - s * r * 0.6 + py * r * 1.55 + py * sw; // центр сумки — сбоку, чуть позади шеи
+  // ремешок: от другого бока шеи через спину к сумке
+  g.strokeStyle = '#c45a0c'; g.lineWidth = Math.max(1.2, r * 0.13); g.lineCap = 'round';
+  g.beginPath(); g.moveTo(nx + c * r * 0.25 - px * r * 0.9, ny + s * r * 0.25 - py * r * 0.9); g.quadraticCurveTo(nx + c * r * 0.4, ny + s * r * 0.4, bx + c * r * 0.4 - px * r * 0.45, by + s * r * 0.4 - py * r * 0.45); g.stroke();
+  g.save(); g.translate(bx, by); g.rotate(na + Math.PI / 2 + sw * 0.02);
+  const W = r * 1.35, H = r * 1.0, rr = r * 0.22;
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(r * 0.08, H * 0.62, W * 0.5, H * 0.14, 0, 0, TAU); g.fill(); // тень
+  const gr = g.createLinearGradient(0, -H / 2, 0, H / 2); gr.addColorStop(0, '#ffb35c'); gr.addColorStop(0.5, '#ff8a1f'); gr.addColorStop(1, '#c45a0c');
+  g.fillStyle = gr; g.beginPath(); g.moveTo(-W / 2 + rr, -H / 2); g.lineTo(W / 2 - rr, -H / 2); g.quadraticCurveTo(W / 2, -H / 2, W / 2, -H / 2 + rr);
+  g.lineTo(W / 2 * 0.92, H / 2 - rr); g.quadraticCurveTo(W / 2 * 0.92, H / 2, W / 2 * 0.92 - rr, H / 2); g.lineTo(-W / 2 * 0.92 + rr, H / 2); g.quadraticCurveTo(-W / 2 * 0.92, H / 2, -W / 2 * 0.92, H / 2 - rr);
+  g.lineTo(-W / 2, -H / 2 + rr); g.quadraticCurveTo(-W / 2, -H / 2, -W / 2 + rr, -H / 2); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(120, 50, 5, 0.6)'; g.lineWidth = Math.max(0.6, r * 0.04); g.stroke();
+  g.fillStyle = '#e8700f'; g.beginPath(); g.moveTo(-W / 2, -H / 2 + rr); g.lineTo(W / 2, -H / 2 + rr); g.lineTo(W * 0.32, H * 0.08); g.quadraticCurveTo(0, H * 0.2, -W * 0.32, H * 0.08); g.closePath(); g.fill(); // клапан
+  g.setLineDash([r * 0.08, r * 0.07]); g.strokeStyle = 'rgba(255, 230, 190, 0.7)'; g.lineWidth = Math.max(0.5, r * 0.035);
+  g.beginPath(); g.moveTo(-W * 0.42, -H / 2 + rr * 1.3); g.lineTo(W * 0.42, -H / 2 + rr * 1.3); g.stroke(); g.setLineDash([]); // строчка
+  g.fillStyle = '#ffd52e'; g.strokeStyle = '#a77a00'; g.lineWidth = Math.max(0.5, r * 0.03);
+  g.beginPath(); g.ellipse(0, H * 0.06, W * 0.09, H * 0.08, 0, 0, TAU); g.fill(); g.stroke(); // застёжка
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(-W * 0.25, H * 0.3, W * 0.12, H * 0.06, -0.3, 0, TAU); g.fill(); // блик
+  g.restore();
+}
 // Глаза и значок на шее. neck = [x, y, угол] — точка чуть позади головы.
 function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
   if (sk.badge && neck && sk.flag.length) {
@@ -186,7 +210,52 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.fillStyle = '#111111'; g.beginPath(); g.arc(ox, oy, er * (iris ? 0.32 : 0.6), 0, TAU); g.fill();
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
-  if (sk.eyes === 'eye') { // «Всевидящее око»: золотой треугольник с глазом, мягкое сияние
+  if (sk.bag && neck) drawShoulderBag(g, hx, hy, a, r, neck);
+  if (sk.eyes === 'lady') { // женское лицо (владелец 11.10): миндалевидные глаза с длинными ресницами, румянец, губки
+    for (const sgn of [-1, 1]) {
+      const ex = hx + ca * r * 0.3 + px * sgn * r * 0.46, ey = hy + sa * r * 0.3 + py * sgn * r * 0.46, er = r * 0.38;
+      g.save(); g.translate(ex, ey); g.rotate(a);
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(0, 0, er * 0.95, er * 0.78, 0, 0, TAU); g.fill(); // белок, чуть вытянут
+      g.lineWidth = Math.max(1, r * 0.05); g.strokeStyle = 'rgba(0,0,0,0.35)'; g.stroke();
+      const ox = Math.cos(look - a) * er * 0.3, oy = Math.sin(look - a) * er * 0.3;
+      g.fillStyle = '#6b3a12'; g.beginPath(); g.arc(ox, oy, er * 0.55, 0, TAU); g.fill(); // карая радужка
+      g.fillStyle = '#111'; g.beginPath(); g.arc(ox, oy, er * 0.3, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(ox - er * 0.15, oy - er * 0.18, er * 0.14, 0, TAU); g.fill();
+      // ресницы: дуга с краю (сторона от середины головы) и 3 загнутых реснички
+      g.strokeStyle = '#111'; g.lineCap = 'round'; g.lineWidth = Math.max(1.2, r * 0.08);
+      g.beginPath(); g.ellipse(0, 0, er * 0.98, er * 0.82, 0, sgn > 0 ? 0.15 * Math.PI : 1.15 * Math.PI, sgn > 0 ? 0.85 * Math.PI : 1.85 * Math.PI); g.stroke();
+      g.lineWidth = Math.max(1, r * 0.06);
+      for (const t of [-0.5, 0, 0.5]) { const an = (sgn > 0 ? Math.PI / 2 : -Math.PI / 2) + t, x0 = Math.cos(an) * er * 0.82, y0 = Math.sin(an) * er * 0.72;
+        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x0 + Math.cos(an) * er * 0.3, y0 + Math.sin(an) * er * 0.3, x0 + Math.cos(an + t * 0.6) * er * 0.38 + er * 0.12, y0 + Math.sin(an) * er * 0.5); g.stroke(); }
+      g.restore();
+      g.fillStyle = 'rgba(255, 140, 60, 0.28)'; g.beginPath(); g.arc(hx - ca * r * 0.1 + px * sgn * r * 0.62, hy - sa * r * 0.1 + py * sgn * r * 0.62, r * 0.2, 0, TAU); g.fill(); // румянец
+    }
+    // очки «кошачий глаз» (владелец 11.10): тонкая золотисто-оранжевая оправа с приподнятыми уголками, линзы с лёгким тоном — глаза видно
+    g.save(); g.translate(hx + ca * r * 0.3, hy + sa * r * 0.3); g.rotate(a);
+    const lr = r * 0.44, gap = r * 0.47;
+    for (const sgn of [-1, 1]) {
+      const cy = sgn * gap;
+      g.beginPath(); g.moveTo(-lr * 0.8, cy - sgn * lr * 0.05);
+      g.quadraticCurveTo(-lr * 0.9, cy + sgn * lr * 1.05, lr * 0.1, cy + sgn * lr * 1.25); // внешний угол поднят — «кошачий»
+      g.quadraticCurveTo(lr * 0.95, cy + sgn * lr * 0.9, lr * 0.75, cy - sgn * lr * 0.2);
+      g.quadraticCurveTo(lr * 0.1, cy - sgn * lr * 0.75, -lr * 0.8, cy - sgn * lr * 0.05); g.closePath();
+      const tint = g.createLinearGradient(-lr, 0, lr, 0); tint.addColorStop(0, 'rgba(120, 60, 20, 0.18)'); tint.addColorStop(1, 'rgba(255, 140, 40, 0.30)');
+      g.fillStyle = tint; g.fill();
+      g.lineWidth = Math.max(1.2, r * 0.09); g.strokeStyle = '#e07a10'; g.stroke();
+      g.lineWidth = Math.max(0.6, r * 0.035); g.strokeStyle = '#ffd27a'; g.stroke(); // золотая кромка
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(lr * 0.25, cy - sgn * lr * 0.05 - lr * 0.15, lr * 0.22, lr * 0.07, -0.5, 0, TAU); g.fill(); // блик
+      g.fillStyle = '#ffd52e'; g.beginPath(); g.arc(lr * 0.15, cy + sgn * lr * 1.2, Math.max(0.8, r * 0.06), 0, TAU); g.fill(); // стразик в уголке
+    }
+    g.strokeStyle = '#e07a10'; g.lineWidth = Math.max(1, r * 0.08); g.beginPath(); g.moveTo(lr * 0.2, -gap + lr * 0.55); g.quadraticCurveTo(lr * 0.55, 0, lr * 0.2, gap - lr * 0.55); g.stroke(); // перемычка
+    g.restore();
+    // губки впереди, поперёк морды
+    g.save(); g.translate(hx + ca * r * 0.74, hy + sa * r * 0.74); g.rotate(a + Math.PI / 2);
+    const lw = r * 0.32, lh = r * 0.14; // губки крупнее и ближе к глазам — видно на маленькой змее
+    g.fillStyle = '#ff7a1a'; g.beginPath(); g.moveTo(-lw, 0); g.quadraticCurveTo(-lw * 0.5, -lh * 1.4, 0, -lh * 0.5); g.quadraticCurveTo(lw * 0.5, -lh * 1.4, lw, 0); g.quadraticCurveTo(0, lh * 1.6, -lw, 0); g.closePath(); g.fill();
+    g.strokeStyle = '#b84f00'; g.lineWidth = Math.max(0.8, r * 0.03); g.beginPath(); g.moveTo(-lw * 0.9, 0); g.lineTo(lw * 0.9, 0); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(-lw * 0.3, lh * 0.5, lw * 0.18, lh * 0.25, 0, 0, TAU); g.fill();
+    g.restore();
+  } else if (sk.eyes === 'eye') { // «Всевидящее око»: золотой треугольник с глазом, мягкое сияние
     const R2 = r * 1.05, cx = hx + ca * r * 0.12, cy = hy + sa * r * 0.12;
     g.save(); g.translate(cx, cy); g.rotate(a + Math.PI / 2);
     g.shadowColor = '#ffd52e'; g.shadowBlur = r * 0.8;
