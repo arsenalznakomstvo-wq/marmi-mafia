@@ -1,7 +1,7 @@
 'use strict';
 // Марми Мафия — фото на карточках победителей (владелец 11.10). Игрок из топ-5 рекордов всех времён
 // после игры может поставить своё фото на карточку в меню. Поставить фото может только тот, кто сам
-// заработал место: сервер выдаёт ему одноразовый пропуск (на 30 минут), без пропуска фото не примется.
+// заработал место: сервер выдаёт ему подписанный пропуск (на 2 часа), без пропуска фото не примется.
 // Хранилище — тот же Upstash Redis, что у рекордов; без него фото живут в памяти до перезапуска сервера.
 // Владелец может убрать неприличное фото: /wp-del?key=STATS_KEY&n=НИК
 const crypto = require('crypto');
@@ -14,7 +14,10 @@ const PREFIX = 'mm:wp:';
 const MAX_BYTES = 120 * 1024;   // браузер сам сжимает фото до 320×320 (~25 КБ), это с запасом
 
 const photos = new Map();  // ник -> { buf, ver }
-const invites = new Map(); // пропуск -> { name, exp }
+// Пропуск подписан (HMAC), а не хранится в памяти: раньше после перезапуска сервера (каждое обновление сайта) все выданные
+// пропуски пропадали и игрок видел «Время вышло» (владелец 11.10). Секрет — из настроек Render, чтобы был одинаковым после перезапуска.
+const SECRET = process.env.WP_SECRET || process.env.LIVEKIT_API_SECRET || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.STATS_KEY || crypto.randomBytes(16).toString('hex');
+const PASS_MS = 2 * 3600e3; // пропуск действует 2 часа
 
 async function redis(cmd) {
   const r = await fetch(URL_, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
@@ -48,12 +51,18 @@ function prune(keep) {
   for (const name of [...photos.keys()]) if (!k.has(name)) remove(name);
 }
 const ver = name => (photos.get(name) || {}).ver || 0;
+const sign = body => crypto.createHmac('sha256', SECRET).update(body).digest('base64url').slice(0, 22);
 function invite(name) {
-  const now = Date.now();
-  for (const [t, v] of invites) if (v.exp < now) invites.delete(t);
-  const t = crypto.randomBytes(12).toString('hex');
-  invites.set(t, { name, exp: now + 30 * 60e3 });
-  return t;
+  const body = Buffer.from(JSON.stringify([name, Date.now() + PASS_MS])).toString('base64url');
+  return body + '.' + sign(body);
+}
+// Пропуск → ник (или null, если подделан или истёк)
+function passName(t) {
+  const [body, sig] = String(t || '').split('.');
+  if (!body || !sig) return null;
+  const good = sign(body);
+  if (sig.length !== good.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(good))) return null;
+  try { const [name, exp] = JSON.parse(Buffer.from(body, 'base64url').toString()); return exp > Date.now() && typeof name === 'string' ? name : null; } catch { return null; }
 }
 
 // Возвращает true, если запрос был к фото победителей. isTop(name) — ник всё ещё в топ-5
@@ -78,8 +87,8 @@ function handle(req, res, url, isTop) {
     return true;
   }
   if (req.method !== 'POST') { send(405, { error: 'method' }); return true; }
-  const inv = invites.get(q.get('t') || '');
-  if (!inv || inv.exp < Date.now()) { req.resume(); send(403, { error: 'expired' }); return true; }
+  const pn = passName(q.get('t')), inv = pn ? { name: pn } : null;
+  if (!inv) { req.resume(); send(403, { error: 'expired' }); return true; }
   if (!isTop(inv.name)) { req.resume(); send(403, { error: 'not-top' }); return true; }
   const chunks = []; let size = 0, tooBig = false;
   req.on('data', d => { size += d.length; if (size > MAX_BYTES) { tooBig = true; req.destroy(); } else chunks.push(d); });

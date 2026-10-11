@@ -379,7 +379,7 @@ function onJSON(m) {
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': myRockets = 0; myBomb = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
-      myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
+      myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
@@ -1992,6 +1992,7 @@ function showMenu(m) {
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
     wpToken = m.photo ? m.photo.t : null;
     const b = $('wpBtn'); b.disabled = false; b.textContent = '📷 Загрузите своё фото'; b.classList.toggle('hide', !m.photo);
+    if (m.photo) setTimeout(() => warmNsfw().catch(() => {}), 1500); // заранее, но не мешая экрану итогов появиться
     r.classList.remove('hide');
     $('play').textContent = 'Играть снова';
   }
@@ -2022,15 +2023,19 @@ function loadNsfw() {
   })), Promise.resolve()).catch(e => { nsfwLoading = null; throw e; });
   return nsfwLoading;
 }
+// Нейросеть готовим заранее — как только появилась кнопка фото (пока человек выбирает снимок, она уже загружена);
+// выгружаем, когда начинается игра, чтобы не занимать память телефона (владелец 11.10: «фото чтобы сразу быстро»)
+let nsfwModelP = null;
+function warmNsfw() { if (!nsfwModelP) nsfwModelP = loadNsfw().then(() => window.nsfwjs.load('MobileNetV2')).catch(e => { nsfwModelP = null; throw e; }); return nsfwModelP; }
+function dropNsfw() { const p = nsfwModelP; nsfwModelP = null; if (p) p.then(m => { try { m.model.dispose(); } catch (e) {} }).catch(() => {}); }
 async function photoIsClean(blob) {
-  await loadNsfw();
-  const model = await window.nsfwjs.load('MobileNetV2');
-  try {
+  const model = await warmNsfw();
+  {
     const img = await createImageBitmap(blob).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(blob); }));
     const c = document.createElement('canvas'); c.width = c.height = 224; c.getContext('2d').drawImage(img, 0, 0, 224, 224);
     const p = {}; for (const { className, probability } of await model.classify(c)) p[className] = probability;
     return !Object.keys(NSFW_REJECT).some(k => (p[k] || 0) >= NSFW_REJECT[k]);
-  } finally { try { model.model.dispose(); } catch (e) {} }
+  }
 }
 $('wpBtn').addEventListener('click', () => { Sound.click(); $('wpFile').click(); });
 $('wpFile').addEventListener('change', async e => {
