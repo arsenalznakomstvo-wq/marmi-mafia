@@ -2236,6 +2236,11 @@ function play() {
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
 
+// Вариант оформления «Чёрное золото» (владелец 11.10): ?look=gold — включить и запомнить, ?look=classic — вернуть обычный.
+// Чтобы включить всем: LOOK_DEFAULT = 'gold'.
+const LOOK_DEFAULT = 'classic';
+{ const q = new URLSearchParams(location.search).get('look'); if (q === 'gold' || q === 'classic') store('mm_look', q);
+  if ((load('mm_look') || LOOK_DEFAULT) === 'gold') document.body.classList.add('look-gold'); }
 // ===== Видео на заднем фоне меню (владелец 11.10). Вернуть фото по бокам: MENU_VIDEO = false =====
 // Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
 const MENU_VIDEO = true;

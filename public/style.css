@@ -658,3 +658,21 @@ body.mvid #menuVid { display: block; position: absolute; top: 0; left: 50%; heig
 #modeBtn, #inviteBtn { background: rgba(12, 15, 24, 0.62) !important; border: 1px solid rgba(255, 213, 46, 0.4) !important; border-radius: 22px !important;
   color: #ffe27a !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
 #modeBtn:hover, #inviteBtn:hover { background: rgba(20, 24, 36, 0.78) !important; border-color: rgba(255, 213, 46, 0.7) !important; }
+
+/* ===== Вариант оформления «Чёрное золото» (владелец 11.10) — пока только по ссылке ?look=gold, обычный вид не меняется =====
+   Название: тёмные полупрозрачные буквы, по которым медленно пробегает золотой перелив. Кнопки и поле имени: тёмное стекло с золотой рамкой. */
+body.look-gold .title i { background-image: linear-gradient(100deg, rgba(40, 32, 18, 0.92) 0%, rgba(40, 32, 18, 0.92) 35%, #f6d77a 47%, #fff4c8 50%, #c99a2e 53%, rgba(40, 32, 18, 0.92) 65%, rgba(40, 32, 18, 0.92) 100%) !important;
+  background-size: 300% 100%; animation: float 3s ease-in-out infinite, goldSweep 5s linear infinite; animation-delay: calc(var(--i) * 0.12s), calc(var(--i) * 0.08s);
+  -webkit-text-stroke: 1.2px rgba(214, 170, 70, 0.75); filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px rgba(214, 170, 70, 0.22)); }
+@keyframes goldSweep { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { body.look-gold .title i { animation: none; background-position: 50% 0; } }
+body.look-gold #nick { background: rgba(12, 14, 20, 0.62); border: 1px solid rgba(214, 170, 70, 0.5); color: #f3e3b5; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+body.look-gold #nick::placeholder { color: rgba(214, 170, 70, 0.6); }
+body.look-gold #nick:focus { background: rgba(20, 22, 30, 0.78); border-color: rgba(246, 215, 122, 0.85); }
+body.look-gold #play { background: linear-gradient(180deg, rgba(40, 32, 18, 0.85), rgba(14, 12, 8, 0.85)) !important; border: 1.5px solid #d6aa46 !important; color: #f6d77a !important;
+  text-shadow: 0 0 10px rgba(246, 215, 122, 0.35); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 240, 200, 0.18); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); position: relative; overflow: hidden; }
+body.look-gold #play::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255, 236, 170, 0.28) 50%, transparent 65%); background-size: 250% 100%; animation: wshine 4s ease-in-out infinite; pointer-events: none; }
+body.look-gold #play:disabled { opacity: 0.6; }
+body.look-gold #modeBtn, body.look-gold #inviteBtn, body.look-gold #installBtn, body.look-gold #wpBtn { background: rgba(12, 14, 20, 0.6) !important; border: 1px solid rgba(214, 170, 70, 0.5) !important; color: #f3d98a !important; }
+body.look-gold #skinBtn span, body.look-gold #buildBtn span { color: #e9c86a; }
+body.look-gold #qualityBox .ql { color: rgba(214, 170, 70, 0.7); } body.look-gold #qualityBtn { color: #f3d98a; }
