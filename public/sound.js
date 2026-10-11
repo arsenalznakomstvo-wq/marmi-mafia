@@ -278,5 +278,8 @@ window.Sound = (() => {
     nz('bandpass', 300, 2600, 2.5, 0.2 * v, 0.12, 0.32, t + 0.22, sfx);
     tone(520, 0.4, 'sine', 0.05 * v, t + 0.2, 1040);
   }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal };
+  // Кинжал: свист броска и сочный «чвак» удара по телу
+  function knifeThrow(v) { if (!ok()) return; v = v == null ? 1 : v; const t = ac.currentTime; nz('bandpass', 3200, 1200, 4, 0.12 * v, 0.02, 0.35, t, sfx); nz('bandpass', 5200, 2600, 6, 0.05 * v, 0.02, 0.25, t + 0.05, sfx); }
+  function knifeHit(v) { if (!ok()) return; v = v == null ? 1 : v; const d = weaponBus(), t = ac.currentTime; nz('highpass', 2600, 1800, 1.5, 0.35 * v, 0.002, 0.07, t, d); nz('lowpass', 900, 200, 1, 0.3 * v, 0.004, 0.22, t, d); thump(140, 70, 0.25 * v, 0.15, t, d); }
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit };
 })();

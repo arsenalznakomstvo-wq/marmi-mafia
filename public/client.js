@@ -327,7 +327,8 @@ const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафи�
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
 const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0;
-let bombIds = new Set(), myBomb = false; const bombsFly = new Map(); // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
+let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id → сколько бомб едет рядом;
+let knifeIds = new Set(), myKnife = false; const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
@@ -379,9 +380,12 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      bombIds = new Set(m.b || []);
-      { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive && bombIds.has(myId); if (n !== myRockets || mb !== myBomb) { myRockets = n; myBomb = mb; renderFireBtn(); } } teamAlarms = m.a || []; break; }
-    case 'bomb': bombsFly.set(m.id, { x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now(), fly: m.fly, fuse: m.fuse }); bombIds.delete(m.o); if (m.o === myId) { myBomb = false; renderFireBtn(); } Sound.click(); break;
+      bombIds = new Map(m.b || []); knifeIds = new Set(m.kn || []);
+      { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive && knifeIds.has(myId); if (n !== myRockets || mb !== myBomb || mk !== myKnife) { myRockets = n; myBomb = mb; myKnife = mk; renderFireBtn(); } } teamAlarms = m.a || []; break; }
+    case 'knife': knivesFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); knifeIds.delete(m.o); if (m.o === myId) { myKnife = false; renderFireBtn(); } Sound.knifeThrow(nearVol(m.x, m.y)); break;
+    case 'knifeHit': { const now = performance.now(); for (let i = 0; i < 18; i++) { const an = Math.random() * TAU, sp = 0.15 + Math.random() * 0.45; knifeSparks.push({ x: m.x, y: m.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, t0: now }); } Sound.knifeHit(nearVol(m.x, m.y)); if (m.o === myId) shakeUntil = now + 250; break; }
+    case 'knifeEnd': knivesFly.delete(m.id); break;
+    case 'bomb': bombsFly.set(m.id, { x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now(), fly: m.fly, fuse: m.fuse }); { const left = (bombIds.get(m.o) || 1) - 1; if (left > 0) bombIds.set(m.o, left); else bombIds.delete(m.o); if (m.o === myId) { myBomb = left; renderFireBtn(); } } Sound.click(); break;
     case 'bombBoom': bombsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: 1, mine: m.o === myId && m.hit > 0, parts: makeDebris() }); Sound.boom(nearVol(m.x, m.y));
       if (lastHeads.has(myId) && Math.hypot(lastHeads.get(myId).x - m.x, lastHeads.get(myId).y - m.y) < 900) shakeUntil = performance.now() + 500; break;
     case 'tmsg': bigToast(m.text); Sound.alert(); break;
@@ -396,7 +400,7 @@ function onJSON(m) {
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; myBomb = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = 0; myKnife = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -584,7 +588,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb || myKnife)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } // первый палец — джойстик под ним
     else if (boostId === null) boostOn(e.pointerId); // второй палец — ускорение
@@ -1246,8 +1250,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
-    if (!fade && bombIds.has(sn.id)) drawCarriedBomb(hx, hy, a, r, time);
-    if (meta && !fade && !TEAM_MODE && meta.role === KILLER) drawKnives(sn.id, hx, hy, a, r, sn.boost, time);
+    if (!fade && bombIds.has(sn.id)) { drawCarriedBomb(hx, hy, a, r, time, 1); if (bombIds.get(sn.id) > 1) drawCarriedBomb(hx, hy, a, r, time + 400, -1); } // вторая бомба — с другого бока
+    if (meta && !fade && !TEAM_MODE && meta.role === KILLER && (meta.bot || knifeIds.has(sn.id))) drawKnives(sn.id, hx, hy, a, r, sn.boost, time);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1409,6 +1413,7 @@ function frame(time) {
   }
   if (BASES) drawFlags(time);
   if (bombsFly.size) drawFlyingBombs(time);
+  if (knivesFly.size || knifeSparks.length) drawFlyingKnives(time);
   if (rocketsFly.size || booms.length || smoke.length) drawRockets(time);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1715,9 +1720,9 @@ function drawKnives(id, hx, hy, a, r, boost, time) {
   let k = knifeSwing.get(id) || 0; k += ((boost ? 1 : 0) - k) * 0.18; knifeSwing.set(id, k);
   if (knifeSwing.size > 300) knifeSwing.clear();
   const px = -Math.sin(a), py = Math.cos(a), sway = Math.sin(time * 0.004 + id) * 0.12;
-  for (const side of [-1, 1]) {
+  for (const side of [1]) { // владелец 11.10: один кинжал — справа (его и метают)
     const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15, by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15;
-    const ang = a + side * (0.75 * (1 - k) + 0.12 + sway * (1 - k)); // по бокам врозь; при ускорении — почти вперёд
+    const ang = a + side * (0.75 * (1 - k) + 0.12 + sway * (1 - k)); // в сторону; при ускорении — почти вперёд
     drawRotated(S.img, bx, by, ang, S.L * sc, S.W * sc, 0, S.W * sc / 2);
   }
   resetWorldT();
@@ -1725,7 +1730,7 @@ function drawKnives(id, hx, hy, a, r, boost, time) {
   const ph = boost ? (time * 0.004) % 1 : (time * 0.0009 + id * 0.13) % 1; // металл переливается: блик бежит от гарды к острию
   if (ph < 0.3) {
     ctx.globalCompositeOperation = 'lighter';
-    for (const side of [-1, 1]) {
+    for (const side of [1]) {
       const ang = a + side * (0.75 * (1 - k) + 0.12), d = r * 1.15 + S.L * sc * (0.32 + ph / 0.3 * 0.66);
       const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15 + Math.cos(ang) * (d - r * 1.15), by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15 + Math.sin(ang) * (d - r * 1.15);
       const hs = r * 1.1; ctx.globalAlpha = 0.85 * Math.sin(ph / 0.3 * Math.PI); ctx.drawImage(haloSprite('#ffffff'), bx - hs / 2, by - hs / 2, hs, hs);
@@ -1756,6 +1761,25 @@ function drawPortals(view, time) {
     const hs = R * (2 + 5 * k); ctx.drawImage(haloSprite('#ffb040'), f.x - hs / 2, f.y - hs / 2, hs, hs);
     ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 4 * (1 - k); ctx.beginPath(); ctx.arc(f.x, f.y, R * (1 + 2.5 * k), 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
   }
+}
+// Летящий кинжал: вращается, за ним лёгкий след; при ударе — сноп искр
+function drawFlyingKnives(time) {
+  const now = performance.now(), S = knifeSprite(24), L = S.L * 1.2, W = S.W * 1.2; // крупнее, чтобы бросок было видно
+  for (const [id, k] of knivesFly) {
+    const dt = now - k.t0; if (dt > k.life + 300) { knivesFly.delete(id); continue; }
+    const x = k.x + k.vx * dt, y = k.y + k.vy * dt, spin = dt * 0.03;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let j = 1; j <= 3; j++) { ctx.globalAlpha = 0.18 / j; const hs = 34; ctx.drawImage(haloSprite('#dfe6ee'), x - k.vx * j * 22 - hs / 2, y - k.vy * j * 22 - hs / 2, hs, hs); }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    drawRotated(S.img, x, y, spin, L, W, L * 0.5, W / 2); resetWorldT();
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = knifeSparks.length - 1; i >= 0; i--) {
+    const p = knifeSparks[i], t = now - p.t0; if (t > 450) { knifeSparks.splice(i, 1); continue; }
+    ctx.globalAlpha = 1 - t / 450; ctx.fillStyle = i % 3 ? '#fff4c2' : '#ffb347';
+    ctx.beginPath(); ctx.arc(p.x + p.vx * t, p.y + p.vy * t, 3.2 * (1 - t / 450) + 0.8, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
 // Граната в полёте: головная часть с хвостовыми перьями
 function grenadeSprite() {
@@ -1801,8 +1825,8 @@ function fuseSparks(x, y, sz, time, hot) {
   }
   ctx.globalCompositeOperation = 'source-over';
 }
-function drawCarriedBomb(hx, hy, a, r, time) {
-  const px = -Math.sin(a), py = Math.cos(a), side = r * 1.9, sz = Math.max(26, r * 2.4);
+function drawCarriedBomb(hx, hy, a, r, time, sideSgn) {
+  const px = -Math.sin(a) * (sideSgn || 1), py = Math.cos(a) * (sideSgn || 1), side = r * 1.9, sz = Math.max(26, r * 2.4);
   const bx = hx + px * side - Math.cos(a) * r * 0.4, by = hy + py * side - Math.sin(a) * r * 0.4 + Math.sin(time * 0.006) * r * 0.08; // слегка подпрыгивает
   ctx.strokeStyle = 'rgba(60, 45, 25, 0.8)'; ctx.lineWidth = Math.max(1, r * 0.08); // верёвочка к шее
   ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * r * 0.9 + px * r * 0.6, hy - Math.sin(a) * r * 0.9 + py * r * 0.6); ctx.quadraticCurveTo(bx - Math.cos(a) * r, by - Math.sin(a) * r + r * 0.3, bx, by - sz * 0.2); ctx.stroke();
@@ -1866,8 +1890,8 @@ function drawRockets(time) {
 let shakeUntil = 0;
 const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
-function fire() { if ((myRockets > 0 || myBomb) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb) && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : '💣'; }
+function fire() { if ((myRockets > 0 || myBomb || myKnife) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb || myKnife) && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡'; }
 {
   const b = $('fireBtn');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
