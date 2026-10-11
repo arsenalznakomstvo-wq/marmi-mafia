@@ -1197,8 +1197,14 @@ function step() {
 }
 
 let lastT = performance.now(), acc = 0, slowTicks = 0, worstMs = 0, sumMs = 0, nSteps = 0, paused = false;
+// Замер «замираний» сервера (владелец 11.10: «немножко виснет»): самая долгая пауза между запусками цикла и сколько
+// было пауз дольше 100 мс — за текущую и прошлую минуту; смотреть на /perf. Отличает зависание сервера от задержек интернета.
+const perf = { gapMax: 0, gaps100: 0, stepMax: 0, prev: null, lastLoop: 0 };
+setInterval(() => { perf.prev = { gapMax: Math.round(perf.gapMax), gaps100: perf.gaps100, stepMax: +perf.stepMax.toFixed(1), at: new Date().toISOString().slice(11, 19) }; perf.gapMax = 0; perf.gaps100 = 0; perf.stepMax = 0; }, 60000);
 function loop() {
   const now = performance.now();
+  if (perf.lastLoop && clients.size) { const g = now - perf.lastLoop; if (g > perf.gapMax) perf.gapMax = g; if (g > 100) perf.gaps100++; }
+  perf.lastLoop = now;
   acc += now - lastT; lastT = now;
   // Владелец 07.10: к арене никто не подключён (ни в игре, ни в меню) — она стоит на паузе и не тратит процессор
   if (!clients.size && !process.env.TEST_NO_PAUSE) { acc = 0; paused = true; setTimeout(loop, 100); return; }
@@ -1209,6 +1215,7 @@ function loop() {
     try { step(); } catch (e) { console.error('ошибка в шаге мира (игра продолжается):', e); cellEv.clear(); diedThisTick.length = 0; }
     const dt = performance.now() - t0;
     if (dt > worstMs) worstMs = dt;
+    if (dt > perf.stepMax) perf.stepMax = dt;
     sumMs += dt; nSteps++;
     if (dt > TICK_MS) slowTicks++;
     acc -= TICK_MS; n++;
@@ -1242,6 +1249,8 @@ const server = http.createServer((req, res) => {
     req.on('end', () => { try { const m = JSON.parse(body); clientErrs.unshift({ t: new Date().toISOString().slice(0, 19).replace('T', ' '), ...m, ua: String(req.headers['user-agent'] || '').slice(0, 160) }); clientErrs.length = Math.min(clientErrs.length, 50); } catch {} res.writeHead(204); res.end(); });
     return;
   }
+  if (url === '/perf') { const m = process.memoryUsage(); res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ now: { gapMax: Math.round(perf.gapMax), gaps100: perf.gaps100, stepMax: +perf.stepMax.toFixed(1) }, prevMinute: perf.prev, clients: clients.size, snakes: snakes.size, foods: foods.size, memMB: Math.round(m.rss / 1e6), heapMB: Math.round(m.heapUsed / 1e6), uptimeMin: Math.round(process.uptime() / 60) })); return; }
   if (url === '/errs') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientErrs, null, 1)); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;

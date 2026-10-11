@@ -480,7 +480,7 @@ body:not(.in-menu) #winCards { display: none; }
   background: linear-gradient(180deg, rgba(10, 12, 20, 0.2), rgba(10, 12, 20, 0.95) 30%); padding: 0 10px; }
 #winCards .wcap b { max-width: 100%; color: #fff; font: 700 17px Arial, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #winCards .wcap span { color: #ffd52e; font: 700 15px Arial, sans-serif; }
-#winCards .wcap span::before { content: '🐍 '; }
+#winCards .wcap span::before { content: 'длина '; font-weight: 400; font-size: 0.8em; color: #c9cfd8; } /* 🐍 на Android выглядел как зелёный завиток (владелец 11.10) */
 #winCards .wdots { display: flex; justify-content: center; gap: 7px; margin-top: 14px; }
 #winCards .wdots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 5px; background: rgba(255, 255, 255, 0.3); cursor: pointer; transition: width 0.3s, background 0.3s; }
 #winCards .wdots button.on { width: 22px; background: #ffd52e; }
