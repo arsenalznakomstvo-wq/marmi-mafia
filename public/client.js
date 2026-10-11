@@ -358,6 +358,7 @@ const POSTERS = (() => {
   const rings = [1900, 2900, 4000], offs = [0.3, 0.6, 0.5]; // подобрано так, чтобы постеры не налезали друг на друга (с зазором)
   others.forEach((pi, k) => { const ring = k % 3, inRing = others.filter((_, j) => j % 3 === ring).length, a = Math.floor(k / 3) / inRing * TAU + offs[ring], d = rings[ring];
     list.push({ i: pi, x: Math.cos(a) * d, y: Math.sin(a) * d, h: 900 }); });
+  list.push({ i: 29, x: -2682, y: 805, h: 900 }); // владелец 12.10: новое фото — на свободном месте (кольца не сдвигаем: на постере p27 потайные ходы)
   return list;
 })();
 function drawPosters(view) {
