@@ -45,7 +45,7 @@
     { name: 'Германия', cols: ['#1a1a1a', '#1a1a1a', '#dd0000', '#dd0000', '#ffce00', '#ffce00'], badge: true },
     { name: 'США', cols: ['#b22234', '#ffffff', '#b22234', '#ffffff', '#3c3b6e', '#3c3b6e'], badge: true },
     { name: 'Бразилия', cols: ['#009c3b', '#009c3b', '#ffdf00', '#ffdf00', '#002776'], badge: true },
-    { name: 'Циклоп', cols: ['#2fb34a', '#2fb34a', '#1f8f3a', '#1f8f3a'], eyes: 'cyclops', text: 'ВИЖУ ВЫШЕ', textColor: '#ffd52e' }, // владелец 11.10: видит на 30% больше — для всех, кто выберет
+    { name: 'Циклоп', cols: ['#2fb34a', '#2fb34a', '#1f8f3a', '#1f8f3a'], eyes: 'cyclops' }, // владелец 11.10: видит на 30% больше — для всех, кто выберет (надпись на теле убрана)
     { name: 'Улитка', cols: ['#d0393f', '#d0393f', '#d0393f', '#a92c33'], eyes: 'antenna' },
     { name: 'Пришелец', cols: ['#6ef05a', '#6ef05a', '#6ef05a', '#3fc248'], eyes: 'antenna' },
     { name: 'Глазастик', cols: ['#ff5fc8', '#ff5fc8', '#c23fa0', '#c23fa0'], eyes: 'cyclops' },
