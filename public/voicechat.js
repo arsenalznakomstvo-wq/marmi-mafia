@@ -8,7 +8,9 @@ window.VoiceChat = (() => {
   const $ = id => document.getElementById(id);
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const speaking = new Set();
-  let room = null, connecting = false, micOn = false, mutedAll = false, offline = false, lowSince = 0;
+  let room = null, connecting = false, micOn = false, offline = false, lowSince = 0;
+  // «Не слышать других» (кнопка 🔊) — запоминается на телефоне (владелец 11.10)
+  let mutedAll = (() => { try { return localStorage.getItem('mm_vc_mute') === '1'; } catch (e) { return false; } })();
   // Открытый микрофон (владелец 06.10): разрешение спрашиваем при «Играть», дальше микрофон включён сам; 🎤 / V — выключить себя
   let micAllowed = false, wantMic = true;
   // Владелец 11.10 («микрофон на телефоне не включается»): запоминаем, почему не включился, и по нажатию 🎤 объясняем одной строкой
@@ -39,8 +41,9 @@ window.VoiceChat = (() => {
       const rm = new L.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       rm.on(L.RoomEvent.TrackSubscribed, track => {
         if (track.kind !== 'audio') return;
-        const el = track.attach(); el.style.display = 'none'; el.muted = mutedAll; document.body.appendChild(el); render();
+        const el = track.attach(); el.style.display = 'none'; el.muted = mutedAll; document.body.appendChild(el); applyMute(); render();
       });
+      rm.on(L.RoomEvent.TrackPublished, applyMute);
       rm.on(L.RoomEvent.TrackUnsubscribed, track => { track.detach().forEach(e => e.remove()); render(); });
       rm.on(L.RoomEvent.ActiveSpeakersChanged, sp => { speaking.clear(); for (const p of sp) speaking.add(p.name || ''); });
       rm.on(L.RoomEvent.ParticipantConnected, render);
@@ -48,7 +51,8 @@ window.VoiceChat = (() => {
       rm.on(L.RoomEvent.Disconnected, () => { room = null; micOn = false; speaking.clear(); render(); });
       await rm.connect(url, token);
       room = rm; micOn = false;
-      try { await rm.startAudio(); } catch (e) {}
+      if (!mutedAll) try { await rm.startAudio(); } catch (e) {}
+      applyMute();
       if (micAllowed && wantMic) setMic(true);
     } catch (e) { room = null; }
     connecting = false; render();
@@ -59,7 +63,8 @@ window.VoiceChat = (() => {
     if (!room) return;
     try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) { micAllowed = true; micErr = null; } }
     catch (e) { micOn = false; micErr = (e && e.name) || 'err'; }
-    try { await room.startAudio(); } catch (e) {}
+    if (!mutedAll) try { await room.startAudio(); } catch (e) {}
+    applyMute();
     render();
   }
   // Владелец 06.10: сами по себе предупреждения не всплывают — подсказка появляется, только когда человек нажал 🎤, а микрофон не включился
@@ -86,7 +91,21 @@ window.VoiceChat = (() => {
       if (room && wantMic) setMic(true);
     } catch (e) { toastMic(e); }
   }
-  function setMutedAll(m) { mutedAll = m; document.querySelectorAll('audio').forEach(a => { a.muted = m; }); render(); }
+  // Владелец 11.10: «отключаю — всё равно слышу». LiveKit при каждом startAudio() (а мы зовём его на каждое касание экрана,
+  // чтобы звук заработал на телефоне) сам снимает muted со всех голосов. Теперь «не слышать» — по-настоящему:
+  // сервер голоса перестаёт присылать нам чужие голоса (setEnabled(false)), плюс громкость 0 и muted как запас.
+  function applyMute() {
+    if (room) for (const p of room.remoteParticipants.values()) {
+      try { p.setVolume(mutedAll ? 0 : 1); } catch (e) {}
+      for (const pub of p.audioTrackPublications.values()) { try { pub.setEnabled(!mutedAll); } catch (e) {} }
+    }
+    document.querySelectorAll('audio').forEach(a => { a.muted = mutedAll; });
+  }
+  function setMutedAll(m) {
+    mutedAll = m; try { localStorage.setItem('mm_vc_mute', m ? '1' : '0'); } catch (e) {}
+    applyMute(); if (!m && room) room.startAudio().catch(() => {});
+    render();
+  }
 
   // Вызывается из игры раз в секунду. Голос держим, пока человек на странице и уже играл (в меню после смерти — тоже,
   // чтобы можно было сказать «кто меня съел?!»). Отключаемся, если на сайте больше никого нет или вкладка скрыта дольше минуты.
@@ -157,7 +176,7 @@ window.VoiceChat = (() => {
     $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
-    const unlock = () => { if (room) room.startAudio().catch(() => {}); };
+    const unlock = () => { if (room && !mutedAll) room.startAudio().catch(() => {}); }; // выключил всех — касание не включает обратно
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
     render();
@@ -169,5 +188,7 @@ window.VoiceChat = (() => {
 
   // Командный режим: голос только внутри своей команды; сменилась команда — переподключимся в новую комнату
   function setRoom(r) { if (r === ROOM) return; ROOM = r; if (room) disconnect(); }
+  window.__vc = () => ({ mutedAll, room: !!room, audios: [...document.querySelectorAll('audio')].map(a => a.muted), // для проверки
+    pubs: room ? [...room.remoteParticipants.values()].flatMap(p => [...p.audioTrackPublications.values()].map(x => x.isEnabled)) : [] });
   return { init, tick, askMic, setRoom, speaking, isSpeaking: name => speaking.has(name) };
 })();
