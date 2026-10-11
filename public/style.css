@@ -690,25 +690,16 @@ body.intro #wpBtn, body.intro #vcBar, body.intro #ping, body.intro #visBtn { opa
 body.intro.mvid #mvCanvas, body.intro.mvid #menuVid:not([style*="1px"]) { opacity: 1 !important; transition: opacity 0.9s ease; }
 body.mvid #mvCanvas { transition: opacity 0.9s ease; }
 
-/* ===== Телефон лёжа (владелец 12.10): девушки посередине, всё меню — по бокам. Компьютер не меняется. =====
-   Слева: название, имя, «Играть», «Команда», «Установить», внизу «Сменить скин». Справа: карточки топ-5, внизу «Собрать змейку» и фото. */
+/* ===== Телефон лёжа (владелец 12.10, v3): девушки слева сбоку, меню посередине как было, карточка справа крупнее. Компьютер не меняется. ===== */
 @media (pointer: coarse) and (orientation: landscape) {
-  body.mvid #menu { right: auto !important; width: 31vw; padding: max(8px, env(safe-area-inset-top)) 8px 96px max(10px, env(safe-area-inset-left)) !important;
-    justify-content: flex-start !important; background: linear-gradient(90deg, rgba(8, 10, 16, 0.78), rgba(8, 10, 16, 0.45) 75%, transparent) !important; overflow: hidden; }
-  body.mvid #menu .title { font-size: min(7.2vh, 4.4vw) !important; margin: 4px 0 8px !important; flex-wrap: nowrap; gap: 0 0.22em; }
-  body.mvid #nick { width: 100%; height: 38px; font-size: 15px; margin-bottom: 8px; padding: 0 14px; }
-  body.mvid #play { width: 100%; min-width: 0; height: 42px; font-size: 19px; }
-  body.mvid #modeRow { margin-top: 8px; width: 100%; } body.mvid #modeBtn { width: 100%; font-size: 13px; padding: 7px 10px; }
-  body.mvid #installBtn { margin-top: 6px !important; }
-  body.mvid #result { font-size: 12px; margin: 0 0 6px; } body.mvid #micHelp { font-size: 10px; margin-top: 6px; }
-  body.mvid #skinBtn { left: max(4px, env(safe-area-inset-left)) !important; bottom: 2px !important; width: 96px !important; height: 92px !important; }
-  body.mvid #skinBtn canvas { width: 60px !important; height: 60px !important; } body.mvid #skinBtn span { font-size: 11px !important; }
-  body.mvid #buildBtn { right: max(4px, env(safe-area-inset-right)) !important; left: auto !important; bottom: 2px !important; width: 96px !important; height: 92px !important; }
-  body.mvid #buildBtn canvas { width: 60px !important; height: 60px !important; } body.mvid #buildBtn span { font-size: 11px !important; }
-  body.mvid #winCards { --cw: 150px !important; --ih: 88px !important; right: max(10px, env(safe-area-inset-right)) !important; top: 8px !important; transform: none !important; }
-  body.mvid #winCards .wtitle { font-size: 10px; margin-bottom: 14px !important; }
-  body.mvid #wpBtn { right: 108px !important; bottom: 8px !important; font-size: 11px; padding: 6px 10px; }
-  body.mvid #qualityBox { display: none; } /* «Графика» на телефоне лёжа — убрана с края, чтобы не закрывать карточки */
-  body.mvid #mvCanvas { opacity: 0.95 !important; } /* девушки в центре — ярко, ничем не закрыты */
+  body.mvid #mvCanvas { opacity: 0.95 !important; }
+  body.mvid #nick { background: rgba(12, 14, 20, 0.62); border: 1px solid rgba(214, 170, 70, 0.45); color: #f3e3b5; }
+  body.mvid #nick::placeholder { color: rgba(214, 170, 70, 0.6); }
+  /* «Играть» — тёмная полупрозрачная, золотая рамка и буквы, пробегает блик */
+  body.mvid #play { background: linear-gradient(180deg, rgba(40, 32, 18, 0.85), rgba(14, 12, 8, 0.85)) !important; border: 1.5px solid #d6aa46 !important;
+    color: #f6d77a !important; text-shadow: 0 0 10px rgba(246, 215, 122, 0.35); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden; }
+  body.mvid #play::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255, 236, 170, 0.28) 50%, transparent 65%); background-size: 250% 100%; animation: wshine 4s ease-in-out infinite; pointer-events: none; }
+  body.mvid #winCards { --cw: 200px !important; --ih: 128px !important; top: 50% !important; transform: translateY(-58%) !important; right: max(14px, env(safe-area-inset-right)) !important; }
+  body.mvid #winCards .wtitle { font-size: 12px; margin-bottom: 18px !important; }
+  body.mvid #winCards .wcap b { font-size: 14px; } body.mvid #winCards .wcap span { font-size: 12px; }
 }
-@media (pointer: coarse) and (orientation: landscape) { body.mvid #menu .title { margin-left: 40px !important; font-size: min(6.6vh, 3.9vw) !important; } }
