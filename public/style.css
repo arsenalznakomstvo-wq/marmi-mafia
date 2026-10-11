@@ -654,3 +654,7 @@ body.mvid #menuVid { display: block; position: absolute; top: 0; left: 50%; heig
 /* телефон стоя: видео на весь экран, приглушено, чтобы кнопки читались */
 @media (max-aspect-ratio: 3/4) { body.mvid #menuVid { left: 0; width: 100%; transform: none; object-fit: cover; opacity: 0.55; -webkit-mask-image: none; mask-image: none; } }
 #wpPanel .wpp-n { color: #9aa3b2; font-size: 12px; margin: 2px 0 8px; }
+/* Владелец 11.10: «Команда на команду» — тёмная полупрозрачная, в стиле остальных кнопок (тонкая золотистая рамка, размытие) */
+#modeBtn, #inviteBtn { background: rgba(12, 15, 24, 0.62) !important; border: 1px solid rgba(255, 213, 46, 0.4) !important; border-radius: 22px !important;
+  color: #ffe27a !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+#modeBtn:hover, #inviteBtn:hover { background: rgba(20, 24, 36, 0.78) !important; border-color: rgba(255, 213, 46, 0.7) !important; }

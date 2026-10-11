@@ -1058,7 +1058,7 @@ const PLATE_STYLE = {
 };
 const ROLE_SKIN = {
   'Доктор': ['#f4f6f8'],
-  'Проститутка': ['#ff5fc8'],
+  // Проститутка: розовое тело у ботов убрано (владелец 11.10: «убери розовых ботов») — узнаётся по губам и табличке
   'Мафия': ['#1e1e22'],
   'Киллер': ['#b4bcc6', '#b4bcc6', '#b4bcc6', '#141414'],
   'Шериф': ['#f2f2f2'], // белый (владелец 11.10: шахматную клетку убрали)
@@ -2263,7 +2263,7 @@ function showMenu(m) {
       + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!</div>` : '');
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
     wpToken = m.photo ? m.photo.t : null;
-    const b = $('wpBtn'); b.disabled = false; b.textContent = '🤳 Сделайте селфи на карточку'; b.classList.toggle('hide', !m.photo);
+    const b = $('wpBtn'); b.disabled = false; b.textContent = '📷 Загрузите своё фото'; b.classList.toggle('hide', !m.photo);
     // нейросеть больше НЕ грузим сама после смерти: игрок быстро жал «Играть снова», и она догружалась и прогревала
     // видеочип прямо в игре — сильные подвисания (владелец 11.10: «виснет сильно»). Теперь — только при открытии окошка фото.
     r.classList.remove('hide');
@@ -2302,6 +2302,22 @@ function loadNsfw() {
 let nsfwModelP = null;
 function warmNsfw() { if (!nsfwModelP) nsfwModelP = loadNsfw().then(() => window.nsfwjs.load('MobileNetV2')).catch(e => { nsfwModelP = null; throw e; }); return nsfwModelP; }
 function dropNsfw() { const p = nsfwModelP; nsfwModelP = null; if (p) p.then(m => { try { m.model.dispose(); } catch (e) {} }).catch(() => {}); }
+// «На фото есть лицо» (владелец 11.10: «всякий мусор не пропускай» — значки, машины, картинки). Лёгкая нейросеть (1,5 МБ),
+// грузится только при открытии окошка фото. Смотрит исходное фото целиком, до обрезки.
+let faceP = null;
+function loadFace() {
+  if (!faceP) faceP = new Promise((ok, no) => { if (window.faceapi) return ok(); const s = document.createElement('script'); s.src = 'vendor/face/face-api.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); })
+    .then(() => faceapi.nets.tinyFaceDetector.loadFromUri('vendor/face')).catch(e => { faceP = null; throw e; });
+  return faceP;
+}
+async function photoHasFace(file) {
+  await loadFace();
+  const img = await createImageBitmap(file).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(file); }));
+  const c = document.createElement('canvas'), k = Math.min(1, 640 / Math.max(img.width, img.height)); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const r = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 }));
+  return r.length > 0;
+}
 async function photoIsClean(blob) {
   const model = await warmNsfw();
   {
@@ -2319,20 +2335,21 @@ function wpPanelClose() { camStop(); $('wpPanel').classList.add('hide'); }
 function wpPanelOpen() {
   warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку, пока он выбирает снимок
   $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
-  // владелец 11.10: только живое селфи с камеры — галерею убрали (ставили «непонятно что»)
+  // владелец 11.10: снова фото из галереи (главное) или селфи; мусор отсекает проверка «на фото есть лицо» (photoHasFace)
+  $('wppSelfie').classList.toggle('hide', !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
   $('wpPanel').classList.remove('hide');
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) camStart(); // сразу камера, без лишнего нажатия
-  else { $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide'); $('wppSnap').classList.add('hide'); $('wppErr').textContent = 'Нужна камера: откройте игру в Chrome или Safari'; }
+  loadFace().catch(() => {});
 }
 async function camStart() {
   $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide');
   $('wppShot').classList.add('hide'); $('wppVideo').classList.remove('hide');
   $('wppSnap').classList.remove('hide'); $('wppAgain').classList.add('hide'); $('wppOk').classList.add('hide'); $('wppErr').textContent = '';
   try {
+    loadFace().catch(() => {});
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false });
     $('wppVideo').srcObject = camStream; await $('wppVideo').play().catch(() => {});
   } catch (e) {
-    $('wppErr').textContent = e && e.name === 'NotAllowedError' ? 'Камера запрещена — разрешите её в настройках сайта (🔒 у адреса) и попробуйте снова' : 'Камера не включилась — попробуйте ещё раз (в Telegram камера не работает — откройте игру в браузере)';
+    $('wppErr').textContent = e && e.name === 'NotAllowedError' ? 'Камера запрещена — разрешите её в настройках сайта или выберите фото' : 'Камера не включилась — выберите фото из галереи';
     $('wppSnap').classList.add('hide');
   }
 }
@@ -2346,6 +2363,8 @@ function camSnap() {
 }
 $('wpBtn').addEventListener('click', () => { Sound.click(); wpPanelOpen(); });
 $('wppSelfie').addEventListener('click', () => { Sound.click(); camStart(); });
+$('wppGallery').addEventListener('click', () => { Sound.click(); wpPanelClose(); $('wpFile').click(); });
+$('wpFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) uploadPhoto(f); });
 $('wppSnap').addEventListener('click', () => { Sound.click(); camSnap(); });
 $('wppAgain').addEventListener('click', () => { Sound.click(); $('wppShot').classList.add('hide'); $('wppVideo').classList.remove('hide'); $('wppSnap').classList.remove('hide'); $('wppAgain').classList.add('hide'); $('wppOk').classList.add('hide'); });
 $('wppOk').addEventListener('click', () => { Sound.click(); $('wppShot').toBlob(b => { wpPanelClose(); if (b) uploadPhoto(b); }, 'image/jpeg', 0.88); });
@@ -2354,6 +2373,8 @@ async function uploadPhoto(file) {
   const btn = $('wpBtn'); if (!file || !wpToken) return;
   btn.disabled = true; btn.textContent = '🔍 Проверяю фото…';
   try {
+    let face; try { face = await photoHasFace(file); } catch (err) { throw new Error('check'); }
+    if (!face) throw new Error('noface');
     const jpg = await squareJpeg(file, 320);
     let clean; try { clean = await photoIsClean(jpg); } catch (err) { throw new Error('check'); }
     if (!clean) throw new Error('nsfw');
@@ -2367,7 +2388,7 @@ async function uploadPhoto(file) {
   } catch (err) {
     const m = err.message;
     btn.disabled = m === 'expired' || m === 'not-top';
-    btn.textContent = m === 'nsfw' ? '🚫 Это фото нельзя — загрузите обычное фото' : m === 'check' ? '⚠ Не удалось проверить фото — попробуйте ещё раз'
+    btn.textContent = m === 'noface' ? '🙂 На фото не видно лица — загрузите своё фото' : m === 'nsfw' ? '🚫 Это фото нельзя — загрузите обычное фото' : m === 'check' ? '⚠ Не удалось проверить фото — попробуйте ещё раз'
       : m === 'expired' ? 'Время вышло — сыграйте ещё раз' : m === 'not-top' ? 'Вас уже обогнали в рекордах' : '⚠ Не получилось — выберите другое фото';
   }
 }
