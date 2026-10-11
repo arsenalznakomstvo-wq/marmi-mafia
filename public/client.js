@@ -38,7 +38,7 @@ const teamZoom = mass => mass > 300 ? 1 - 0.5 * Math.min(1, Math.log(mass / 300)
 function viewScale(w, h, r, role, mass, eye) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
   const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
-  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1) * (eye ? window.Skins.EYE_ZOOM : 1); // eye — «Всевидящее око»
+  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1) * (eye ? window.Skins.EYE_ZOOM : 1); // eye — скин «Циклоп»: обзор на 30% больше
 }
 
 // ===== Цвета =====
@@ -991,7 +991,7 @@ const ROLE_SKIN = {
   'Проститутка': ['#ff5fc8'],
   'Мафия': ['#1e1e22'],
   'Киллер': ['#b4bcc6', '#b4bcc6', '#b4bcc6', '#141414'],
-  'Шериф': ['#f2f2f2'], // белый + шахматная клетка поверх (владелец 07.10: вместо звёздочек)
+  'Шериф': ['#f2f2f2'], // белый (владелец 11.10: шахматную клетку убрали)
 };
 const roleFlash = new Map(); // id → { role, until } — вспышка при смене роли
 
@@ -1097,7 +1097,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
       ctx.restore();
     }
   } else if (name === 'Шериф') {
-    drawChecker(cnt, r, view);
+    /* владелец 11.10: шахматная клетка у Шерифа убрана */
   } else if (name === 'Комиссар' || name === 'Киллер') {
     const col = name === 'Комиссар' ? 'rgba(15, 25, 45, 0.55)' : 'rgba(200, 20, 30, 0.75)';
     for (const [x, y, a] of bodyMarks(cnt, r * (name === 'Киллер' ? 2.2 : 2.8), start)) {
@@ -1907,12 +1907,9 @@ function toast(text, cls) { const t = $('toast'); t.textContent = text; t.classL
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 let skin = { id: 7, c1: '#ff3355', c2: '#33dd66', c3: '#3388ff' };
-try { const s = JSON.parse(load('mm_skin2')); if (s && s.id >= 0 && s.id < SKINS.length) skin = s; } catch (e) {}
+try { const s = JSON.parse(load('mm_skin2')); if (s && s.id >= 0 && s.id < SKINS.length && SKINS[s.id].style !== 'checker') skin = s; } catch (e) {} // шахматный убран — у кого был, станет обычный
 const myName = () => ($('nick').value.trim() || 'Игрок').slice(0, 16);
-// Тайная ссылка владельца ?eye=КОД (11.10): код запоминается в этом браузере, сразу выбирается «Всевидящее око», код убирается из адреса
-{ const q = new URLSearchParams(location.search).get('eye');
-  if (q) { store('mm_eye', q.slice(0, 40)); skin.id = window.Skins.EYE_ID; store('mm_skin2', JSON.stringify(skin)); try { history.replaceState(null, '', location.pathname); } catch (e) {} } }
-const pickable = () => { const P = window.Skins.PICKABLE.slice(); if (load('mm_eye')) P.push(window.Skins.EYE_ID); return P; }; // секретный — только у кого есть код
+const pickable = () => window.Skins.PICKABLE; // владелец 11.10: секретных скинов больше нет
 $('nick').value = load('mm_nick') || '';
 
 // Змейка для витрины: pts — опорные точки пути от головы к хвосту
@@ -2121,7 +2118,7 @@ function play() {
   goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
-  sendJSON({ t: 'join', name, skin: skin.id === window.Skins.EYE_ID ? { ...skin, code: load('mm_eye') || '' } : skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
+  sendJSON({ t: 'join', name, skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
 }
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });

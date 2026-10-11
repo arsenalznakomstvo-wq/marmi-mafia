@@ -9,9 +9,6 @@ const os = require('os');
 const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
 const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM } = require('./public/skins.js');
-// Секретный скин «Всевидящее око»: в коде только отпечаток (SHA-256) кода — сам код знает владелец
-const EYE_HASH = 'cb232361e0d3125551401a4e846578ab2066aab07027a20ec12c0498a5b9b1f6';
-const eyeCodeOk = code => typeof code === 'string' && code.length < 64 && require('crypto').createHash('sha256').update(code).digest('hex') === EYE_HASH;
 const stats = require('./stats.js');
 const voice = require('./voice.js');
 const records = require('./records.js');
@@ -498,7 +495,7 @@ function randomSkin() {
   // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
   let id;
   if (Math.random() < 0.9) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0];
-  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text);
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker'); // шахматный убран (владелец 11.10)
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
@@ -773,7 +770,6 @@ function cleanName(n) {
 function cleanSkin(sk) {
   sk = sk || {};
   let id = clamp(Math.floor(Number(sk.id)), 0, SKINS.length - 1) || 0;
-  if (SKINS[id].secret && !eyeCodeOk(sk.code)) id = 1; // без кода секретный скин не дать
   const col = (v, d) => (HEX_RE.test(v) ? v.toLowerCase() : d);
   const pat = Array.isArray(sk.pat) ? sk.pat.filter(v => typeof v === 'string' && HEX_RE.test(v)).slice(0, MAX_PATTERN).map(v => v.toLowerCase()) : [];
   const out = { id, c1: col(sk.c1, '#ff3355'), c2: col(sk.c2, '#33dd66'), c3: col(sk.c3, '#3388ff') };

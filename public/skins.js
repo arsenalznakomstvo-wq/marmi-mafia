@@ -45,7 +45,7 @@
     { name: 'Германия', cols: ['#1a1a1a', '#1a1a1a', '#dd0000', '#dd0000', '#ffce00', '#ffce00'], badge: true },
     { name: 'США', cols: ['#b22234', '#ffffff', '#b22234', '#ffffff', '#3c3b6e', '#3c3b6e'], badge: true },
     { name: 'Бразилия', cols: ['#009c3b', '#009c3b', '#ffdf00', '#ffdf00', '#002776'], badge: true },
-    { name: 'Циклоп', cols: ['#2fb34a', '#2fb34a', '#1f8f3a', '#1f8f3a'], eyes: 'cyclops' },
+    { name: 'Циклоп', cols: ['#2fb34a', '#2fb34a', '#1f8f3a', '#1f8f3a'], eyes: 'cyclops', text: 'ВИЖУ ВЫШЕ', textColor: '#ffd52e' }, // владелец 11.10: видит на 30% больше — для всех, кто выберет
     { name: 'Улитка', cols: ['#d0393f', '#d0393f', '#d0393f', '#a92c33'], eyes: 'antenna' },
     { name: 'Пришелец', cols: ['#6ef05a', '#6ef05a', '#6ef05a', '#3fc248'], eyes: 'antenna' },
     { name: 'Глазастик', cols: ['#ff5fc8', '#ff5fc8', '#c23fa0', '#c23fa0'], eyes: 'cyclops' },
@@ -75,11 +75,11 @@
     { name: 'Глубина', cols: ['#0b3d7a'], style: 'water', water: { core: '#062a5c', rim: '#2fd3f5', kind: 'ocean' } },
     { name: 'Лёд', cols: ['#dff6ff'], style: 'water', water: { core: '#bfe9ff', rim: '#ffffff', kind: 'ice' } },
     { name: 'Мыльный пузырь', cols: ['#ffffff'], style: 'water', water: { core: '#e8f4ff', rim: '#ffffff', kind: 'soap' } },
+    // Владелец 11.10: прозрачное сиреневое «стекло» с золотистой кромкой — без надписей и без глаза-треугольника (бывшее «Всевидящее око», на том же месте списка)
+    { name: 'Аметист', cols: ['#8a5cff'], style: 'water', water: { core: '#8a5cff', rim: '#ffd27a', kind: 'eye' } },
     // Владелец 11.10: секретный скин владельца — видит на 30% больше всех; включается только тайной ссылкой с кодом (?eye=…)
-    // владелец 11.10: прозрачное «фиолетовое стекло» с золотистой кромкой, пузырьки и блики внутри
-    { name: 'Всевидящее око', cols: ['#8a5cff'], style: 'water', water: { core: '#8a5cff', rim: '#ffd27a', kind: 'eye' }, text: 'ВИЖУ ВСЁ', textColor: '#ffd52e', eyes: 'eye', secret: true },
   ];
-  const EYE_ID = SKINS.findIndex(d => d.name === 'Всевидящее око');
+  const EYE_ID = SKINS.findIndex(d => d.name === 'Циклоп'); // скин с обзором на 30% больше (владелец 11.10: «Всевидящее око» убрано, возможность — Циклопу)
   const EYE_ZOOM = 1 / 1.3; // обзор на 30% больше
   // Палитра конструктора «Собрать змейку» — 40 шариков, как в оригинале
   const PALETTE = [
@@ -98,7 +98,7 @@
   }
   // Владелец 06.10: в выборе скинов игрокам — только эти (остальные скрыты, но не удалены: их номера хранятся у игроков и нужны ботам)
   const SHOWN = ['Своя змейка', 'Космос', 'Скелет', 'Пришелец', 'Альмано', 'Марми', 'Лаймовый', 'Сливовый', 'Белый', 'Синий', 'Чёрный',
-    'Пчела', 'Конфета', 'Шахматный', 'Вода', 'Глубина', 'Лёд', 'Мыльный пузырь', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
+    'Пчела', 'Конфета', 'Вода', 'Глубина', 'Лёд', 'Мыльный пузырь', 'Аметист', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
   const PICKABLE = SKINS.map((d, i) => (SHOWN.includes(d.name) ? i : -1)).filter(i => i >= 0);
   const api = { SKINS, PALETTE, MAX_PATTERN, skinCols, PICKABLE, EYE_ID, EYE_ZOOM };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
