@@ -616,3 +616,18 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
   #winCards { --cw: 220px; --ih: 140px; }
   #winCards .deck { height: calc(var(--ih) + 4px + 44px); }
 }
+/* Окошко «Фото на карточку» (владелец 11.10): компактно, в стиле карточек — селфи или галерея */
+#wpPanel { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(5, 7, 12, 0.7); padding: 12px; }
+#wpPanel.hide, #wpPanel .hide { display: none !important; }
+#wpPanel .wpp { width: min(300px, 100%); background: rgba(18, 22, 30, 0.96); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 18px; padding: 14px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); }
+#wpPanel .wpp-t { color: #ffe27a; font: 700 15px Comfortaa, Arial, sans-serif; margin-bottom: 12px; }
+#wpPanel .wpp-b { display: block; width: 100%; margin: 0 0 8px; padding: 11px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); color: #e8ecf1; font: 700 15px Arial, sans-serif; cursor: pointer; }
+#wpPanel .wpp-b.gold { background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00; border: 0; }
+#wpPanel .wpp-row { display: flex; gap: 8px; margin-top: 10px; } #wpPanel .wpp-row .wpp-b { margin: 0; }
+#wpPanel .wpp-v { width: min(220px, 56vh); aspect-ratio: 1; margin: 0 auto; border-radius: 16px; overflow: hidden; background: #000; border: 2px solid rgba(255, 213, 46, 0.5); }
+#wpPanel video, #wpPanel canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+#wpPanel video { transform: scaleX(-1); } /* как в зеркале */
+#wpPanel .wpp-e { color: #ff9a9a; font-size: 12px; margin-top: 8px; }
+#wpPanel .wpp-e:empty { display: none; }
+#wpPanel .wpp-x { margin-top: 4px; background: none; border: 0; color: #9aa3b2; font: 14px Arial, sans-serif; cursor: pointer; padding: 6px 12px; }
+@media (max-height: 500px) { #wpPanel .wpp { padding: 10px 12px; } #wpPanel .wpp-t { margin-bottom: 8px; } #wpPanel .wpp-v { width: min(170px, 44vh); } }

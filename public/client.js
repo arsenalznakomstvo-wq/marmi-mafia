@@ -379,7 +379,7 @@ function onJSON(m) {
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': myRockets = 0; myBomb = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
-      myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); break;
+      myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
@@ -2047,9 +2047,45 @@ async function photoIsClean(blob) {
     return !Object.keys(NSFW_REJECT).some(k => (p[k] || 0) >= NSFW_REJECT[k]);
   }
 }
-$('wpBtn').addEventListener('click', () => { Sound.click(); $('wpFile').click(); });
-$('wpFile').addEventListener('change', async e => {
-  const file = e.target.files && e.target.files[0]; e.target.value = '';
+// ===== Окошко фото (владелец 11.10: системная галерея открывалась на пол-экрана — «нельзя ли компактно и удобно») =====
+// «Сделать селфи» — камера прямо в игре небольшим квадратом; «Из галереи» — системный выбор, как раньше.
+let camStream = null;
+function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+function wpPanelClose() { camStop(); $('wpPanel').classList.add('hide'); }
+function wpPanelOpen() {
+  $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
+  $('wppSelfie').classList.toggle('hide', !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  $('wpPanel').classList.remove('hide');
+}
+async function camStart() {
+  $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide');
+  $('wppShot').classList.add('hide'); $('wppVideo').classList.remove('hide');
+  $('wppSnap').classList.remove('hide'); $('wppAgain').classList.add('hide'); $('wppOk').classList.add('hide'); $('wppErr').textContent = '';
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false });
+    $('wppVideo').srcObject = camStream; await $('wppVideo').play().catch(() => {});
+  } catch (e) {
+    $('wppErr').textContent = e && e.name === 'NotAllowedError' ? 'Камера запрещена — разрешите её в настройках сайта или выберите фото из галереи' : 'Камера не включилась — выберите фото из галереи';
+    $('wppSnap').classList.add('hide');
+  }
+}
+function camSnap() {
+  const v = $('wppVideo'), c = $('wppShot'), w = v.videoWidth, h = v.videoHeight, s = Math.min(w, h); if (!s) return;
+  c.width = c.height = 320; const g = c.getContext('2d');
+  g.translate(320, 0); g.scale(-1, 1); // как в зеркале — так человек себя и видел
+  g.drawImage(v, (w - s) / 2, (h - s) / 2, s, s, 0, 0, 320, 320);
+  c.classList.remove('hide'); v.classList.add('hide');
+  $('wppSnap').classList.add('hide'); $('wppAgain').classList.remove('hide'); $('wppOk').classList.remove('hide');
+}
+$('wpBtn').addEventListener('click', () => { Sound.click(); wpPanelOpen(); });
+$('wppGallery').addEventListener('click', () => { Sound.click(); wpPanelClose(); $('wpFile').click(); });
+$('wppSelfie').addEventListener('click', () => { Sound.click(); camStart(); });
+$('wppSnap').addEventListener('click', () => { Sound.click(); camSnap(); });
+$('wppAgain').addEventListener('click', () => { Sound.click(); $('wppShot').classList.add('hide'); $('wppVideo').classList.remove('hide'); $('wppSnap').classList.remove('hide'); $('wppAgain').classList.add('hide'); $('wppOk').classList.add('hide'); });
+$('wppOk').addEventListener('click', () => { Sound.click(); $('wppShot').toBlob(b => { wpPanelClose(); if (b) uploadPhoto(b); }, 'image/jpeg', 0.88); });
+$('wppClose').addEventListener('click', () => { Sound.click(); wpPanelClose(); });
+$('wpFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) uploadPhoto(f); });
+async function uploadPhoto(file) {
   const btn = $('wpBtn'); if (!file || !wpToken) return;
   btn.disabled = true; btn.textContent = '🔍 Проверяю фото…';
   try {
@@ -2069,7 +2105,7 @@ $('wpFile').addEventListener('change', async e => {
     btn.textContent = m === 'nsfw' ? '🚫 Это фото нельзя — загрузите обычное фото' : m === 'check' ? '⚠ Не удалось проверить фото — попробуйте ещё раз'
       : m === 'expired' ? 'Время вышло — сыграйте ещё раз' : m === 'not-top' ? 'Вас уже обогнали в рекордах' : '⚠ Не получилось — выберите другое фото';
   }
-});
+}
 
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
