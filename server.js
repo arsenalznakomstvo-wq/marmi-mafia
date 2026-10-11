@@ -223,17 +223,30 @@ function moveSnake(s) {
   // Первая невылезшая точка тянется не к соседу у B, а к его «отражению» у A — так тело втягивается в нору,
   // а перейдя плоскость норы, точка переносится к выходу. Когда втянулся хвост — тоннель закончен.
   const T = s.tun, ox = T ? T.bx - T.ax : 0, oy = T ? T.by - T.ay : 0;
-  let passed = 0;
-  for (let i = 1; i < n; i++) {
-    const lx = T && i === T.k ? xs[i - 1] - ox : xs[i - 1], ly = T && i === T.k ? ys[i - 1] - oy : ys[i - 1];
-    const dx = xs[i] - lx, dy = ys[i] - ly;
+  // Владелец 11.10: хвост честно заползает в нору, «как поезд по рельсам». Часть тела, что ещё до норы (точки T.k…),
+  // каждый шаг сдвигается по своему же следу к норе A ровно на столько, на сколько проползла голова (spd);
+  // точка, дошедшая до норы, появляется у выхода B. Сколько вошло — столько вышло: тело не рвётся и не застревает,
+  // куда бы ни повернула голова.
+  const bEnd = T ? T.k : n;
+  for (let i = 1; i < bEnd; i++) {
+    const dx = xs[i] - xs[i - 1], dy = ys[i] - ys[i - 1];
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d > SEG_D) { const k = SEG_D / d; xs[i] = lx + dx * k; ys[i] = ly + dy * k; }
-    if (T && i === T.k && (xs[i] - T.ax) * T.ux + (ys[i] - T.ay) * T.uy >= 0) { xs[i] += ox; ys[i] += oy; T.k++; passed++; } // прошла нору
+    if (d > SEG_D) { const k = SEG_D / d; xs[i] = xs[i - 1] + dx * k; ys[i] = ys[i - 1] + dy * k; }
   }
-  // Владелец 11.10 («после дыры поделился на 2 части»): если сразу после выхода повернуть назад, хвост переставал
-  // тянуться к норе и застревал навсегда. Теперь хвост втягивается всегда — не медленнее, чем ползёт змея.
-  if (T) { for (let m = Math.max(1, Math.round(spd / SEG_D)); passed < m && T.k < n; passed++) { xs[T.k] += ox; ys[T.k] += oy; T.k++; } }
+  if (T && T.k < n) {
+    const m = n - T.k, PX = [T.ax], PY = [T.ay], PL = [0];            // след: нора A → первая точка до норы → … → хвост
+    for (let j = 0; j < m; j++) { const x = xs[T.k + j], y = ys[T.k + j]; PL.push(PL[PL.length - 1] + Math.hypot(x - PX[PX.length - 1], y - PY[PY.length - 1])); PX.push(x); PY.push(y); }
+    let seg = 0, moved = 0;
+    for (let j = 0; j < m; j++) {
+      const sNew = PL[j + 1] - spd;
+      if (sNew <= 0) { moved++; continue; }                            // дошла до норы
+      while (seg < PL.length - 2 && PL[seg + 1] < sNew) seg++;
+      const f = (sNew - PL[seg]) / ((PL[seg + 1] - PL[seg]) || 1);
+      xs[T.k + j] = PX[seg] + (PX[seg + 1] - PX[seg]) * f; ys[T.k + j] = PY[seg] + (PY[seg + 1] - PY[seg]) * f;
+    }
+    for (let j = 0; j < moved; j++) { xs[T.k + j] = T.bx; ys[T.k + j] = T.by; } // вынырнули у выхода — дальше их ведёт тело у выхода
+    T.k += moved;
+  }
   if (T && T.k >= n) s.tun = null;
   s.bbox();
 }
