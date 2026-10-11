@@ -1528,9 +1528,9 @@ function renderRecords() {
   let html;
   if (TEAM_MODE) html = `<div class="rh">🏆 Рекорды команд</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
   else { // владелец 11.10: топ-5 всех времён — карточки с фото колонкой справа (без фото — первая буква ника); внизу — только «Сегодня»
-    const medal = ['🥇', '🥈', '🥉', '4', '5'];
+    // владелец 11.10: без медалей — только «ТОП N»
     const cards = recData.all.map(([n, sc, v], i) => `<div class="wcard wc${i + 1}" data-i="${i}"><div class="wimg">${v ? `<img src="/wp?n=${encodeURIComponent(n)}&v=${v}" alt="">` : `<span>${esc(([...n][0] || '?').toUpperCase())}</span>`}</div>`
-      + `<i class="wmedal">${i < 3 ? medal[i] + ' ' : ''}ТОП ${i + 1}</i><div class="wcap"><b>${esc(n)}</b><span>${sc}</span></div></div>`).join('');
+      + `<i class="wmedal">ТОП ${i + 1}</i><div class="wcap"><b>${esc(n)}</b><span>${sc}</span></div></div>`).join('');
     const dots = recData.all.map((_, i) => `<button data-i="${i}" aria-label="Место ${i + 1}"></button>`).join('');
     const wHtml = cards ? `<div class="wtitle">🏆 Топ-5 всех времён</div><div class="deck">${cards}</div><div class="wdots">${dots}</div>` : '';
     if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; deckShow(Math.min(deckCur, recData.all.length - 1), true); } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
