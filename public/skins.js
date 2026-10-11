@@ -75,7 +75,11 @@
     { name: 'Глубина', cols: ['#0b3d7a'], style: 'water', water: { core: '#062a5c', rim: '#2fd3f5', kind: 'ocean' } },
     { name: 'Лёд', cols: ['#dff6ff'], style: 'water', water: { core: '#bfe9ff', rim: '#ffffff', kind: 'ice' } },
     { name: 'Мыльный пузырь', cols: ['#ffffff'], style: 'water', water: { core: '#e8f4ff', rim: '#ffffff', kind: 'soap' } },
+    // Владелец 11.10: секретный скин владельца — видит на 30% больше всех; включается только тайной ссылкой с кодом (?eye=…)
+    { name: 'Всевидящее око', cols: ['#2a1450', '#2a1450', '#3b1d6e', '#3b1d6e'], text: 'ВИЖУ ВСЁ', textColor: '#ffd52e', eyes: 'eye', secret: true },
   ];
+  const EYE_ID = SKINS.findIndex(d => d.name === 'Всевидящее око');
+  const EYE_ZOOM = 1 / 1.3; // обзор на 30% больше
   // Палитра конструктора «Собрать змейку» — 40 шариков, как в оригинале
   const PALETTE = [
     '#c0282d', '#9a9a9a', '#16208c', '#a8191e', '#a3a12a', '#8a5a2b', '#a2338f', '#1f7a2e', '#5a6fd6', '#5c2a8f',
@@ -95,7 +99,7 @@
   const SHOWN = ['Своя змейка', 'Космос', 'Скелет', 'Пришелец', 'Альмано', 'Марми', 'Лаймовый', 'Сливовый', 'Белый', 'Синий', 'Чёрный',
     'Пчела', 'Конфета', 'Шахматный', 'Вода', 'Глубина', 'Лёд', 'Мыльный пузырь', 'Россия', 'Таджикистан', 'Германия', 'Бразилия', 'Циклоп', 'Улитка'];
   const PICKABLE = SKINS.map((d, i) => (SHOWN.includes(d.name) ? i : -1)).filter(i => i >= 0);
-  const api = { SKINS, PALETTE, MAX_PATTERN, skinCols, PICKABLE };
+  const api = { SKINS, PALETTE, MAX_PATTERN, skinCols, PICKABLE, EYE_ID, EYE_ZOOM };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Skins = api;
 })(typeof window !== 'undefined' ? window : this);

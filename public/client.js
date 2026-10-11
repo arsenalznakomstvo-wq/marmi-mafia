@@ -35,10 +35,10 @@ const ROLE_ZOOM = { 7: 0.85, 8: 0.85, 9: 0.72 }; // номера ролей: 7 �
 // Владелец 07.10: в командной игре чем длиннее змея, тем выше камера (видно красоту карты): с 300 плавно до ×0,5 на 8000
 let farView = false;
 const teamZoom = mass => mass > 300 ? 1 - 0.5 * Math.min(1, Math.log(mass / 300) / Math.log(8000 / 300)) : 1;
-function viewScale(w, h, r, role, mass) {
+function viewScale(w, h, r, role, mass, eye) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
   const base = Math.max(clamp(Math.sqrt(w * h) / 750, 0.5, 1.6), Math.min(w, h) < 600 ? 1.05 : 0), sct = 2 + (r / 10 - 1) * 60; // 60 — как SC_DIV в server.js
-  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1);
+  return base * (0.64285 + 0.514285714 / Math.max(1, (sct + 16) / 36)) / 1.157142857 * (ROLE_ZOOM[role] || 1) * (mass ? teamZoom(mass) : 1) * (eye ? window.Skins.EYE_ZOOM : 1); // eye — «Всевидящее око»
 }
 
 // ===== Цвета =====
@@ -186,7 +186,24 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.fillStyle = '#111111'; g.beginPath(); g.arc(ox, oy, er * (iris ? 0.32 : 0.6), 0, TAU); g.fill();
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
-  if (sk.eyes === 'cyclops') {
+  if (sk.eyes === 'eye') { // «Всевидящее око»: золотой треугольник с глазом, мягкое сияние
+    const R2 = r * 1.05, cx = hx + ca * r * 0.12, cy = hy + sa * r * 0.12;
+    g.save(); g.translate(cx, cy); g.rotate(a + Math.PI / 2);
+    g.shadowColor = '#ffd52e'; g.shadowBlur = r * 0.8;
+    g.beginPath(); g.moveTo(0, -R2); g.lineTo(R2 * 0.92, R2 * 0.62); g.lineTo(-R2 * 0.92, R2 * 0.62); g.closePath();
+    g.fillStyle = 'rgba(40, 20, 70, 0.9)'; g.fill(); g.shadowBlur = 0;
+    g.lineWidth = Math.max(1.2, r * 0.12); g.strokeStyle = '#ffd52e'; g.lineJoin = 'round'; g.stroke();
+    g.restore();
+    const ew = r * 0.52, eh = r * 0.3, ex = cx + ca * r * 0.06, ey = cy + sa * r * 0.06; // глаз-«миндаль» поперёк головы
+    g.save(); g.translate(ex, ey); g.rotate(a + Math.PI / 2);
+    g.beginPath(); g.moveTo(-ew, 0); g.quadraticCurveTo(0, -eh * 1.6, ew, 0); g.quadraticCurveTo(0, eh * 1.6, -ew, 0); g.closePath();
+    g.fillStyle = '#fff8dc'; g.fill(); g.lineWidth = Math.max(1, r * 0.06); g.strokeStyle = '#ffd52e'; g.stroke();
+    g.restore();
+    const ox = ex + cl * r * 0.12, oy = ey + sl * r * 0.12;
+    g.fillStyle = '#d99a00'; g.beginPath(); g.arc(ox, oy, r * 0.2, 0, TAU); g.fill();
+    g.fillStyle = '#111111'; g.beginPath(); g.arc(ox, oy, r * 0.1, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(ox - r * 0.05, oy - r * 0.05, r * 0.04, 0, TAU); g.fill();
+  } else if (sk.eyes === 'cyclops') {
     eye(hx + ca * r * 0.15, hy + sa * r * 0.15, r * 0.66, '#2a7fff');
   } else if (sk.eyes === 'antenna') {
     // Как в оригинале: тонкие тёмные усики, на концах крупные глаза
@@ -1320,7 +1337,7 @@ function frame(time) {
     camLag.x *= 0.9; camLag.y *= 0.9; if (Math.abs(camLag.x) + Math.abs(camLag.y) < 0.5) camLag.x = camLag.y = 0;
     cam.x = nx + camLag.x; cam.y = ny + camLag.y;
   } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
-  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0);
+  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0, !!(me && metas.get(myId) && metas.get(myId).sk.id === window.Skins.EYE_ID));
   farView = TEAM_MODE && me && teamZoom(me.mass) < 0.8; // камера высоко — рисуем проще, чтобы телефон не тормозил
   cam.s += (target - cam.s) * 0.06;
 
@@ -1868,6 +1885,10 @@ function load(k) { try { return localStorage.getItem(k); } catch (e) { return nu
 let skin = { id: 7, c1: '#ff3355', c2: '#33dd66', c3: '#3388ff' };
 try { const s = JSON.parse(load('mm_skin2')); if (s && s.id >= 0 && s.id < SKINS.length) skin = s; } catch (e) {}
 const myName = () => ($('nick').value.trim() || 'Игрок').slice(0, 16);
+// Тайная ссылка владельца ?eye=КОД (11.10): код запоминается в этом браузере, сразу выбирается «Всевидящее око», код убирается из адреса
+{ const q = new URLSearchParams(location.search).get('eye');
+  if (q) { store('mm_eye', q.slice(0, 40)); skin.id = window.Skins.EYE_ID; store('mm_skin2', JSON.stringify(skin)); try { history.replaceState(null, '', location.pathname); } catch (e) {} } }
+const pickable = () => { const P = window.Skins.PICKABLE.slice(); if (load('mm_eye')) P.push(window.Skins.EYE_ID); return P; }; // секретный — только у кого есть код
 $('nick').value = load('mm_nick') || '';
 
 // Змейка для витрины: pts — опорные точки пути от головы к хвосту
@@ -1953,14 +1974,14 @@ function sizeSkinCanvas() {
 }
 function updateSkinName() {
   $('skinName').textContent = SKINS[skin.id].name;
-  const PK = window.Skins.PICKABLE, pos = PK.indexOf(skin.id);
+  const PK = pickable(), pos = PK.indexOf(skin.id);
   $('skinNum').textContent = skin.id === 0 ? (skin.pat && skin.pat.length ? 'собрана в конструкторе' : 'ещё не собрана — нажмите кнопку ниже') : (pos > 0 ? pos + ' из ' + (PK.length - 1) : '');
   $('customizer').classList.toggle('hide', skin.id !== 0);
 }
 function stepSkin(d) {
   Sound.click();
   // листаем только разрешённые скины (владелец 06.10)
-  const PK = window.Skins.PICKABLE;
+  const PK = pickable();
   let pos = PK.indexOf(skin.id);
   if (pos < 0) { pos = 0; while (pos < PK.length - 1 && PK[pos + 1] < skin.id) pos++; if (d < 0) pos++; }
   skin.id = PK[(pos + d + PK.length) % PK.length];
@@ -2076,7 +2097,7 @@ function play() {
   goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
-  sendJSON({ t: 'join', name, skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
+  sendJSON({ t: 'join', name, skin: skin.id === window.Skins.EYE_ID ? { ...skin, code: load('mm_eye') || '' } : skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
 }
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
