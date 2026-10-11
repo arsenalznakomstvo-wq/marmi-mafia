@@ -2418,7 +2418,9 @@ async function squareJpeg(file, S) {
 // Проверка на обнажёнку (владелец 11.10) — нейросеть NSFWJS прямо в телефоне игрока, перед отправкой.
 // На сервере её держать нельзя: ~350 МБ памяти и секунды процессора отняли бы их у игры (сервер 512 МБ).
 // Файлы (~6 МБ) грузятся только по нажатию кнопки; после проверки сеть выгружается, чтобы не мешать игре.
-const NSFW_REJECT = { Porn: 0.2, Hentai: 0.3, Sexy: 0.45 }; // «Откровенное» — бельё, купальник, голый торс
+// Владелец 12.10: «девушка в шляпе не прошла» — ослаблено: откровенные, но одетые фото (как постеры игры) проходят,
+// не пропускает только явную обнажёнку. Было: Porn 0.2 / Hentai 0.3 / Sexy 0.45 — браковало даже постеры самой игры.
+const NSFW_REJECT = { Porn: 0.5, Hentai: 0.5 };
 let nsfwLoading = null;
 function loadNsfw() {
   if (!nsfwLoading) nsfwLoading = ['model.min.js', 'group1-shard1of1.min.js', 'nsfwjs.min.js'].reduce((p, f) => p.then(() => new Promise((ok, no) => {
@@ -2450,7 +2452,7 @@ async function photoHasFace(file) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); if (flip) { g.translate(c.width, 0); g.scale(-1, 1); }
     g.drawImage(img, 0, 0, c.width, c.height);
     for (const size of [320, 512, 224]) {
-      const r = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: 0.22 }));
+      const r = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: 0.15 }));
       if (r.length) return true;
     }
   }
