@@ -578,3 +578,4 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
 @media (max-height: 500px) { #micHelp { margin-top: 6px; font-size: 11px; } #micOpen { padding: 3px 10px; font-size: 11px; } }
 /* подсказки кнопки «Установить на телефон» бывают в две строки (владелец 11.10) */
 #iosTip { white-space: normal; max-width: min(420px, calc(100vw - 24px)); text-align: center; line-height: 1.4; }
+#tipChrome { margin-top: 8px; padding: 6px 14px; border-radius: 14px; border: 1px solid rgba(90, 162, 255, 0.6); background: rgba(42, 111, 214, 0.35); color: #fff; font: 700 13px Arial, sans-serif; cursor: pointer; }

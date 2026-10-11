@@ -2099,7 +2099,20 @@ window.addEventListener('appinstalled', reportInstall);
     Sound.click();
     if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; }
     else if (isIOS) tip('Нажмите <b>Поделиться ⬆</b> внизу экрана → <b>«На экран Домой»</b>');
-    else tip('📲 Игра уже установлена — откройте её с иконки на экране.<br>Иконка не открывается? Удалите её (зажмите → «Удалить») и нажмите эту кнопку ещё раз');
+    else {
+      // Владелец 11.10: Samsung Internet / Яндекс и др. не сообщают сайту «можно установить» — раньше кнопка ошибочно писала
+      // «уже установлена». Теперь: «уже установлена» — только если Chrome это подтвердил; иначе — где установка в меню этого браузера + «Открыть в Chrome»
+      const samsung = /SamsungBrowser/i.test(ua), chrome = /Chrome\//.test(ua) && !/SamsungBrowser|YaBrowser|OPR\/|Edg|MiuiBrowser|HeyTap|UCBrowser/i.test(ua);
+      let installed = false;
+      if (chrome && navigator.getInstalledRelatedApps) try { installed = (await navigator.getInstalledRelatedApps()).length > 0; } catch (e) {}
+      const toChrome = chrome ? '' : '<br><button id="tipChrome">Открыть в Chrome</button>';
+      if (installed) tip('📲 Игра уже установлена — откройте её с иконки на экране.<br>Иконка не открывается? Удалите её в «Настройки → Приложения» и нажмите эту кнопку ещё раз');
+      else if (samsung) tip('Нажмите <b>≡</b> внизу → <b>«Добавить страницу на»</b> → <b>«Главный экран»</b>' + toChrome);
+      else if (chrome) tip('Нажмите <b>⋮</b> вверху справа → <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>');
+      else tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b>' + toChrome);
+      const tc = $('tipChrome');
+      if (tc) tc.addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
+    }
   });
 })();
 
