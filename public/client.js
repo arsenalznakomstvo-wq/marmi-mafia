@@ -2323,7 +2323,7 @@ var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызыв
 // Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
   const want = on && userTapped && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео
-  if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused) menuVid.play().catch(() => {}); }
+  if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused && !vidUserPaused) menuVid.play().catch(() => {}); } // на паузе по просьбе — не запускаем
   clearTimeout(stepT); return;
   const tick = () => {
     if (!document.body.classList.contains('in-menu') || document.hidden || menuVid.paused) { stepT = setTimeout(tick, 400); return; }
@@ -2337,6 +2337,7 @@ function menuVideo(on) {
   if (!MENU_VIDEO) return;
   menuSteps(on);
   if (on) {
+    vidUserPaused = false; document.body.classList.remove('vidpaused'); // вернулся в меню — видео снова идёт
     if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4';
     menuVid.play().catch(() => {});
     if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
@@ -2349,11 +2350,22 @@ function menuVideo(on) {
 // потом меню плавно появляется; касание или клавиша — меню сразу. Не мешаем, если человек пришёл по ссылке ?name= (сразу в игру).
 if (MENU_VIDEO && !new URLSearchParams(location.search).get('name')) {
   document.body.classList.add('intro');
-  const endIntro = e => { if (e && e.type) userTapped = true; Sound.init(); menuSteps(true); document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
+  const endIntro = e => { introEndAt = performance.now(); if (e && e.type) userTapped = true; Sound.init(); menuSteps(true); document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
   const introT = setTimeout(endIntro, 6500); // владелец 12.10: 6–7 секунд
   ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, endIntro, true));
 }
 if (MENU_VIDEO) window.addEventListener('pointerdown', () => { userTapped = true; Sound.init(); if (document.body.classList.contains('in-menu')) menuSteps(true); }, true); // первое касание включает звук видео
+// Пауза видео (владелец 12.10: «нажал на пустое место — пауза, а то видео всё время повторяется»): касание пустого места меню —
+// пауза / снова играть (и звук тоже). Не срабатывает на кнопках, поле имени, карточках и в первые мгновения после заставки.
+var introEndAt = 0, vidUserPaused = false;
+if (MENU_VIDEO) window.addEventListener('click', e => {
+  if (!document.body.classList.contains('in-menu') || document.body.classList.contains('intro') || performance.now() - introEndAt < 500) return;
+  if (e.target.closest('button, input, a, canvas#skinIcon, canvas#buildIcon, #winCards, #records, #wpPanel, #landing, #vcBar, #pnList, #visList, #ping, #visBtn, #skinScreen, #buildScreen')) return;
+  if (!$('skinScreen').classList.contains('hide') || !$('buildScreen').classList.contains('hide')) return;
+  vidUserPaused = !menuVid.paused;
+  if (vidUserPaused) menuVid.pause(); else menuVid.play().catch(() => {});
+  document.body.classList.toggle('vidpaused', vidUserPaused);
+});
 if (MENU_VIDEO) ['webkitbeginfullscreen', 'enterpictureinpicture'].forEach(ev => menuVid.addEventListener(ev, () => { try { menuVid.webkitExitFullscreen && menuVid.webkitExitFullscreen(); } catch (e) {} }));
 function hideMenu() {
   menuVideo(false);

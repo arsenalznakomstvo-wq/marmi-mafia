@@ -719,3 +719,15 @@ body.mvid #mvCanvas { transition: opacity 0.9s ease; }
 
 /* Владелец 12.10: переключатель «Графика» убран — всегда высокое качество */
 #qualityBox { display: none !important; }
+
+/* Пауза видео: маленький значок ⏸ внизу по центру, пока стоит (владелец 12.10) */
+body.vidpaused.in-menu::after { content: '⏸'; position: fixed; z-index: 32; left: 50%; bottom: 46px; transform: translateX(-50%); font-size: 18px; color: rgba(255, 255, 255, 0.6); pointer-events: none; }
+/* Телефон лёжа v5 (владелец 12.10): «Собрать змейку» — слева рядом со «Сменить скин»; справа крупная карточка, над ней «Загрузите своё фото» */
+@media (pointer: coarse) and (orientation: landscape) {
+  body.mvid #buildBtn { right: auto !important; left: calc(max(4px, env(safe-area-inset-left)) + 104px) !important; }
+  body.mvid #winCards { --cw: 236px !important; --ih: 150px !important; top: auto !important; bottom: 26px !important; transform: none !important; right: max(12px, env(safe-area-inset-right)) !important; }
+  body.mvid #winCards .wtitle { margin-bottom: 16px !important; }
+  body.mvid #wpBtn { top: max(8px, env(safe-area-inset-top)) !important; bottom: auto !important; right: max(12px, env(safe-area-inset-right)) !important; }
+}
+@media (pointer: coarse) and (orientation: landscape) { body.mvid #buildBtn { left: calc(max(4px, env(safe-area-inset-left)) + 122px) !important; } }
+body.vidpaused.in-menu::after { bottom: auto; top: 50%; font-size: 26px; transform: translate(-50%, -50%); } /* значок паузы — в центре видео, не на кнопках */
