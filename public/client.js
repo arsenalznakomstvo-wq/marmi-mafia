@@ -1399,15 +1399,38 @@ function renderRecords() {
   if (TEAM_MODE) html = `<div class="rh">🏆 Рекорды команд</div><div class="rcols">${col('Сегодня', recData.day)}${col('Всех времён', recData.all)}</div>`;
   else { // владелец 11.10: топ-5 всех времён — карточки с фото колонкой справа (без фото — первая буква ника); внизу — только «Сегодня»
     const medal = ['🥇', '🥈', '🥉', '4', '5'];
-    const cards = recData.all.map(([n, sc, v], i) => `<div class="wc wc${i + 1}"><div class="wph">${v ? `<img src="/wp?n=${encodeURIComponent(n)}&v=${v}" alt="">` : `<span>${esc(([...n][0] || '?').toUpperCase())}</span>`}<i>${medal[i]}</i></div><div class="wt"><div class="wn">${esc(n)}</div><div class="ws">${sc}</div></div></div>`).join('');
-    const wHtml = `<div class="rh">🏆 Топ-5 всех времён</div><div class="wcards">${cards || '<div class="empty">пока пусто</div>'}</div>`;
-    if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
-    $('winCards').classList.remove('hide');
+    const cards = recData.all.map(([n, sc, v], i) => `<div class="wcard wc${i + 1}" data-i="${i}"><div class="wimg">${v ? `<img src="/wp?n=${encodeURIComponent(n)}&v=${v}" alt="">` : `<span>${esc(([...n][0] || '?').toUpperCase())}</span>`}</div>`
+      + `<i class="wmedal">${medal[i]}</i><div class="wcap"><b>${esc(n)}</b><span>${sc}</span></div></div>`).join('');
+    const dots = recData.all.map((_, i) => `<button data-i="${i}" aria-label="Место ${i + 1}"></button>`).join('');
+    const wHtml = cards ? `<div class="wtitle">🏆 Топ-5 всех времён</div><div class="deck">${cards}</div><div class="wdots">${dots}</div>` : '';
+    if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; deckShow(Math.min(deckCur, recData.all.length - 1), true); } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
+    $('winCards').classList.toggle('hide', !cards);
     html = `<div class="rh">🏆 Рекорды дня</div><div class="rcols">${col('Сегодня', recData.day)}</div>`;
   }
   if (html !== recHtml) { el.innerHTML = html; recHtml = html; }
   el.classList.remove('hide');
 }
+// ===== Карусель карточек победителей (владелец 11.10): большая карточка впереди, следующие — веером за ней;
+// каждые 4 с передняя улетает влево, выходит следующая. Нажатие — следующая, точки — выбрать место; мышь над колодой — пауза.
+let deckCur = 0, deckHover = false;
+function deckShow(next, instant) {
+  const cards = [...document.querySelectorAll('#winCards .wcard')], n = cards.length; if (!n) return;
+  const prev = deckCur; deckCur = ((next % n) + n) % n;
+  cards.forEach((c, k) => {
+    const pos = Math.min(3, (k - deckCur + n) % n);
+    c.classList.remove('p0', 'p1', 'p2', 'p3', 'out');
+    c.classList.add(!instant && k === prev && prev !== deckCur ? 'out' : 'p' + pos);
+    if (c.classList.contains('out')) setTimeout(() => { if (!c.classList.contains('out')) return; c.classList.remove('out'); c.classList.add('p' + Math.min(3, (k - deckCur + n) % n)); }, 650);
+  });
+  document.querySelectorAll('#winCards .wdots button').forEach((b, k) => b.classList.toggle('on', k === deckCur));
+}
+setInterval(() => { if (!deckHover && document.body.classList.contains('in-menu') && !document.hidden) deckShow(deckCur + 1); }, 4000);
+$('winCards').addEventListener('click', e => {
+  const dot = e.target.closest('.wdots button');
+  if (dot) deckShow(+dot.dataset.i); else if (e.target.closest('.deck')) deckShow(deckCur + 1);
+});
+$('winCards').addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') deckHover = true; });
+$('winCards').addEventListener('pointerleave', () => { deckHover = false; });
 function showRecord(kind) {
   const el = $('promo');
   el.className = 'don'; el.style.setProperty('--rc', '#ffd52e');
@@ -1835,8 +1858,10 @@ function showMenu(m) {
   if (m) {
     const who = m.killer ? `Вас съел: <b>${esc(m.killer)}</b>` : 'Вы врезались в край карты';
     r.innerHTML = `Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div>`
-      + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!<button id="wpBtn">📷 ${m.photo.has ? 'Сменить фото' : 'Добавить своё фото'} на карточку</button></div>` : '');
-    if (m.photo) { wpToken = m.photo.t; $('wpBtn').addEventListener('click', () => { Sound.click(); $('wpFile').click(); }); }
+      + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!</div>` : '');
+    // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
+    wpToken = m.photo ? m.photo.t : null;
+    const b = $('wpBtn'); b.disabled = false; b.textContent = '📷 Загрузите своё фото'; b.classList.toggle('hide', !m.photo);
     r.classList.remove('hide');
     $('play').textContent = 'Играть снова';
   }
@@ -1856,19 +1881,48 @@ async function squareJpeg(file, S) {
   for (const q of [0.85, 0.7, 0.55]) { const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q)); if (b && b.size < 110000) return b; }
   throw new Error('big');
 }
+// Проверка на обнажёнку (владелец 11.10) — нейросеть NSFWJS прямо в телефоне игрока, перед отправкой.
+// На сервере её держать нельзя: ~350 МБ памяти и секунды процессора отняли бы их у игры (сервер 512 МБ).
+// Файлы (~6 МБ) грузятся только по нажатию кнопки; после проверки сеть выгружается, чтобы не мешать игре.
+const NSFW_REJECT = { Porn: 0.2, Hentai: 0.3, Sexy: 0.45 }; // «Откровенное» — бельё, купальник, голый торс
+let nsfwLoading = null;
+function loadNsfw() {
+  if (!nsfwLoading) nsfwLoading = ['model.min.js', 'group1-shard1of1.min.js', 'nsfwjs.min.js'].reduce((p, f) => p.then(() => new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = 'vendor/nsfw/' + f; s.onload = ok; s.onerror = no; document.head.appendChild(s);
+  })), Promise.resolve()).catch(e => { nsfwLoading = null; throw e; });
+  return nsfwLoading;
+}
+async function photoIsClean(blob) {
+  await loadNsfw();
+  const model = await window.nsfwjs.load('MobileNetV2');
+  try {
+    const img = await createImageBitmap(blob).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(blob); }));
+    const c = document.createElement('canvas'); c.width = c.height = 224; c.getContext('2d').drawImage(img, 0, 0, 224, 224);
+    const p = {}; for (const { className, probability } of await model.classify(c)) p[className] = probability;
+    return !Object.keys(NSFW_REJECT).some(k => (p[k] || 0) >= NSFW_REJECT[k]);
+  } finally { try { model.model.dispose(); } catch (e) {} }
+}
+$('wpBtn').addEventListener('click', () => { Sound.click(); $('wpFile').click(); });
 $('wpFile').addEventListener('change', async e => {
   const file = e.target.files && e.target.files[0]; e.target.value = '';
-  const btn = $('wpBtn'); if (!file || !wpToken || !btn) return;
-  btn.disabled = true; btn.textContent = '⏳ Загружаю фото…';
+  const btn = $('wpBtn'); if (!file || !wpToken) return;
+  btn.disabled = true; btn.textContent = '🔍 Проверяю фото…';
   try {
-    const r = await fetch('/wp?t=' + wpToken, { method: 'POST', body: await squareJpeg(file, 320), headers: { 'Content-Type': 'image/jpeg' } });
+    const jpg = await squareJpeg(file, 320);
+    let clean; try { clean = await photoIsClean(jpg); } catch (err) { throw new Error('check'); }
+    if (!clean) throw new Error('nsfw');
+    btn.textContent = '⏳ Загружаю фото…';
+    const r = await fetch('/wp?t=' + wpToken, { method: 'POST', body: jpg, headers: { 'Content-Type': 'image/jpeg' } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || String(r.status));
     if (recData) { const row = recData.all.find(x => x[0] === j.name); if (row) { row[2] = j.ver; renderRecords(); } }
     btn.textContent = '✅ Фото на карточке!';
+    setTimeout(() => btn.classList.add('hide'), 2500);
   } catch (err) {
-    btn.disabled = err.message === 'expired' || err.message === 'not-top';
-    btn.textContent = err.message === 'expired' ? 'Время вышло — сыграйте ещё раз' : err.message === 'not-top' ? 'Вас уже обогнали в рекордах' : '⚠ Не получилось — выберите другое фото';
+    const m = err.message;
+    btn.disabled = m === 'expired' || m === 'not-top';
+    btn.textContent = m === 'nsfw' ? '🚫 Это фото нельзя — загрузите обычное фото' : m === 'check' ? '⚠ Не удалось проверить фото — попробуйте ещё раз'
+      : m === 'expired' ? 'Время вышло — сыграйте ещё раз' : m === 'not-top' ? 'Вас уже обогнали в рекордах' : '⚠ Не получилось — выберите другое фото';
   }
 });
 

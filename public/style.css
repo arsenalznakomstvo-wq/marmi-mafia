@@ -445,53 +445,78 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
 /* Владелец 07.10: сообщение о золотой еде — мельче, округлым шрифтом (как название), золотом на полупрозрачном фоне, чтобы не отвлекало */
 #toast.ev { font-family: 'Comfortaa', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ffd52e; letter-spacing: 0.3px;
   background: rgba(10, 12, 18, 0.55); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 14px; padding: 5px 14px; text-shadow: none; top: 16%; }
-/* ===== Карточки победителей (владелец 11.10): топ-5 всех времён с фото — колонкой справа ===== */
-#winCards { position: fixed; right: max(14px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); z-index: 31; width: 210px; box-sizing: border-box;
-  background: rgba(10, 12, 22, 0.62); border: 1px solid rgba(255, 213, 46, 0.3); border-radius: 14px; padding: 8px 10px; }
-#winCards .rh { text-align: center; color: #ffd52e; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-#winCards .wc { display: flex; align-items: center; gap: 10px; padding: 5px 0; min-width: 0; }
-#winCards .wc + .wc { border-top: 1px solid rgba(255, 255, 255, 0.07); }
-#winCards .wph { position: relative; flex: none; width: 54px; height: 54px; border-radius: 11px;
-  background: linear-gradient(160deg, #2b3446, #161c28); border: 2px solid rgba(255, 255, 255, 0.25); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45); }
-#winCards .wph img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; display: block; }
-#winCards .wph span { display: flex; align-items: center; justify-content: center; height: 100%; font: 700 24px Comfortaa, Arial, sans-serif; color: #c9d2e0; }
-#winCards .wph i { position: absolute; right: -7px; bottom: -6px; font-style: normal; font-size: 16px; line-height: 1;
-  min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-#winCards .wc4 .wph i, #winCards .wc5 .wph i { background: #2b3446; border: 1.5px solid rgba(255, 255, 255, 0.35); font: bold 11px Arial, sans-serif; color: #d4dae3; }
-#winCards .wc1 .wph { border-color: #ffd52e; box-shadow: 0 0 14px rgba(255, 213, 46, 0.45), 0 3px 10px rgba(0, 0, 0, 0.45); }
-#winCards .wc2 .wph { border-color: #d7dde6; }
-#winCards .wc3 .wph { border-color: #d9965b; }
-#winCards .wt { min-width: 0; }
-#winCards .wn { font-size: 14px; color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#winCards .ws { font-size: 13px; color: #ffd52e; font-weight: bold; }
-#winCards .empty { color: #5a6270; font-size: 13px; text-align: center; }
+/* ===== Карточки победителей (владелец 11.10): топ-5 всех времён — карусель справа ===== */
+/* --cw — ширина карточки; фото квадратное во всю ширину, под ним ник и длина */
+#winCards { --cw: 220px; position: fixed; z-index: 31; right: calc(max(14px, env(safe-area-inset-right)) + 40px); top: 50%; transform: translateY(-50%);
+  width: var(--cw); user-select: none; -webkit-user-select: none; }
 body:not(.in-menu) #winCards { display: none; }
+#winCards .wtitle { text-align: center; color: #ffd52e; font: 700 15px Comfortaa, Arial, sans-serif; margin-bottom: 10px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); }
+#winCards .deck { position: relative; width: var(--cw); height: calc(var(--cw) + 58px); cursor: pointer; animation: wfloat 6s ease-in-out infinite; }
+@keyframes wfloat { 0%, 100% { transform: translateY(0) rotate(-0.6deg); } 50% { transform: translateY(-9px) rotate(0.6deg); } }
+#winCards .wcard { position: absolute; inset: 0; border-radius: 18px; overflow: hidden; box-sizing: border-box;
+  background: linear-gradient(165deg, #232b3b, #10141d); border: 2px solid rgba(255, 255, 255, 0.28); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  transition: transform 0.7s cubic-bezier(.2, .8, .2, 1), opacity 0.7s ease, filter 0.7s ease; will-change: transform, opacity; }
+#winCards .wcard.p0 { transform: none; opacity: 1; z-index: 5; }
+#winCards .wcard.p1 { transform: translate(16px, -12px) rotate(5deg) scale(0.93); opacity: 0.8; z-index: 4; filter: brightness(0.6); }
+#winCards .wcard.p2 { transform: translate(30px, -22px) rotate(10deg) scale(0.86); opacity: 0.5; z-index: 3; filter: brightness(0.45); }
+#winCards .wcard.p3 { transform: translate(38px, -28px) rotate(14deg) scale(0.8); opacity: 0; z-index: 2; }
+#winCards .wcard.out { transform: translate(-125%, 26px) rotate(-16deg) scale(0.92); opacity: 0; z-index: 6; }
+#winCards .wc1 { border-color: #ffd52e; box-shadow: 0 0 22px rgba(255, 213, 46, 0.45), 0 12px 30px rgba(0, 0, 0, 0.6); }
+#winCards .wc2 { border-color: #dfe5ee; }
+#winCards .wc3 { border-color: #d9965b; }
+#winCards .wimg { width: 100%; height: calc(var(--cw) - 4px); background: radial-gradient(circle at 50% 35%, #34405a, #141924); }
+#winCards .wimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#winCards .wimg span { display: flex; align-items: center; justify-content: center; height: 100%; font: 700 calc(var(--cw) * 0.42) Comfortaa, Arial, sans-serif;
+  background: linear-gradient(180deg, #b78cff, #4fe08a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#winCards .wc1 .wimg span { background-image: linear-gradient(180deg, #fff3a0, #ffb300); }
+/* блик пробегает по передней карточке */
+#winCards .wcard.p0::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.22) 48%, transparent 60%); background-size: 250% 100%; animation: wshine 4s ease-in-out infinite; }
+@keyframes wshine { 0% { background-position: 130% 0; } 45%, 100% { background-position: -40% 0; } }
+#winCards .wmedal { position: absolute; left: 10px; top: 10px; font-style: normal; font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)); }
+#winCards .wc4 .wmedal, #winCards .wc5 .wmedal { font: bold 16px Arial, sans-serif; color: #fff; background: rgba(15, 18, 28, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.5); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+#winCards .wcap { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; display: flex; flex-direction: column; justify-content: center; align-items: center;
+  background: linear-gradient(180deg, rgba(10, 12, 20, 0.2), rgba(10, 12, 20, 0.95) 30%); padding: 0 10px; }
+#winCards .wcap b { max-width: 100%; color: #fff; font: 700 17px Arial, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#winCards .wcap span { color: #ffd52e; font: 700 15px Arial, sans-serif; }
+#winCards .wcap span::before { content: '🐍 '; }
+#winCards .wdots { display: flex; justify-content: center; gap: 7px; margin-top: 14px; }
+#winCards .wdots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 5px; background: rgba(255, 255, 255, 0.3); cursor: pointer; transition: width 0.3s, background 0.3s; }
+#winCards .wdots button.on { width: 22px; background: #ffd52e; }
+@media (prefers-reduced-motion: reduce) { #winCards .deck, #winCards .wcard.p0::after { animation: none; } }
 .wpOffer { margin-top: 8px; font-size: 14px; color: #ffd52e; }
-#wpBtn { display: block; margin: 6px auto 0; padding: 9px 16px; border: 0; border-radius: 22px; cursor: pointer;
-  background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00; font: bold 15px Arial, sans-serif; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
-#wpBtn:disabled { opacity: 0.75; cursor: default; }
-/* телефон лёжа: колонка справа поменьше; список «Сегодня» внизу не показываем — он налезал на «Играть» */
+/* Кнопка «Загрузите своё фото» — внизу справа (владелец 11.10) */
+#wpBtn { position: fixed; z-index: 41; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
+  padding: 11px 18px; border: 0; border-radius: 24px; cursor: pointer; background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00;
+  font: bold 15px Arial, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); animation: wpulse 2.2s ease-in-out infinite; max-width: calc(100vw - 28px); }
+#wpBtn:disabled { opacity: 0.85; cursor: default; animation: none; }
+@keyframes wpulse { 0%, 100% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(255, 213, 46, 0.55); } 50% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 10px rgba(255, 213, 46, 0); } }
+/* Микрофон в меню — наверху слева, рядом со значком звука (владелец 11.10: внизу справа теперь кнопка фото) */
+body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe-area-inset-left)) + 46px); top: max(8px, env(safe-area-inset-top)); right: auto; bottom: auto; transform: none; }
+/* телефон лёжа: карточка меньше; список «Сегодня» внизу не показываем — он налезал на «Играть» */
 @media (max-height: 500px) {
-  #winCards { width: 168px; padding: 4px 8px; right: max(8px, env(safe-area-inset-right)); }
-  #winCards .rh { font-size: 11px; margin-bottom: 1px; }
-  #winCards .wc { gap: 8px; padding: 3px 0; }
-  #winCards .wph { width: 40px; height: 40px; border-radius: 8px; }
-  #winCards .wph img { border-radius: 6px; }
-  #winCards .wph span { font-size: 18px; }
-  #winCards .wph i { font-size: 12px; min-width: 16px; height: 16px; right: -6px; bottom: -5px; }
-  #winCards .wc4 .wph i, #winCards .wc5 .wph i { font-size: 9px; }
-  #winCards .wn { font-size: 12px; } #winCards .ws { font-size: 11px; }
+  #winCards { --cw: 142px; right: calc(max(8px, env(safe-area-inset-right)) + 30px); }
+  #winCards .wtitle { font-size: 11px; margin-bottom: 5px; }
+  #winCards .deck { height: calc(var(--cw) + 40px); }
+  #winCards .wcap { height: 40px; }
+  #winCards .wcap b { font-size: 12px; } #winCards .wcap span { font-size: 11px; }
+  #winCards .wmedal { font-size: 20px; left: 6px; top: 6px; }
+  #winCards .wc4 .wmedal, #winCards .wc5 .wmedal { width: 22px; height: 22px; font-size: 12px; }
+  #winCards .wcard.p1 { transform: translate(11px, -8px) rotate(5deg) scale(0.93); }
+  #winCards .wcard.p2 { transform: translate(20px, -15px) rotate(10deg) scale(0.86); }
+  #winCards .wdots { margin-top: 7px; gap: 5px; }
   body:not(.team-mode) #records { display: none; }
   .wpOffer { font-size: 12px; margin-top: 4px; }
-  #wpBtn { padding: 6px 12px; font-size: 13px; margin-top: 4px; }
+  #wpBtn { padding: 8px 14px; font-size: 13px; right: max(10px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
 }
-/* телефон стоя: справа места нет — карточки строкой под кнопками */
+/* телефон стоя: справа места нет — карусель под кнопками, по центру */
 @media (max-width: 600px) and (min-height: 501px) {
-  #winCards { position: static; transform: none; width: auto; max-width: calc(100vw - 24px); margin-top: 10px; padding: 6px 8px; }
-  #winCards .wcards { display: flex; gap: 4px; justify-content: center; }
-  #winCards .wc { flex-direction: column; gap: 2px; width: 56px; padding: 0; text-align: center; }
-  #winCards .wc + .wc { border-top: 0; }
-  #winCards .wph { width: 46px; height: 46px; }
-  #winCards .wt { width: 100%; }
-  #winCards .wn, #winCards .ws { font-size: 10px; }
+  #winCards { --cw: 140px; position: relative; right: auto; top: auto; transform: none; margin: 14px auto 0; }
+  #winCards .wtitle { white-space: nowrap; font-size: 13px; margin-bottom: 8px; }
+  body:not(.team-mode) #records { display: none; }
+  #winCards .deck { height: calc(var(--cw) + 44px); }
+  #winCards .wcap { height: 44px; }
+  #winCards .wcap b { font-size: 13px; } #winCards .wcap span { font-size: 12px; }
+  #winCards .wmedal { font-size: 22px; }
 }
