@@ -381,7 +381,7 @@ function killSnake(s, killer) {
   const c = s.client;
   if (TEAM && c && c.rs) { c.rs.life = Math.max(c.rs.life, Math.round((tick - (s.born || tick)) / TICK_RATE)); addAlarm(s.team, s.xs[0], s.ys[0]); }
   if (c) {
-    c.snake = null;
+    c.snake = null; c.diedAt = Date.now();
     sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null });
   }
 }
@@ -401,7 +401,7 @@ function eat(s) {
 
 // Место для появления: подальше от чужих тел и голов игроков
 function findSpawn(awayFromPlayers, cx, cy, rad) { // cx, cy, rad — искать рядом с точкой (командный режим: у своей базы)
-  let best = null, bestD = -1;
+  let best = null, bestD = -Infinity; // -Infinity: место найдётся всегда, даже если все 30 проб попали в чужие тела
   for (let t = 0; t < 30; t++) {
     const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (cx != null ? rad : MAP_R - 700);
     const x = (cx != null ? cx : 0) + Math.cos(a) * d, y = (cy != null ? cy : 0) + Math.sin(a) * d;
@@ -481,6 +481,10 @@ function maintainBots() {
   if (TEAM && roundPause) return;
   let players = 0, bots = 0;
   for (const s of snakes.values()) { if (s.bot) bots++; else players++; }
+  // Погибший человек обычно жмёт «Играть снова» через пару секунд — 8 с держим его место, иначе на каждую смерть
+  // появлялся новый бот, а уходят боты медленно (замер: 35 людей — 10 ботов вместо 5)
+  const nowMs = Date.now();
+  for (const c of clients) if (!c.snake && c.diedAt && nowMs - c.diedAt < 8000) players++;
   // Ботов ровно столько, чтобы всего было TARGET_SNAKES
   for (let i = 0; i < 2 && players + bots < TARGET_SNAKES; i++) { spawnBot(); bots++; }
   // Владелец 07.10: пришли новые люди — лишние боты исчезают по одному (раз в 1,5 с), подальше от людей, чтобы не пропадали на глазах
@@ -491,7 +495,7 @@ function removeOneBot() {
   let from = -1; // командный режим: убираем бота из команды, где змей больше
   if (TEAM) { const n = [0, 0]; for (const s of snakes.values()) if (s.team != null) n[s.team]++; from = n[0] === n[1] ? -1 : n[0] > n[1] ? 0 : 1; }
   const heads = []; for (const s of snakes.values()) if (!s.bot && s.alive) heads.push(s);
-  let best = null, bestD = -1;
+  let best = null, bestD = -Infinity; // раньше крупный бот рядом с людьми мог не уйти никогда (d уходило ниже -1)
   for (const b of snakes.values()) {
     if (!b.bot || !b.alive || (from >= 0 && b.team !== from)) continue;
     let d = 1e12; for (const h of heads) d = Math.min(d, (b.xs[0] - h.xs[0]) ** 2 + (b.ys[0] - h.ys[0]) ** 2);
@@ -1139,7 +1143,7 @@ function loop() {
   let n = 0;
   while (acc >= TICK_MS && n < 4) {
     const t0 = performance.now();
-    step();
+    try { step(); } catch (e) { console.error('ошибка в шаге мира (игра продолжается):', e); cellEv.clear(); diedThisTick.length = 0; }
     const dt = performance.now() - t0;
     if (dt > worstMs) worstMs = dt;
     sumMs += dt; nSteps++;
@@ -1164,7 +1168,8 @@ const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
 
 const server = http.createServer((req, res) => {
-  const url = decodeURIComponent((req.url || '/').split('?')[0]);
+  // Кривая ссылка (%E0%A4%A — так стучатся роботы-сканеры) раньше роняла весь сервер и выкидывала всех из игры
+  let url; try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); res.end(); return; }
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
@@ -1225,6 +1230,8 @@ if (teamWss) teamWss.on('connection', (ws, req) => {
   }).catch(done);
 });
 if (process.env.TEST_EXIT_SEC) setTimeout(() => process.exit(0), Number(process.env.TEST_EXIT_SEC) * 1000); // только для замеров (--cpu-prof пишет файл при выходе)
+// Последняя страховка: случайная ошибка пишется в журнал, а игра продолжается — раньше любая ошибка выкидывала всех игроков
+process.on('uncaughtException', e => console.error('непойманная ошибка (сервер продолжает работу):', e));
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (teamProc) teamProc.kill(); process.exit(0); });
 process.on('exit', () => { if (teamProc) teamProc.kill(); });
 if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // основной процесс закрылся — арена тоже
@@ -1252,7 +1259,7 @@ wss.on('connection', (ws, req) => {
       return;
     }
     let m; try { m = JSON.parse(data.toString()); } catch { return; }
-    if (m && typeof m === 'object') handleJSON(c, m);
+    if (m && typeof m === 'object') try { handleJSON(c, m); } catch (e) { console.error('ошибка в сообщении игрока:', e); }
   });
   ws.on('close', () => {
     clients.delete(c);

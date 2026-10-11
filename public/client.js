@@ -420,6 +420,9 @@ function onState(buf) {
   const nK = dv.getUint16(o, true); o += 2;
   for (let i = 0; i < nK; i++) { ev.dead.push(dv.getUint16(o, true)); o += 2; }
   foodQueue.push(ev);
+  // Вкладка в фоне (переключились в Telegram) — кадры не рисуются, и события еды копились тысячами (30 в секунду);
+  // при возврате они разом разбирались в одном кадре и игра замирала. Теперь очередь не длиннее 3 секунд.
+  if (foodQueue.length > 90) applyFood(foodQueue[foodQueue.length - 90].tick);
 
   // Оцениваем «серверное время»: быстро догоняем, медленно отстаём — так рывки сети не дёргают картинку
   const est = tick - performance.now() / (1000 / TICK_RATE);
@@ -450,7 +453,7 @@ function applyFood(upTo) {
     for (let i = 0; i < ev.rem.length; i += 2) {
       const f = foods.get(ev.rem[i]); if (!f) continue;
       foods.delete(f.id);
-      if (ev.rem[i + 1]) eatAnims.push({ f, eater: ev.rem[i + 1], t0: performance.now() });
+      if (ev.rem[i + 1] && !document.hidden) eatAnims.push({ f, eater: ev.rem[i + 1], t0: performance.now() });
       // звук поедания выключен (владелец 06.10)
     }
     if (ev.drop.length) {
@@ -459,7 +462,7 @@ function applyFood(upTo) {
     }
     for (const id of ev.dead) { // змея погибла — её тело красиво тает
       const sn = lastDrawn.get(id);
-      if (sn) dying.push({ sn, meta: metas.get(id), t0: performance.now() });
+      if (sn && !document.hidden) dying.push({ sn, meta: metas.get(id), t0: performance.now() });
     }
   }
 }
