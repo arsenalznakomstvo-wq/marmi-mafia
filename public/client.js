@@ -2315,11 +2315,14 @@ function mvDraw() {
 if (MENU_VIDEO) { document.body.classList.add('mvid'); if (MV_CANVAS) document.body.classList.add('mvcanvas'); menuVideo(true); }
 // Шаги каблуков под видео (владелец 12.10): пока открыто меню с видео; звук включается после первого касания (так требуют браузеры).
 // Две девушки идут не в ногу — шаги чуть вразнобой, громче/тише.
-var stepT = 0, stepN = 0; // var: menuVideo(true) вызывается выше по файлу, до этой строки
+var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызывается выше по файлу, до этой строки
 // Владелец 12.10: вместо придуманных шагов — звук из самого видео (photos/menu_audio.m4a), по кругу, пока открыто меню.
 // Звук начинается после первого касания (так требуют браузеры).
+// Владелец 12.10 («звук опаздывает»): звук теперь внутри самого видео (menu.mp4 со звуком) — всегда точно в такт картинке.
+// Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
-  Sound.ambient(on && document.body.classList.contains('in-menu'), 'photos/menu_audio.m4a');
+  const want = on && userTapped && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео
+  if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused) menuVid.play().catch(() => {}); }
   clearTimeout(stepT); return;
   const tick = () => {
     if (!document.body.classList.contains('in-menu') || document.hidden || menuVid.paused) { stepT = setTimeout(tick, 400); return; }
@@ -2345,11 +2348,11 @@ function menuVideo(on) {
 // потом меню плавно появляется; касание или клавиша — меню сразу. Не мешаем, если человек пришёл по ссылке ?name= (сразу в игру).
 if (MENU_VIDEO && !new URLSearchParams(location.search).get('name')) {
   document.body.classList.add('intro');
-  const endIntro = () => { Sound.init(); menuSteps(true); document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
+  const endIntro = e => { if (e && e.type) userTapped = true; Sound.init(); menuSteps(true); document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
   const introT = setTimeout(endIntro, 6500); // владелец 12.10: 6–7 секунд
   ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, endIntro, true));
 }
-if (MENU_VIDEO) window.addEventListener('pointerdown', () => { Sound.init(); if (document.body.classList.contains('in-menu')) menuSteps(true); }, true); // первое касание включает звук видео
+if (MENU_VIDEO) window.addEventListener('pointerdown', () => { userTapped = true; Sound.init(); if (document.body.classList.contains('in-menu')) menuSteps(true); }, true); // первое касание включает звук видео
 if (MENU_VIDEO) ['webkitbeginfullscreen', 'enterpictureinpicture'].forEach(ev => menuVid.addEventListener(ev, () => { try { menuVid.webkitExitFullscreen && menuVid.webkitExitFullscreen(); } catch (e) {} }));
 function hideMenu() {
   menuVideo(false);
@@ -2501,7 +2504,7 @@ async function uploadPhoto(file) {
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
 sb.addEventListener('pointerdown', e => e.stopPropagation());
-sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); });
+sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); if (typeof menuSteps === 'function') menuSteps(true); }); // звук видео меню тоже слушается кнопки
 
 function showHelp() {
   $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. Голосовой чат включается сам; V — выключить свой микрофон.'

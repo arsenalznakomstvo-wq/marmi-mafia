@@ -305,5 +305,6 @@ window.Sound = (() => {
     amb = ac.createBufferSource(); amb.buffer = ambBuf; amb.loop = true; amb.connect(ambGain); amb.start();
     ambGain.gain.setTargetAtTime(mode >= 1 ? AMB_VOL : 0, ac.currentTime, 0.3); // плавно нарастает
   }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient };
+  const isOn = () => mode >= 1;
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient, isOn };
 })();
