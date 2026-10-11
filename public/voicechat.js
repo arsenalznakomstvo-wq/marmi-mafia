@@ -132,7 +132,7 @@ window.VoiceChat = (() => {
     const app = inTelegram || micErr === 'nosupport', denied = !app && micErr === 'NotAllowedError';
     el.classList.toggle('hide', !inMenu || offline || !(app || denied));
     if (app) {
-      $('micHelpText').textContent = '🎤 Микрофон работает только в браузере';
+      $('micHelpText').textContent = '🎤 Голосовой чат и установка — в браузере';
       const b = $('micOpen'); b.classList.remove('hide');
       if (!b.dataset.done) b.textContent = /Android/i.test(ua) ? 'Открыть в браузере' : 'Скопировать ссылку';
     } else if (denied) { $('micHelpText').textContent = '🎤 Микрофон запрещён — разрешите его в настройках сайта'; $('micOpen').classList.add('hide'); }

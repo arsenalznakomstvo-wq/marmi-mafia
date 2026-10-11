@@ -576,3 +576,5 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
   color: #ffe27a; font: 700 12px Arial, sans-serif; cursor: pointer; }
 #micOpen.hide { display: none; }
 @media (max-height: 500px) { #micHelp { margin-top: 6px; font-size: 11px; } #micOpen { padding: 3px 10px; font-size: 11px; } }
+/* подсказки кнопки «Установить на телефон» бывают в две строки (владелец 11.10) */
+#iosTip { white-space: normal; max-width: min(420px, calc(100vw - 24px)); text-align: center; line-height: 1.4; }

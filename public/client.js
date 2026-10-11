@@ -2086,15 +2086,20 @@ window.addEventListener('appinstalled', reportInstall);
 (() => {
   if (isApp || !isTouch) return;
   try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch (e) {}
-  const btn = $('installBtn'), isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const btn = $('installBtn'), ua = navigator.userAgent, isIOS = /iPhone|iPad|iPod/i.test(ua);
+  // Владелец 11.10: кнопка видна на телефоне всегда (раньше — только когда телефон сам предлагал установку; если игра
+  // уже стояла, кнопка пропадала и было непонятно почему). Во встроенном браузере Telegram её нет — там «Открыть в браузере».
+  const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone);
+  const tip = html => { const t = $('iosTip'); t.innerHTML = html; t.classList.remove('hide'); clearTimeout(tip.t); tip.t = setTimeout(() => t.classList.add('hide'), 8000); };
   let deferred = null;
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.classList.remove('hide'); });
-  window.addEventListener('appinstalled', () => btn.classList.add('hide'));
-  if (isIOS) btn.classList.remove('hide');
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
+  window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('✅ Готово! Иконка игры — на экране телефона'); });
+  if (!inApp) btn.classList.remove('hide');
   btn.addEventListener('click', async () => {
     Sound.click();
-    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; btn.classList.add('hide'); }
-    else if (isIOS) { const t = $('iosTip'); t.classList.remove('hide'); setTimeout(() => t.classList.add('hide'), 6000); }
+    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; }
+    else if (isIOS) tip('Нажмите <b>Поделиться ⬆</b> внизу экрана → <b>«На экран Домой»</b>');
+    else tip('📲 Игра уже установлена — откройте её с иконки на экране.<br>Иконка не открывается? Удалите её (зажмите → «Удалить») и нажмите эту кнопку ещё раз');
   });
 })();
 
