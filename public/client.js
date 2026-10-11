@@ -8,7 +8,7 @@ let protoOk = false;
 // Рисуем чуть позади сервера, с запасом под неровную доставку. Запас подстраивается сам:
 // замеряем паузы между обновлениями и держим запас чуть больше обычной паузы (от 3 до 9 шагов = 100–300 мс).
 let interpTicks = 4, interpWant = 4, lastArrive = 0;
-const gaps = [];
+const gaps = []; let gapsN = 0;
 
 const $ = id => document.getElementById(id);
 const canvas = $('game'), ctx = canvas.getContext('2d');
@@ -48,9 +48,17 @@ function c565(v) { const r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31; retu
 // ===== Спрайты: каждый шарик рисуется один раз, потом только копируется — быстро даже на телефоне =====
 const SPR = 64, SR = 26;            // в спрайте 64×64 шар радиусом 26, остальное — место под свечение
 const sprites = new Map();
+// Владелец 11.10 («игра подвисает»): на телефоне яркость раньше давал CSS-фильтр на весь экран (#game) — телефон
+// перекрашивал каждый кадр целиком ещё раз. Теперь яркость «запекается» один раз в каждую заготовку (шарики, еда, фон).
+const BRIGHT = isTouch && 'filter' in CanvasRenderingContext2D.prototype ? 'brightness(1.15) saturate(1.05)' : '';
+function brighten(c) {
+  if (!BRIGHT) return c;
+  const t = document.createElement('canvas'); t.width = c.width; t.height = c.height;
+  const g = t.getContext('2d'); g.filter = BRIGHT; g.drawImage(c, 0, 0); return t;
+}
 function sprite(key, paint) {
   let s = sprites.get(key);
-  if (!s) { s = document.createElement('canvas'); s.width = s.height = SPR; paint(s.getContext('2d')); sprites.set(key, s); }
+  if (!s) { s = document.createElement('canvas'); s.width = s.height = SPR; paint(s.getContext('2d')); s = brighten(s); sprites.set(key, s); }
   return s;
 }
 // Кружок тела как в slither.io: светлая середина, тёмный край. Кружки идут очень плотно —
@@ -88,10 +96,12 @@ const haloSprite = col => sprite('h' + col, g => {
   g.fillStyle = gr; g.fillRect(0, 0, SPR, SPR);
 });
 const FOOD_CORE = 5; // радиус яркой точки еды в спрайте; вокруг — широкий слабый ореол
+// На телефоне еда рисуется квадратом в 0,6 раза меньше (почти невидимый край ореола обрезан) — в 2,8 раза меньше закрашиваемых точек
+const FOOD_K = isTouch ? 0.6 : 1;
 const foodSprite = col => sprite('f' + col, g => {
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, shade(col, 110)); gr.addColorStop(0.1, shade(col, 50)); gr.addColorStop(0.16, col);
-  gr.addColorStop(0.24, rgba(col, 0.16)); gr.addColorStop(0.55, rgba(col, 0.045)); gr.addColorStop(1, rgba(col, 0));
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32), k = FOOD_K;
+  gr.addColorStop(0, shade(col, 110)); gr.addColorStop(0.1 / k, shade(col, 50)); gr.addColorStop(0.16 / k, col);
+  gr.addColorStop(0.24 / k, rgba(col, 0.16)); gr.addColorStop(Math.min(0.98, 0.55 / k), rgba(col, 0.045)); gr.addColorStop(1, rgba(col, 0));
   g.fillStyle = gr; g.fillRect(0, 0, SPR, SPR);
 });
 
@@ -221,7 +231,7 @@ function makeBg() {
     g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.04)'; g.stroke();
   };
   for (const [x, y] of [[0, 0], [w, 0], [w / 2, h / 2], [0, h], [w, h]]) hex(x, y);
-  bgPattern = ctx.createPattern(c, 'repeat');
+  bgPattern = ctx.createPattern(brighten(c), 'repeat');
   if (bgPattern.setTransform) bgPattern.setTransform(new DOMMatrix().scaleSelf(1 / kx, 1 / ky));
   try { bgTileURL = c.toDataURL(); bgTileSize = `${w.toFixed(2)}px ${h.toFixed(2)}px`; } catch (e) {}
 }
@@ -239,7 +249,7 @@ function photo(i) {
     const im = new Image(); im.src = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg'; // на телефоне — лёгкая копия (640 px)
     const H = isTouch ? 640 : 1100;
     im.decode().then(() => (window.createImageBitmap ? createImageBitmap(im, { resizeHeight: Math.min(H, im.naturalHeight), resizeQuality: 'medium' }) : im))
-      .then(bmp => { photoBmp[i] = bmp; }).catch(() => {});
+      .then(bmp => { photoBmp[i] = brighten(bmp); }).catch(() => {});
   }
   return photoBmp[i];
 }
@@ -279,7 +289,7 @@ const eatAnims = [];
 const lastHeads = new Map(); // id -> {x,y} где голова нарисована сейчас
 let tickOffset = null;       // сдвиг серверного времени относительно нашего
 let lb = null, pingMs = 0;
-let myMass = 0;
+let myMass = 0, shownMass = -1;
 // ===== Командный режим (владелец 07.10): ?mode=team — арена «Мирные (белые) против Мафии (чёрно-оранжевые)», ?team=0/1 — сразу в команду друга =====
 const QS = new URLSearchParams(location.search);
 // Владелец 07.10: командная игра: выключалась 07.10 из-за лагов на бесплатном сервере, включена снова после перехода на Starter (0,5 CPU). Выключить: TEAM_ENABLED = false здесь и в server.js
@@ -432,7 +442,7 @@ function onState(buf) {
   if (lastArrive) {
     // Владелец 07.10: запас плавности больше — помним паузы связи за 10 с (а не 3), берём 98-й процент, +2 кадра, от 4 до 12 кадров
     gaps.push(nowA - lastArrive); if (gaps.length > 300) gaps.shift();
-    if (gaps.length >= 20) {
+    if (gaps.length >= 20 && ++gapsN % 15 === 0) { // пересчёт раз в полсекунды, а не на каждое обновление
       const sorted = gaps.slice().sort((a, b) => a - b), p98 = sorted[Math.floor(sorted.length * 0.98)];
       interpWant = clamp(Math.ceil(p98 / (1000 / TICK_RATE)) + 2, 4, 12);
     }
@@ -1310,7 +1320,7 @@ function frame(time) {
     if (f.x < view.x0 - 40 || f.x > view.x1 + 40 || f.y < view.y0 - 40 || f.y > view.y1 + 40) continue;
     const pulse = 1 + 0.12 * Math.sin(tt * 2 + f.ph);
     // Низкое качество: маленький ореол — в разы меньше закрашиваемых пикселей
-    const hq = hiQ && !farView, sz = f.r * pulse * (hq ? SPR / FOOD_CORE : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
+    const hq = hiQ && !farView, sz = f.r * pulse * (hq ? SPR / FOOD_CORE * FOOD_K : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
   if (BASES) drawBases(view, time);
@@ -1334,7 +1344,7 @@ function frame(time) {
     const e = eatAnims[i], k = (now - e.t0) / 180;
     const h = lastHeads.get(e.eater);
     if (k >= 1 || !h) { eatAnims.splice(i, 1); continue; }
-    const x = e.f.x + (h.x - e.f.x) * k, y = e.f.y + (h.y - e.f.y) * k, sz = e.f.r * (1 - k) * SPR / FOOD_CORE;
+    const x = e.f.x + (h.x - e.f.x) * k, y = e.f.y + (h.y - e.f.y) * k, sz = e.f.r * (1 - k) * SPR / FOOD_CORE * FOOD_K;
     ctx.drawImage(foodSprite(e.f.col), x - sz / 2, y - sz / 2, sz, sz);
   }
 
@@ -1357,7 +1367,7 @@ function frame(time) {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
-  if (alive) { $('len').textContent = myMass; drawMinimap(me); }
+  if (alive) { if (myMass !== shownMass) { shownMass = myMass; $('len').textContent = myMass; } drawMinimap(me); } // текст меняем только когда изменился
   renderEventArrow(me);
 }
 

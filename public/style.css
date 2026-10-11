@@ -441,7 +441,7 @@ body.team-mode #installBtn { width: min(300px, 100%); margin-top: 8px; backgroun
   body:not(.team-mode) #records .rr span { max-width: 90px; }
 }
 /* Владелец 07.10: на телефоне вся игра ярче — как будто прибавили яркость экрана */
-@media (pointer: coarse) { #game { filter: brightness(1.15) saturate(1.05); } }
+/* владелец 11.10: яркость на телефоне теперь «запечена» в картинки (client.js, BRIGHT) — CSS-фильтр на весь экран тормозил */
 /* Владелец 07.10: сообщение о золотой еде — мельче, округлым шрифтом (как название), золотом на полупрозрачном фоне, чтобы не отвлекало */
 #toast.ev { font-family: 'Comfortaa', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ffd52e; letter-spacing: 0.3px;
   background: rgba(10, 12, 18, 0.55); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 14px; padding: 5px 14px; text-shadow: none; top: 16%; }
@@ -488,10 +488,13 @@ body:not(.in-menu) #winCards { display: none; }
 .wpOffer { margin-top: 8px; font-size: 14px; color: #ffd52e; }
 /* Кнопка «Загрузите своё фото» — внизу справа (владелец 11.10) */
 #wpBtn { position: fixed; z-index: 41; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
-  padding: 11px 18px; border: 0; border-radius: 24px; cursor: pointer; background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00;
-  font: bold 15px Arial, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); animation: wpulse 2.2s ease-in-out infinite; max-width: calc(100vw - 28px); }
-#wpBtn:disabled { opacity: 0.85; cursor: default; animation: none; }
-@keyframes wpulse { 0%, 100% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(255, 213, 46, 0.55); } 50% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 10px rgba(255, 213, 46, 0); } }
+  padding: 10px 18px; border-radius: 24px; cursor: pointer; max-width: calc(100vw - 28px);
+  background: rgba(12, 15, 24, 0.62); border: 1px solid rgba(255, 213, 46, 0.45); color: #ffe27a; font: 700 14px Comfortaa, Arial, sans-serif;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); animation: wpulse 2.6s ease-in-out infinite; }
+#wpBtn:hover { background: rgba(20, 24, 36, 0.78); border-color: rgba(255, 213, 46, 0.75); }
+#wpBtn:disabled { cursor: default; animation: none; }
+/* владелец 11.10: кнопка тёмная полупрозрачная — мягкое золотое свечение рамки вместо яркой заливки */
+@keyframes wpulse { 0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(255, 213, 46, 0); } 50% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 14px 1px rgba(255, 213, 46, 0.35); } }
 /* Микрофон в меню — наверху слева, рядом со значком звука (владелец 11.10: внизу справа теперь кнопка фото) */
 body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe-area-inset-left)) + 46px); top: max(8px, env(safe-area-inset-top)); right: auto; bottom: auto; transform: none; }
 /* телефон лёжа: карточка меньше; список «Сегодня» внизу не показываем — он налезал на «Играть» */

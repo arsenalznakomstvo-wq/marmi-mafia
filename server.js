@@ -311,7 +311,19 @@ function collisions() {
         if (dx * dx + dy * dy < rr * rr) { killer = o; s.hitIdx = PIdx[p]; break outer; }
       }
     }
-    if (killer) dead.push(s, killer);
+    if (killer) {
+      // Подрезка (владелец 11.10): змея обогнала и резко повернула поперёк — её голова задевает голову или шею соперника.
+      // Раньше погибала она («чья голова коснулась — тот и разбился»), а должна та, что сзади въехала в подрезавшую.
+      // Голова s впереди головы o по ходу o и не лоб в лоб — значит, o сама въехала в s: погибает o.
+      // Людям запас 25: чужие змеи у них на экране чуть отстают от сервера, человек видит себя чуть дальше впереди.
+      const o = killer;
+      if (s.hitIdx * SEG_D <= o.r * 2.5 + (s.bot ? 0 : 25)) {
+        const ca = Math.cos(o.a), sa = Math.sin(o.a);
+        const ahead = (hx - o.xs[0]) * ca + (hy - o.ys[0]) * sa, sameWay = Math.cos(s.a) * ca + Math.sin(s.a) * sa;
+        if (ahead > (s.bot ? 0 : -25) && sameWay > -0.3) { if (!(o.ghostUntil > tick)) { o.hitIdx = 0; dead.push(o, s); } continue; } // Доктор-призрак не гибнет — тогда обе живы
+      }
+      dead.push(s, killer);
+    }
   }
   // Две змеи задели друг друга одновременно — погибает только одна (владелец 06.10; замер: 8 из 52 смертей были «оба»).
   // Кто въехал головой в тело — тот и разбился. Если обе задели головы: погибает та, что ехала прямо на соперника
@@ -335,7 +347,11 @@ function collisions() {
     }
     spare.add(loser === a ? b : a);
   }
-  for (let i = 0; i < dead.length; i += 2) if (!spare.has(dead[i]) && !docSave(dead[i])) killSnake(dead[i], dead[i + 1]);
+  const done = new Set(); // после подрезки одна змея может попасть в список дважды — Доктор не должен «спастись» и тут же погибнуть
+  for (let i = 0; i < dead.length; i += 2) {
+    const v = dead[i]; if (done.has(v)) continue; done.add(v);
+    if (!spare.has(v) && !docSave(v)) killSnake(v, dead[i + 1]);
+  }
 }
 
 const deathStats = { botBody: 0, botWall: 0, player: 0 };
@@ -1297,4 +1313,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale };
+module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D } }; // _test — для проверок подрезки
