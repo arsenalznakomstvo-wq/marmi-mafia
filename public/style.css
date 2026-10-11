@@ -716,3 +716,6 @@ body.mvid #mvCanvas { transition: opacity 0.9s ease; }
   body.mvid #installBtn { margin-top: 6px !important; padding: 4px 12px !important; font-size: 11px !important; }
   body.mvid #menu { background: linear-gradient(180deg, transparent 45%, rgba(6, 8, 12, 0.55) 78%, rgba(6, 8, 12, 0.75)) !important; } /* затемнение только снизу, под кнопками */
 }
+
+/* Владелец 12.10: переключатель «Графика» убран — всегда высокое качество */
+#qualityBox { display: none !important; }

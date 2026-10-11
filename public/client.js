@@ -2244,7 +2244,7 @@ buildPalette();
 drawBuildIcon();
 
 // Качество: высокое — чёткая картинка и тени; низкое — для слабых телефонов
-let hiQ = load('mm_hq') !== '0';
+let hiQ = true; // владелец 12.10: переключатель «Графика» убран — всегда высокое качество (у кого было «низкое» — тоже высокое)
 function showQuality() { $('qualityBtn').textContent = hiQ ? 'Высокое качество' : 'Низкое качество'; }
 $('qualityBtn').addEventListener('click', () => { hiQ = !hiQ; store('mm_hq', hiQ ? '1' : '0'); Sound.click(); showQuality(); resize(); });
 
