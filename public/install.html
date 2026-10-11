@@ -138,7 +138,13 @@
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.disabled = false; btn.textContent = '📲 Установить игру'; $('vInstalled').classList.add('hide'); show('vAndroid'); });
     window.addEventListener('appinstalled', () => { reportInstall(); $('vAndroid').classList.add('hide'); show('vDone'); });
     btn.addEventListener('click', async () => {
-      if (!deferred) { show('menuTip'); return; } // Chrome сам не предложил — показываем, где в его меню «Установить»
+      if (!deferred) {
+        // Нет предложения установки — скорее всего это не сам Chrome, а его окошко внутри Telegram (Custom Tab): там установить нельзя.
+        // Первое нажатие перебрасывает в настоящий Chrome (с пометкой c=1), там установка в одно нажатие.
+        // Уже в настоящем Chrome и всё равно нет предложения — показываем, где в меню Chrome «Установить».
+        if (!new URLSearchParams(location.search).has('c')) { location.href = 'intent://' + location.host + '/install?c=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(URL_ + '?c=1') + ';end'; return; }
+        show('menuTip'); return;
+      }
       deferred.prompt(); try { const c = await deferred.userChoice; if (c && c.outcome === 'accepted') { reportInstall(); $('vAndroid').classList.add('hide'); show('vDone'); } } catch (e) {}
       deferred = null;
     });
@@ -147,7 +153,7 @@
     if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(apps => { if (apps && apps.length && !deferred) { $('vAndroid').classList.add('hide'); show('vInstalled'); } }).catch(() => {});
     // Chrome пока не прислал предложение установки (бывает: присматривается к странице) — кнопка ведёт к меню Chrome;
     // если предложение придёт позже, обработчик beforeinstallprompt выше сам превратит кнопку в обычную «Установить игру»
-    setTimeout(() => { if (!deferred) { btn.disabled = false; btn.textContent = '📲 Установить через меню ⋮'; } }, 3500);
+    setTimeout(() => { if (!deferred) { btn.disabled = false; btn.textContent = new URLSearchParams(location.search).has('c') ? '📲 Установить через меню ⋮' : '📲 Установить игру'; } }, 2500);
   } else {
     show('vDesktop');
   }
