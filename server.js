@@ -59,6 +59,11 @@ function updateRoles() {
       s.roleShown = r;
       sendJSON(s.client, { t: 'role', r });
     }
+    // Владелец 11.10: человек стал Бомбой — рядом с ним едет настоящая бомба, бросить её можно один раз за жизнь
+    if (!s.bot && s.client && r === BOMB_ROLE && !s.bombGiven) {
+      s.bombGiven = true; s.bomb = 1;
+      sendJSON(s.client, { t: 'tmsgMe', text: '💣 Вы Бомба! Бомба едет рядом — бросьте её в соперника: кнопка 💣' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
+    }
   }
   // Новый Дон Мафии среди людей — объявляем всем
   if (top && top.id !== donId) {
@@ -72,6 +77,7 @@ function updateRoles() {
   }
 }
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
+const BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба');
 const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
 const displayName = s => TEAM ? s.name : s.bot ? roleShort(s.role || 0) : s.name + ' ' + roleShort(s.role || 0);
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
@@ -139,7 +145,8 @@ function hexTo565(hex) {
   const n = parseInt(hex.slice(1), 16);
   return (((n >> 16) & 255) >> 3) << 11 | (((n >> 8) & 255) >> 2) << 5 | ((n & 255) >> 3);
 }
-const randColor = () => hslToHex(Math.random() * 360 | 0, 85, 55);
+// Владелец 11.10 («подвисает»): 24 оттенка вместо 360 — каждый новый цвет еды телефон готовит отдельной картинкой, сотни цветов давали рывки
+const randColor = () => hslToHex((Math.random() * 24 | 0) * 15, 85, 55);
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 
 // ===== Мир =====
@@ -752,13 +759,14 @@ function handleJSON(c, m) {
     s.client = c; c.snake = s; c.inA = s.a;
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
+    if (process.env.TEST_WEAPONS) { s.bomb = 1; s.rockets = 2; } // только для проверок: сразу бомба и две ракеты
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) fireRocket(c.snake);
+    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); }
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -967,11 +975,12 @@ function stepOrbs() {
     }
     o.x += Math.cos(o.a) * sp; o.y += Math.sin(o.a) * sp;
   }
-  if (!TEAM) { // обычная игра: шары и базука Дона (без знамён и тревог)
-    stepRockets();
+  if (!TEAM) { // обычная игра: шары, базука Дона и бомба Бомбы (без знамён и тревог)
+    stepRockets(); stepBombs();
     if (tick % 3 === 0) {
       const m = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) };
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
+      for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push(s.id); // у кого бомба едет рядом
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
     return;
@@ -1087,6 +1096,38 @@ function stepRockets() {
       for (const c of clients) sendJSON(c, { t: 'boom', id: r.id, x: Math.round(r.x), y: Math.round(r.y), hit: hit ? 1 : 0, o: r.owner.id });
       if (hit && !docSave(hit)) { const killer = r.owner.alive ? r.owner : null; if (!hit.bot || (killer && !killer.bot)) teamMsg(`💥 ${r.owner.name} подбил базукой ${hit.name}!`); killSnake(hit, killer); }
     }
+  }
+}
+// ===== Бомба (владелец 11.10): летит вперёд ~0,6 с по дуге, падает, фитиль догорает 0,9 с — взрыв.
+// Все чужие змеи, чья голова в радиусе взрыва, погибают (Доктор отскакивает, как обычно). Бросивший не страдает.
+const BOMB_FLY = Math.round(0.6 * TICK_RATE), BOMB_FUSE = Math.round(0.9 * TICK_RATE), BOMB_DIST = 430, BOMB_R = 170;
+const bombs = []; let bombSeq = 0;
+function throwBomb(s) {
+  if (!s.bomb) return;
+  s.bomb = 0;
+  const px = -Math.sin(s.a), py = Math.cos(s.a), side = s.r * 1.9;
+  const x0 = s.xs[0] + px * side, y0 = s.ys[0] + py * side; // бомба едет справа от головы — оттуда и летит
+  let tx = x0 + Math.cos(s.a) * BOMB_DIST, ty = y0 + Math.sin(s.a) * BOMB_DIST;
+  const d = Math.hypot(tx, ty), lim = MAP_R - 60; if (d > lim) { tx *= lim / d; ty *= lim / d; }
+  const b = { id: ++bombSeq, owner: s, x: tx, y: ty, boomAt: tick + BOMB_FLY + BOMB_FUSE };
+  bombs.push(b);
+  const msg = JSON.stringify({ t: 'bomb', id: b.id, x0: Math.round(x0), y0: Math.round(y0), x: Math.round(tx), y: Math.round(ty), fly: BOMB_FLY * TICK_MS, fuse: BOMB_FUSE * TICK_MS, o: s.id });
+  for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+}
+function stepBombs() {
+  for (let i = bombs.length - 1; i >= 0; i--) {
+    const b = bombs[i]; if (tick < b.boomAt) continue;
+    bombs.splice(i, 1);
+    const hit = [];
+    for (const o of snakes.values()) {
+      if (!o.alive || o === b.owner) continue;
+      const rr = BOMB_R + o.r, dx = o.xs[0] - b.x, dy = o.ys[0] - b.y;
+      if (dx * dx + dy * dy < rr * rr) hit.push(o);
+    }
+    const msg = JSON.stringify({ t: 'bombBoom', id: b.id, x: Math.round(b.x), y: Math.round(b.y), r: BOMB_R, hit: hit.length, o: b.owner.id });
+    for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+    const killer = b.owner.alive ? b.owner : null;
+    for (const o of hit) if (!docSave(o)) { if (!o.bot || (killer && !killer.bot)) teamMsg(`💣 ${b.owner.name} взорвал ${o.name}!`); killSnake(o, killer); }
   }
 }
 function angDiffS(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }

@@ -213,8 +213,8 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
 
 // ===== Фон: крупные тёмно-синие объёмные соты, как в оригинале =====
 let bgPattern = null, bgTileURL = '', bgTileSize = '';
-// Владелец 07.10: на телефоне фон светлее (экраны телефонов темнее и бликуют); плюс вся игра ярче (+15%, style.css)
-const BG = isTouch ? { floor: '#1a2433', top: '#33476a', bot: '#26364f' } : { floor: '#0b1018', top: '#1e2a3d', bot: '#141c2a' };
+// Владелец 11.10: на телефоне — тёмно-графитовые соты, как в оригинальной slither.io (было синее); яркость +15% добавится при «запекании» (BRIGHT)
+const BG = isTouch ? { floor: '#0f1012', top: '#303339', bot: '#202226' } : { floor: '#0b1018', top: '#1e2a3d', bot: '#141c2a' };
 function makeBg() {
   // Владелец 06.10: соты чёткие — плитку рисуем в 4 раза детальнее и уменьшаем при заливке (раньше 50×87 точек растягивались)
   const s = 29, w = s * Math.sqrt(3), h = s * 3, K = 4;
@@ -299,7 +299,8 @@ const TEAM_MODE = TEAM_ENABLED && QS.get('mode') === 'team';
 const TEAM_COL = ['#f2f2f2', '#ff8a1f'], TEAM_NAME = ['Мирные', 'Мафия'], TEAM_ICON = ['⚪', '🟠'];
 const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '#ff8a1f', '#ff8a1f']]; // фон, текст, рамка таблички
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
-const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0; // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
+const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0;
+let bombIds = new Set(), myBomb = false; const bombsFly = new Map(); // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
@@ -351,7 +352,11 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      { const n = alive ? bazooka.get(myId) || 0 : 0; if (n !== myRockets) { myRockets = n; renderFireBtn(); } } teamAlarms = m.a || []; break; }
+      bombIds = new Set(m.b || []);
+      { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive && bombIds.has(myId); if (n !== myRockets || mb !== myBomb) { myRockets = n; myBomb = mb; renderFireBtn(); } } teamAlarms = m.a || []; break; }
+    case 'bomb': bombsFly.set(m.id, { x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now(), fly: m.fly, fuse: m.fuse }); bombIds.delete(m.o); if (m.o === myId) { myBomb = false; renderFireBtn(); } Sound.click(); break;
+    case 'bombBoom': bombsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: 1, mine: m.o === myId && m.hit > 0, parts: makeDebris() }); Sound.boom();
+      if (lastHeads.has(myId) && Math.hypot(lastHeads.get(myId).x - m.x, lastHeads.get(myId).y - m.y) < 900) shakeUntil = performance.now() + 500; break;
     case 'tmsg': bigToast(m.text); Sound.alert(); break;
     case 'final': finalMinute = true; break;
     case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(); break;
@@ -363,7 +368,7 @@ function onJSON(m) {
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -548,7 +553,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && myRockets > 0) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } // первый палец — джойстик под ним
     else if (boostId === null) boostOn(e.pointerId); // второй палец — ускорение
@@ -1209,6 +1214,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
+    if (!fade && bombIds.has(sn.id)) drawCarriedBomb(hx, hy, a, r, time);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1363,7 +1369,8 @@ function frame(time) {
     if (me) drawSnake(me, metas.get(me.id), true, time, view);
   }
   if (BASES) drawFlags(time);
-  if (rocketsFly.size || booms.length) drawRockets(time);
+  if (bombsFly.size) drawFlyingBombs(time);
+  if (rocketsFly.size || booms.length || smoke.length) drawRockets(time);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
@@ -1588,14 +1595,111 @@ function drawFlags(time) {
   });
 }
 
-// ===== Базука =====
-function drawBazooka(x, y, a, r) { // две трубы по бокам головы, смотрят вперёд
-  const c = Math.cos(a), s = Math.sin(a), px = -s, py = c, L = r * 1.9, W = r * 0.42, off = r * 1.25;
+// ===== Базука (владелец 11.10: реалистичная, не мультяшная) — гранатомёт вроде РПГ-7 =====
+// Рисуется один раз в заготовку (на каждый размер) и дальше только копируется с поворотом.
+// В заготовке гранатомёт смотрит вправо (+x): сзади раструб, оливковая труба, деревянная накладка, прицел, рукоять, спереди граната.
+function launcherSprite(r) {
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), L = R * 3.4, T = R * 0.36, H = R * 1.25;
+  const w = L, h = H * 2;
+  const img = cacheCanvas('rpg|' + R + '|' + k, w * k, h * k, g => {
+    g.scale(k, k); g.translate(0, H);
+    const tube = (x0, x1, rr, c0, c1, c2) => { const gr = g.createLinearGradient(0, -rr, 0, rr); gr.addColorStop(0, c0); gr.addColorStop(0.35, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(x0, -rr, x1 - x0, rr * 2); };
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(L * 0.5, T * 1.6, L * 0.48, T * 0.8, 0, 0, TAU); g.fill(); // тень на полу
+    // задний раструб
+    const gr0 = g.createLinearGradient(0, -T * 1.6, 0, T * 1.6); gr0.addColorStop(0, '#5b5f62'); gr0.addColorStop(0.4, '#9aa0a4'); gr0.addColorStop(1, '#2a2c2e');
+    g.fillStyle = gr0; g.beginPath(); g.moveTo(0, -T * 1.55); g.lineTo(L * 0.16, -T); g.lineTo(L * 0.16, T); g.lineTo(0, T * 1.55); g.closePath(); g.fill();
+    g.fillStyle = '#111'; g.beginPath(); g.ellipse(0, 0, T * 0.35, T * 1.35, 0, 0, TAU); g.fill();
+    tube(L * 0.16, L * 0.72, T, '#3c4231', '#7b8466', '#1e2219'); // труба — оливковый металл с бликом
+    tube(L * 0.34, L * 0.56, T * 1.18, '#4d2f17', '#a8743f', '#3a2210'); // деревянная накладка
+    g.strokeStyle = 'rgba(40, 20, 6, 0.55)'; g.lineWidth = Math.max(0.5, T * 0.08);
+    for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(L * 0.34, i * T * 0.38); g.bezierCurveTo(L * 0.41, i * T * 0.38 + T * 0.12, L * 0.48, i * T * 0.38 - T * 0.1, L * 0.56, i * T * 0.38); g.stroke(); } // волокна дерева
+    for (const x of [L * 0.33, L * 0.565, L * 0.7]) tube(x, x + L * 0.022, T * 1.22, '#2a2c2e', '#8d9296', '#1a1b1c'); // металлические хомуты
+    g.fillStyle = '#1d1f1a'; g.fillRect(L * 0.6, -T * 1.75, L * 0.06, T * 0.62); g.fillRect(L * 0.585, -T * 1.25, L * 0.09, T * 0.28); // прицел
+    g.fillStyle = '#26281f'; g.beginPath(); g.moveTo(L * 0.42, T); g.lineTo(L * 0.47, T); g.lineTo(L * 0.455, T * 1.9); g.lineTo(L * 0.4, T * 1.9); g.closePath(); g.fill(); // рукоять
+    tube(L * 0.72, L * 0.79, T * 0.62, '#3a3d33', '#6b705e', '#20221c'); // шейка гранаты
+    const gw = g.createLinearGradient(0, -T * 1.25, 0, T * 1.25); gw.addColorStop(0, '#3d4a2c'); gw.addColorStop(0.3, '#8b9a6a'); gw.addColorStop(1, '#1f2616');
+    g.fillStyle = gw; g.beginPath(); g.moveTo(L * 0.79, -T * 0.62); g.quadraticCurveTo(L * 0.86, -T * 1.3, L * 0.92, -T * 0.9); g.lineTo(L, -T * 0.12); g.lineTo(L, T * 0.12); g.lineTo(L * 0.92, T * 0.9); g.quadraticCurveTo(L * 0.86, T * 1.3, L * 0.79, T * 0.62); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = Math.max(0.5, T * 0.07); g.stroke();
+    g.fillStyle = '#c9a227'; g.fillRect(L * 0.83, -T * 1.08, L * 0.012, T * 2.16); // латунный поясок
+  });
+  return { img, w, h };
+}
+function drawBazooka(x, y, a, r) { // два гранатомёта по бокам головы, смотрят вперёд
+  const S = launcherSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), c = Math.cos(a), s = Math.sin(a), px = -s, py = c, off = r * 1.3;
   for (const side of [-1, 1]) {
-    const bx = x + px * off * side - c * r * 0.5, by = y + py * off * side - s * r * 0.5;
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#2f3b2a'; ctx.lineWidth = W; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + c * L, by + s * L); ctx.stroke();
-    ctx.strokeStyle = '#5c7350'; ctx.lineWidth = W * 0.45; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + c * L, by + s * L); ctx.stroke();
-    ctx.fillStyle = '#ff3b2b'; ctx.beginPath(); ctx.arc(bx + c * L, by + s * L, W * 0.38, 0, TAU); ctx.fill();
+    const bx = x + px * off * side - c * r * 1.6, by = y + py * off * side - s * r * 1.6;
+    drawRotated(S.img, bx, by, a, S.w * sc, S.h * sc, 0, S.h * sc / 2);
+  }
+  resetWorldT();
+}
+// Граната в полёте: головная часть с хвостовыми перьями
+function grenadeSprite() {
+  const k = PX_PER_UNIT();
+  return cacheCanvas('gren|' + k, 60 * k, 24 * k, g => {
+    g.scale(k, k); g.translate(0, 12);
+    g.fillStyle = '#2d3027'; g.beginPath(); g.moveTo(0, -9); g.lineTo(10, -3); g.lineTo(10, 3); g.lineTo(0, 9); g.closePath(); g.fill(); // перья
+    const t = g.createLinearGradient(0, -3, 0, 3); t.addColorStop(0, '#4a4e44'); t.addColorStop(0.4, '#8c917f'); t.addColorStop(1, '#25271f'); g.fillStyle = t; g.fillRect(6, -3, 22, 6);
+    const w = g.createLinearGradient(0, -9, 0, 9); w.addColorStop(0, '#3d4a2c'); w.addColorStop(0.3, '#8b9a6a'); w.addColorStop(1, '#1f2616');
+    g.fillStyle = w; g.beginPath(); g.moveTo(28, -4); g.quadraticCurveTo(38, -10, 46, -6); g.lineTo(58, -1); g.lineTo(58, 1); g.lineTo(46, 6); g.quadraticCurveTo(38, 10, 28, 4); g.closePath(); g.fill();
+    g.fillStyle = '#c9a227'; g.fillRect(40, -7.5, 1.6, 15);
+  });
+}
+const smoke = []; // дымный след гранат: серые клубы медленно расплываются и тают
+// ===== Бомба (владелец 11.10): чугунный шар с латунным горлышком и фитилём — как настоящая; едет справа от головы Бомбы =====
+function bombSprite() {
+  const k = PX_PER_UNIT();
+  return cacheCanvas('bomb|' + k, 128 * k, 128 * k, g => {
+    g.scale(k, k);
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(70, 112, 40, 11, 0, 0, TAU); g.fill(); // тень
+    const b = g.createRadialGradient(50, 58, 4, 64, 72, 44); b.addColorStop(0, '#6a7079'); b.addColorStop(0.25, '#353a41'); b.addColorStop(0.75, '#14161a'); b.addColorStop(1, '#050506');
+    g.fillStyle = b; g.beginPath(); g.arc(64, 72, 40, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(120, 135, 150, 0.35)'; g.lineWidth = 2.5; g.beginPath(); g.arc(64, 72, 38, 0.15 * Math.PI, 0.65 * Math.PI); g.stroke(); // отражённый свет снизу
+    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1.2; g.beginPath(); g.arc(64, 72, 34, 1.1 * Math.PI, 1.9 * Math.PI); g.stroke(); // литейный шов
+    const hl = g.createRadialGradient(48, 54, 0, 48, 54, 14); hl.addColorStop(0, 'rgba(255,255,255,0.75)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl; g.beginPath(); g.ellipse(48, 54, 14, 10, -0.6, 0, TAU); g.fill(); // блик
+    const c = g.createLinearGradient(52, 0, 76, 0); c.addColorStop(0, '#6b5320'); c.addColorStop(0.45, '#e2c26a'); c.addColorStop(1, '#5a4419');
+    g.fillStyle = c; g.fillRect(53, 26, 22, 10); g.fillStyle = '#3d2e10'; g.fillRect(53, 26, 22, 2); g.fillRect(53, 34, 22, 2); // латунное горлышко
+    g.fillStyle = '#4a3a14'; for (const x of [57, 64, 71]) { g.beginPath(); g.arc(x, 31, 1.3, 0, TAU); g.fill(); } // заклёпки
+    g.strokeStyle = '#6b5232'; g.lineWidth = 3.2; g.lineCap = 'round'; g.beginPath(); g.moveTo(64, 26); g.bezierCurveTo(64, 14, 74, 12, 80, 6); g.stroke(); // фитиль
+    g.strokeStyle = 'rgba(200, 170, 120, 0.6)'; g.lineWidth = 1; g.setLineDash([2, 2.5]); g.beginPath(); g.moveTo(64, 26); g.bezierCurveTo(64, 14, 74, 12, 80, 6); g.stroke(); g.setLineDash([]);
+  });
+}
+// Искры горящего фитиля (кончик фитиля в заготовке — точка 80,6 из 128)
+function fuseSparks(x, y, sz, time, hot) {
+  ctx.globalCompositeOperation = 'lighter';
+  const fl = 0.8 + 0.2 * Math.sin(time * 0.05), hs = sz * (hot ? 0.75 : 0.45) * fl;
+  ctx.drawImage(haloSprite('#ffb030'), x - hs / 2, y - hs / 2, hs, hs);
+  ctx.drawImage(haloSprite('#ffffff'), x - hs / 6, y - hs / 6, hs / 3, hs / 3);
+  for (let i = 0; i < (hot ? 7 : 4); i++) {
+    const ph = ((time * 0.004) + i * 0.37) % 1, an = i * 2.4 + time * 0.002, d = sz * 0.28 * ph;
+    ctx.fillStyle = `rgba(255, ${200 - ph * 120 | 0}, 60, ${1 - ph})`; ctx.beginPath(); ctx.arc(x + Math.cos(an) * d, y + Math.sin(an) * d - ph * sz * 0.1, sz * 0.025 * (1 - ph) + 0.6, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+function drawCarriedBomb(hx, hy, a, r, time) {
+  const px = -Math.sin(a), py = Math.cos(a), side = r * 1.9, sz = Math.max(26, r * 2.4);
+  const bx = hx + px * side - Math.cos(a) * r * 0.4, by = hy + py * side - Math.sin(a) * r * 0.4 + Math.sin(time * 0.006) * r * 0.08; // слегка подпрыгивает
+  ctx.strokeStyle = 'rgba(60, 45, 25, 0.8)'; ctx.lineWidth = Math.max(1, r * 0.08); // верёвочка к шее
+  ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * r * 0.9 + px * r * 0.6, hy - Math.sin(a) * r * 0.9 + py * r * 0.6); ctx.quadraticCurveTo(bx - Math.cos(a) * r, by - Math.sin(a) * r + r * 0.3, bx, by - sz * 0.2); ctx.stroke();
+  ctx.drawImage(bombSprite(), bx - sz / 2, by - sz / 2 - sz * 0.06, sz, sz);
+  fuseSparks(bx - sz / 2 + sz * 80 / 128, by - sz / 2 - sz * 0.06 + sz * 6 / 128, sz, time, false);
+}
+function drawFlyingBombs(time) {
+  const now = performance.now();
+  for (const [id, b] of bombsFly) {
+    const dt = now - b.t0; if (dt > b.fly + b.fuse + 600) { bombsFly.delete(id); continue; }
+    const f = Math.min(1, dt / b.fly), x = b.x0 + (b.x - b.x0) * f, y = b.y0 + (b.y - b.y0) * f;
+    const lift = Math.sin(f * Math.PI), sz = 46 * (1 + lift * 0.45); // летит по дуге: выше — крупнее, тень остаётся на полу
+    if (f >= 1) { // лежит и вот-вот взорвётся: красный круг опасности (радиус взрыва) мигает всё чаще
+      const left = 1 - Math.min(1, (dt - b.fly) / b.fuse), R = 170;
+      ctx.globalAlpha = 0.18 + 0.22 * (1 - left) * (0.6 + 0.4 * Math.sin(time * 0.03));
+      ctx.fillStyle = '#ff2b2b'; ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.8; ctx.strokeStyle = '#ff4b3b'; ctx.lineWidth = 4; ctx.setLineDash([18, 12]); ctx.lineDashOffset = -time * 0.05;
+      ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, TAU); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    } else { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, y + 18, 20 * (1 - lift * 0.4), 7 * (1 - lift * 0.4), 0, 0, TAU); ctx.fill(); }
+    const yy = y - lift * 70, spin = f < 1 ? dt * 0.012 : 0;
+    drawRotated(bombSprite(), x, yy, spin, sz, sz, sz / 2, sz / 2); resetWorldT();
+    if (f >= 1) fuseSparks(x - sz / 2 + sz * 80 / 128, yy - sz / 2 + sz * 6 / 128, sz, time, true);
   }
 }
 function drawRockets(time) {
@@ -1603,11 +1707,15 @@ function drawRockets(time) {
   for (const [id, r] of rocketsFly) {
     const dt = now - r.t0; if (dt > r.life + 300) { rocketsFly.delete(id); continue; }
     const x = r.x + r.vx * dt, y = r.y + r.vy * dt, a = Math.atan2(r.vy, r.vx), c = Math.cos(a), s = Math.sin(a);
-    ctx.globalCompositeOperation = 'lighter'; // огненный хвост
-    for (let k = 1; k <= 5; k++) { const hs = 34 - k * 4; ctx.globalAlpha = 0.5 - k * 0.07; ctx.drawImage(haloSprite(k < 3 ? '#ffd52e' : '#ff5a1f'), x - c * k * 14 - hs / 2, y - s * k * 14 - hs / 2, hs, hs); }
+    if (smoke.length < 400) smoke.push({ x: x - c * 30, y: y - s * 30, t0: now, s: 10 + Math.random() * 6 }); // дым остаётся позади
+    ctx.globalCompositeOperation = 'lighter'; // короткое пламя двигателя
+    for (let k = 1; k <= 3; k++) { const hs = 26 - k * 5; ctx.globalAlpha = 0.65 - k * 0.15; ctx.drawImage(haloSprite(k < 2 ? '#fff1b0' : '#ff8a1f'), x - c * (24 + k * 7) - hs / 2, y - s * (24 + k * 7) - hs / 2, hs, hs); }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#d8dde4'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x - c * 20, y - s * 20); ctx.lineTo(x + c * 8, y + s * 8); ctx.stroke();
-    ctx.fillStyle = '#ff2b2b'; ctx.beginPath(); ctx.arc(x + c * 9, y + s * 9, 5, 0, TAU); ctx.fill();
+    drawRotated(grenadeSprite(), x, y, a, 60, 24, 34, 12); resetWorldT();
+  }
+  for (let i = smoke.length - 1; i >= 0; i--) { // дымный след: серые клубы растут и тают за 1,2 с
+    const p = smoke[i], k = (now - p.t0) / 1200; if (k >= 1) { smoke.splice(i, 1); continue; }
+    ctx.fillStyle = `rgba(150, 150, 155, ${0.32 * (1 - k)})`; ctx.beginPath(); ctx.arc(p.x, p.y - k * 10, p.s * (1 + k * 2.2), 0, TAU); ctx.fill();
   }
   for (let i = booms.length - 1; i >= 0; i--) { // взрыв: вспышка и расходящееся кольцо
     const b = booms[i], k = (now - b.t0) / (b.big ? 1100 : 400); if (k >= 1) { booms.splice(i, 1); continue; }
@@ -1633,8 +1741,8 @@ function drawRockets(time) {
 let shakeUntil = 0;
 const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
-function fire() { if (myRockets > 0 && alive) { sendJSON({ t: 'fire' }); Sound.click(); } }
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !(myRockets > 0 && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона */ b.innerHTML = '🚀<span>' + myRockets + '</span>'; }
+function fire() { if ((myRockets > 0 || myBomb) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb) && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : '💣'; }
 {
   const b = $('fireBtn');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой

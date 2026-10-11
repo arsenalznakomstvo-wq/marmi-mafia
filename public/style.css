@@ -523,3 +523,48 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
   #winCards .wcap b { font-size: 13px; } #winCards .wcap span { font-size: 12px; }
   #winCards .wmedal { font-size: 22px; }
 }
+/* Владелец 11.10: меню не сдвигается вбок — у него вертикальная прокрутка, и веер карусели, выступающий за край,
+   позволял сдвинуть весь экран пальцем (на телефоне меню «съезжало» влево) */
+.menu { overflow-x: hidden; }
+/* Владелец 11.10: на телефоне «Собрать змейку» — справа внизу; кнопка «Загрузите своё фото» — над ней */
+@media (pointer: coarse) {
+  #buildBtn { left: auto !important; right: max(4px, env(safe-area-inset-right)); }
+  #wpBtn { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px); }
+}
+/* телефон лёжа: карусель чуть выше, чтобы не задевать «Собрать змейку» справа внизу */
+@media (pointer: coarse) and (max-height: 500px) { #winCards { top: 42%; } }
+/* веер карточек поднимается вверх — заголовку «Топ-5» нужен запас, иначе карточки его закрывают */
+#winCards .wtitle { margin-bottom: 30px; }
+@media (max-height: 500px) { #winCards .wtitle { margin-bottom: 20px; } }
+/* телефон лёжа: кнопка фото внизу, левее «Собрать змейку» (над ней — карусель) */
+@media (pointer: coarse) and (max-height: 500px) { #wpBtn { bottom: max(8px, env(safe-area-inset-bottom)); right: calc(max(4px, env(safe-area-inset-right)) + 128px); } }
+/* Владелец 11.10: карточка новой роли на телефоне меньше — закрывала экран посреди игры */
+@media (pointer: coarse) {
+  #promo { top: 20%; padding: 5px 14px; border-radius: 12px; border-width: 1.5px; }
+  #promo .pt { font-size: 9px; letter-spacing: 1px; }
+  #promo .pn { font-size: 16px; margin: 1px 0; }
+  #promo .ps { font-size: 9px; }
+  #promo.don { padding: 6px 16px; border-width: 2px; }
+  #promo.don .pi { font-size: 20px; }
+  #promo.don .pn { font-size: 19px; }
+  #promo .pimg { width: 36px !important; height: 36px !important; }
+}
+/* Владелец 11.10: «разгрузи экран» — без кнопки «Управление: джойстик» (джойстик и так по умолчанию),
+   «Установить на телефон» — маленькой строкой, отступы ровные, карусель поменьше */
+#ctrlBtn { display: none !important; }
+@media (pointer: coarse) {
+  #installBtn { padding: 5px 12px !important; font-size: 12px !important; margin-top: 10px !important; border-width: 1px !important; opacity: 0.85; }
+}
+@media (max-width: 600px) and (min-height: 501px) {
+  #menu .title { margin-bottom: 22px; }
+  #nick { margin-bottom: 16px; }
+  #modeRow { margin-top: 12px; }
+  #winCards { --cw: 124px; margin-top: 22px; }
+  #winCards .wtitle { margin-bottom: 26px; }
+  #winCards .deck { height: calc(var(--cw) + 40px); }
+  #winCards .wcap { height: 40px; }
+  #winCards .wcap b { font-size: 12px; } #winCards .wcap span { font-size: 11px; }
+  #winCards .wmedal { font-size: 18px; left: 6px; top: 6px; }
+  #winCards .wdots { margin-top: 10px; }
+}
+@media (pointer: coarse) and (max-height: 500px) { #winCards { --cw: 120px; top: 47%; } }
