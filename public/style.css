@@ -568,3 +568,11 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
   #winCards .wdots { margin-top: 10px; }
 }
 @media (pointer: coarse) and (max-height: 500px) { #winCards { --cw: 120px; top: 47%; } }
+/* Владелец 11.10: подсказка про микрофон — одна аккуратная строка под кнопками меню */
+#micHelp { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px;
+  font-size: 12px; color: #c9cfd8; text-align: center; max-width: min(340px, 100%); }
+#micHelp.hide { display: none; }
+#micOpen { padding: 5px 12px; border-radius: 14px; border: 1px solid rgba(255, 213, 46, 0.45); background: rgba(12, 15, 24, 0.6);
+  color: #ffe27a; font: 700 12px Arial, sans-serif; cursor: pointer; }
+#micOpen.hide { display: none; }
+@media (max-height: 500px) { #micHelp { margin-top: 6px; font-size: 11px; } #micOpen { padding: 3px 10px; font-size: 11px; } }

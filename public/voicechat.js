@@ -14,7 +14,10 @@ window.VoiceChat = (() => {
   // Владелец 11.10 («микрофон на телефоне не включается»): запоминаем, почему не включился, и по нажатию 🎤 объясняем одной строкой
   let micErr = null;
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const inTelegram = !!window.TelegramWebviewProxy || /Telegram/i.test(navigator.userAgent); // встроенный браузер Telegram
+  // Встроенный браузер Telegram/Instagram/Facebook: микрофон там обычно не работает. Android — WebView («; wv)» в UA),
+  // iPhone — встроенный просмотр без слова Safari в UA
+  const ua = navigator.userAgent;
+  const inTelegram = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone); // иконка на экране «Домой» — не встроенный браузер
 
   function loadSdk() {
     if (window.LivekitClient) return Promise.resolve();
@@ -63,7 +66,7 @@ window.VoiceChat = (() => {
   function toastMic(e) { micErr = (e && e.name) || 'nosupport'; }
   let tipT = 0;
   function showTip() {
-    const t = (inTelegram || micErr === 'nosupport') ? 'Telegram не даёт микрофон. Нажмите ⋮ вверху → «Открыть в браузере»'
+    const t = (inTelegram || micErr === 'nosupport') ? 'Микрофон работает только в браузере — откройте игру в Chrome или Safari'
       : micErr === 'NotAllowedError' ? (isIOS ? 'Микрофон запрещён: Настройки → Safari → Микрофон → Разрешить, затем обновите страницу'
         : 'Микрофон запрещён: нажмите 🔒 слева от адреса сайта → Разрешения → Микрофон')
       : micErr === 'NotReadableError' || micErr === 'AbortError' ? 'Микрофон занят другим приложением (звонок?) — закройте его и нажмите 🎤 ещё раз'
@@ -90,6 +93,7 @@ window.VoiceChat = (() => {
   let played = false, hiddenSince = 0;
   document.addEventListener('visibilitychange', () => { hiddenSince = document.hidden ? Date.now() : 0; });
   function tick(alive, online) {
+    renderHelp();
     if (offline) return;
     if (alive) played = true;
     const hiddenLong = hiddenSince && Date.now() - hiddenSince > 60000;
@@ -101,7 +105,31 @@ window.VoiceChat = (() => {
     }
   }
 
+  // Владелец 11.10: короткая строка в меню (под «Играть») для тех, у кого микрофон не работает:
+  // во встроенном браузере — «откройте в браузере» с кнопкой; в обычном, но запрещён — где разрешить
+  function renderHelp() {
+    const el = $('micHelp'); if (!el) return;
+    const inMenu = document.body.classList.contains('in-menu');
+    const app = inTelegram || micErr === 'nosupport', denied = !app && micErr === 'NotAllowedError';
+    el.classList.toggle('hide', !inMenu || offline || !(app || denied));
+    if (app) {
+      $('micHelpText').textContent = '🎤 Микрофон работает только в браузере';
+      const b = $('micOpen'); b.classList.remove('hide');
+      if (!b.dataset.done) b.textContent = /Android/i.test(ua) ? 'Открыть в браузере' : 'Скопировать ссылку';
+    } else if (denied) { $('micHelpText').textContent = '🎤 Микрофон запрещён — разрешите его в настройках сайта'; $('micOpen').classList.add('hide'); }
+  }
+  function openInBrowser() {
+    const url = location.origin + location.pathname, b = $('micOpen');
+    if (/Android/i.test(ua)) { // Android: сразу в Chrome; если Chrome нет — откроется обычная ссылка
+      location.href = 'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+      return;
+    }
+    const done = () => { b.dataset.done = '1'; b.textContent = '✅ Скопировано — вставьте в Safari'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => prompt('Скопируйте ссылку и откройте в Safari:', url));
+    else prompt('Скопируйте ссылку и откройте в Safari:', url);
+  }
   function render() {
+    renderHelp();
     const on = !!room;
     $('vcBar').classList.toggle('hide', !on);
     if (!on) return;
@@ -125,6 +153,7 @@ window.VoiceChat = (() => {
       if (e.code !== 'KeyV' || e.repeat || !room || document.activeElement === $('nick')) return;
       flip();
     });
+    $('micOpen').addEventListener('click', openInBrowser);
     $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
