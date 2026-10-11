@@ -2243,14 +2243,33 @@ const LOOK_DEFAULT = 'classic';
   if ((load('mm_look') || LOOK_DEFAULT) === 'gold') document.body.classList.add('look-gold'); }
 // ===== Видео на заднем фоне меню (владелец 11.10). Вернуть фото по бокам: MENU_VIDEO = false =====
 // Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
-const MENU_VIDEO = true;
-const menuVid = $('menuVid');
-if (MENU_VIDEO) { document.body.classList.add('mvid'); menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); }
+const menuVid = $('menuVid'), mvCanvas = $('mvCanvas');
+const MENU_VIDEO = !!menuVid; // старая страница из кэша без видео — просто без видео (раньше игра падала: ошибка с Xiaomi / Яндекс Браузера)
+// Телефон: само видео спрятано (1 px), кадры рисуются на холст. Иначе Яндекс Браузер и браузеры Xiaomi/Samsung перехватывают
+// видео и открывают его в своём плеере на весь экран — «на телефоне только видео открывается» (владелец 12.10).
+const MV_CANVAS = MENU_VIDEO && isTouch && !!mvCanvas;
+let mvRaf = 0;
+function mvDraw() {
+  mvRaf = requestAnimationFrame(mvDraw);
+  if (menuVid.readyState < 2) return;
+  const cw = mvCanvas.clientWidth, ch = mvCanvas.clientHeight; if (!cw || !ch) return;
+  if (mvCanvas.width !== cw || mvCanvas.height !== ch) { mvCanvas.width = cw; mvCanvas.height = ch; }
+  const vw = menuVid.videoWidth, vh = menuVid.videoHeight, k = Math.max(cw / vw, ch / vh), w = vw * k, h = vh * k; // как object-fit: cover
+  mvCanvas.getContext('2d').drawImage(menuVid, (cw - w) / 2, (ch - h) / 2, w, h);
+}
+if (MENU_VIDEO) { document.body.classList.add('mvid'); if (MV_CANVAS) document.body.classList.add('mvcanvas'); menuVideo(true); }
 function menuVideo(on) {
   if (!MENU_VIDEO) return;
-  if (on) { if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); }
-  else { menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); } // выгрузить — освободить память и видеочип для игры
+  if (on) {
+    if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4';
+    menuVid.play().catch(() => {});
+    if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
+  } else {
+    cancelAnimationFrame(mvRaf); mvRaf = 0;
+    menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); // выгрузить — освободить память и видеочип для игры
+  }
 }
+if (MENU_VIDEO) ['webkitbeginfullscreen', 'enterpictureinpicture'].forEach(ev => menuVid.addEventListener(ev, () => { try { menuVid.webkitExitFullscreen && menuVid.webkitExitFullscreen(); } catch (e) {} }));
 function hideMenu() {
   menuVideo(false);
   $('menu').classList.add('hide'); $('skinScreen').classList.add('hide'); $('hud').classList.remove('hide');
