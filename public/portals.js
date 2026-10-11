@@ -6,7 +6,7 @@
     // постер «девушка за роялем» (p27): у плеча слева ⇄ у клавиш внизу справа
     [[3449, -1469], [3878, -1136]],
   ];
-  const PORTAL_R = 30;   // радиус норы (владелец 11.10: меньше)
+  const PORTAL_R = 20;   // радиус норы (владелец 11.10: ещё меньше — было 46, потом 30)
   const api = { PORTALS, PORTAL_R };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Portals = api;
