@@ -1316,7 +1316,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
-    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) drawSheriffHat(hx, hy, a, r); // кожаная ковбойская шляпа — у людей и ботов (владелец 11.10)
+    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r); } // владелец 12.10: без шляпы — жетон и тёмные очки
     if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка') drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
@@ -1801,7 +1801,7 @@ function drawKillerBelt(neck, r, hasKnife) {
   ctx.strokeStyle = gb; ctx.lineWidth = Math.max(1, r * 0.11); ctx.strokeRect(-bw * 0.62, bl * 0.3, bw * 1.24, bl * 0.42); // пряжка — справа, ножны — слева (справа их закрывала табличка)
   // Владелец 11.10: кинжал без ножен — открытый клинок вдоль тела острием назад, рукоять прижата к ремню кожаной петлёй
   if (hasKnife) {
-    const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), L = S.L * sc, W = S.W * sc, sy = -r * 1.0;
+    const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2) * 1.35, L = S.L * sc, W = S.W * sc, sy = -r * 1.15; // владелец 12.10: кинжал крупнее и заметнее
     ctx.save(); ctx.translate(L * 0.2, sy); ctx.rotate(Math.PI); ctx.drawImage(S.img, 0, -W / 2, L, W); ctx.restore(); // рукоять у ремня, клинок назад
     const lg2 = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0); lg2.addColorStop(0, '#2b1709'); lg2.addColorStop(0.5, '#7a4a22'); lg2.addColorStop(1, '#2b1709');
     ctx.fillStyle = lg2; ctx.fillRect(-bw * 0.45, sy - W * 0.3, bw * 0.9, W * 0.6); // петля ремня вокруг рукояти
@@ -1888,6 +1888,50 @@ function sheriffHatSprite(r) {
     const sv = g.createRadialGradient(-cw * 0.15, ch * 0.88, 0, -cw * 0.1, ch * 0.95, R * 0.2); sv.addColorStop(0, '#ffffff'); sv.addColorStop(0.5, '#c8ced6'); sv.addColorStop(1, '#6d747c');
     g.fillStyle = sv; g.beginPath(); g.arc(-cw * 0.1, ch * 0.95, R * 0.17, 0, TAU); g.fill(); g.strokeStyle = '#4a5058'; g.lineWidth = Math.max(0.5, R * 0.03); g.stroke();
   }), W, H };
+}
+// ===== Шериф (владелец 12.10): металлический жетон-звезда на груди и очень крутые тёмные очки =====
+// Жетон: шестиконечная звезда с шариками на лучах, полированный металл (золото со стальным отливом), гравировка-кольцо, блик.
+function badgeSprite(r) {
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), S = R * 1.9;
+  return { img: cacheCanvas('badge|' + R + '|' + k, S * k, S * k, g => {
+    g.scale(k, k); g.translate(S / 2, S / 2);
+    const ro = S * 0.42, ri = ro * 0.55;
+    const star = () => { g.beginPath(); for (let i = 0; i < 12; i++) { const rr = i % 2 ? ri : ro, an = -Math.PI / 2 + i * Math.PI / 6; g.lineTo(Math.cos(an) * rr, Math.sin(an) * rr); } g.closePath(); };
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.save(); g.translate(S * 0.03, S * 0.04); star(); g.fill(); g.restore(); // тень
+    const m = g.createLinearGradient(-ro, -ro, ro, ro); m.addColorStop(0, '#fff3c4'); m.addColorStop(0.3, '#e0b84a'); m.addColorStop(0.55, '#8c6a1c'); m.addColorStop(0.75, '#e6c560'); m.addColorStop(1, '#6e5214');
+    g.fillStyle = m; star(); g.fill(); g.strokeStyle = '#4a3608'; g.lineWidth = Math.max(0.6, R * 0.05); g.stroke();
+    for (let i = 0; i < 6; i++) { const an = -Math.PI / 2 + i * Math.PI / 3, bx = Math.cos(an) * ro, by = Math.sin(an) * ro; // шарики на лучах
+      const bg = g.createRadialGradient(bx - R * 0.04, by - R * 0.04, 0, bx, by, R * 0.12); bg.addColorStop(0, '#fffbe6'); bg.addColorStop(1, '#a8801f'); g.fillStyle = bg; g.beginPath(); g.arc(bx, by, R * 0.11, 0, TAU); g.fill(); }
+    const c = g.createRadialGradient(-R * 0.08, -R * 0.1, 0, 0, 0, ri * 0.8); c.addColorStop(0, '#f4f6f8'); c.addColorStop(0.6, '#aab2bb'); c.addColorStop(1, '#5f666e'); // стальной центр
+    g.fillStyle = c; g.beginPath(); g.arc(0, 0, ri * 0.72, 0, TAU); g.fill(); g.strokeStyle = 'rgba(40,40,40,0.6)'; g.lineWidth = Math.max(0.5, R * 0.03); g.stroke();
+    g.strokeStyle = 'rgba(60,60,60,0.55)'; g.setLineDash([R * 0.04, R * 0.05]); g.beginPath(); g.arc(0, 0, ri * 0.55, 0, TAU); g.stroke(); g.setLineDash([]); // гравировка
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-ro * 0.3, -ro * 0.35, ro * 0.22, ro * 0.07, -0.7, 0, TAU); g.fill(); // блик
+  }), S };
+}
+function drawSheriffBadge(neck, r) {
+  const B = badgeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), S = B.S * sc; let [nx, ny, na] = neck;
+  const t = performance.now() * 0.002, glint = 0.5 + 0.5 * Math.sin(t);
+  const bx = nx + Math.sin(na) * r * 0.45, by = ny - Math.cos(na) * r * 0.45; nx = bx; ny = by; // на левом боку — справа висит табличка роли
+  drawRotated(B.img, nx, ny, na + Math.PI / 2, S, S, S / 2, S / 2); resetWorldT(); // жетон на «груди», чуть позади головы
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 * glint; const hs = S * 0.9; ctx.drawImage(haloSprite('#fff1b0'), nx - hs / 2, ny - hs / 2, hs, hs); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+// Очень крутые тёмные очки: широкие «спортивные» линзы с зеркальным переливом (фиолетово-оранжевым), тонкая чёрная оправа, блик
+function drawCoolShades(hx, hy, a, r) {
+  // широкие тёмные «спортивные» линзы полностью закрывают глаза; зеркальный перелив фиолетовый → оранжевый
+  ctx.save(); ctx.translate(hx + Math.cos(a) * r * 0.32, hy + Math.sin(a) * r * 0.32); ctx.rotate(a); // x — вперёд, y — поперёк
+  const gap = r * 0.48, x0 = -r * 0.5, x1 = r * 0.52, h0 = r * 0.5;
+  for (const sg of [-1, 1]) {
+    const yIn = sg * (gap - h0 * 0.85), yOut = sg * (gap + h0 * 1.05);
+    ctx.beginPath(); ctx.moveTo(x0, yIn); ctx.lineTo(x1, yIn); ctx.quadraticCurveTo(x1 + r * 0.06, (yIn + yOut) / 2, x1 - r * 0.05, yOut);
+    ctx.quadraticCurveTo((x0 + x1) / 2, yOut + sg * r * 0.12, x0, yOut - sg * r * 0.05); ctx.quadraticCurveTo(x0 - r * 0.08, (yIn + yOut) / 2, x0, yIn); ctx.closePath();
+    const lg = ctx.createLinearGradient(x0, yIn, x1, yOut); lg.addColorStop(0, '#08080c'); lg.addColorStop(0.45, '#1a1430'); lg.addColorStop(0.72, '#5a2d6e'); lg.addColorStop(0.9, '#d0702c'); lg.addColorStop(1, '#120e16');
+    ctx.fillStyle = lg; ctx.fill(); ctx.strokeStyle = '#030304'; ctx.lineWidth = Math.max(1.2, r * 0.1); ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(r * 0.12, sg * gap - sg * r * 0.12, r * 0.24, r * 0.06, -0.4 * sg, 0, TAU); ctx.fill(); // блик
+  }
+  ctx.strokeStyle = '#030304'; ctx.lineWidth = Math.max(1.4, r * 0.14); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1 - r * 0.05, -(gap - h0 * 0.85)); ctx.lineTo(x1 - r * 0.05, gap - h0 * 0.85); ctx.stroke(); // перемычка
+  for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x0, sg * (gap + h0 * 0.6)); ctx.lineTo(-r * 1.05, sg * (gap + h0 * 0.4)); ctx.stroke(); } // дужки
+  ctx.restore();
 }
 function drawSheriffHat(hx, hy, a, r) {
   const S = sheriffHatSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), W = S.W * sc, H = S.H * sc;
