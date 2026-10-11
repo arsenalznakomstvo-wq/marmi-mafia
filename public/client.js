@@ -1315,6 +1315,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
+    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) drawSheriffHat(hx, hy, a, r); // кожаная ковбойская шляпа — у людей и ботов (владелец 11.10)
     if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка') drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
@@ -1849,6 +1850,48 @@ function drawFlyingKnives(time) {
     ctx.beginPath(); ctx.arc(p.x + p.vx * t, p.y + p.vy * t, 3.2 * (1 - t / 450) + 0.8, 0, TAU); ctx.fill();
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+// ===== Шляпа Шерифа (владелец 11.10: «кожаную, реальную»): ковбойская, вид сверху. Широкие поля загнуты по бокам,
+// тулья с продольной вмятиной, кожа с потёртостями и строчкой по краю полей, плетёная лента с серебряной пряжкой.
+// Рисуется один раз на размер в заготовку и дальше копируется с поворотом.
+const SHERIFF = ROLES.findIndex(x => x.name === 'Шериф');
+function sheriffHatSprite(r) {
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), W = R * 2.5, H = R * 3.1; // x — вперёд по ходу, y — поперёк (поля шире змеи)
+  return { img: cacheCanvas('shat|' + R + '|' + k, W * k, H * k, g => {
+    g.scale(k, k); g.translate(W / 2, H / 2);
+    const rx = W * 0.46, ry = H * 0.46;
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(R * 0.1, R * 0.12, rx, ry * 0.95, 0, 0, TAU); g.fill(); // тень на змее
+    // поля: кожа с тёплым переливом; бока (по y) загнуты вверх — светлее и с тенью у загиба
+    const br = g.createRadialGradient(-R * 0.2, -R * 0.2, R * 0.2, 0, 0, rx); br.addColorStop(0, '#9a6234'); br.addColorStop(0.6, '#7a4622'); br.addColorStop(1, '#4e2a12');
+    g.fillStyle = br; g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, TAU); g.fill();
+    for (const sg of [-1, 1]) { // загнутые края полей
+      const cg = g.createLinearGradient(0, sg * ry * 0.45, 0, sg * ry); cg.addColorStop(0, 'rgba(0,0,0,0.35)'); cg.addColorStop(0.5, 'rgba(255,220,170,0.18)'); cg.addColorStop(1, 'rgba(60,30,10,0.5)');
+      g.fillStyle = cg; g.beginPath(); g.ellipse(0, sg * ry * 0.72, rx * 0.86, ry * 0.3, 0, 0, TAU); g.fill();
+    }
+    g.setLineDash([R * 0.14, R * 0.1]); g.strokeStyle = 'rgba(240, 210, 160, 0.55)'; g.lineWidth = Math.max(0.6, R * 0.05); // строчка по краю
+    g.beginPath(); g.ellipse(0, 0, rx * 0.9, ry * 0.88, 0, 0, TAU); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = '#3a1e0b'; g.lineWidth = Math.max(0.8, R * 0.06); g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, TAU); g.stroke();
+    // потёртости кожи
+    g.fillStyle = 'rgba(30, 14, 4, 0.18)';
+    for (const [x, y, w] of [[-0.55, 0.25, 0.18], [0.5, -0.3, 0.14], [0.2, 0.55, 0.12], [-0.3, -0.6, 0.1]]) { g.beginPath(); g.ellipse(x * rx, y * ry, w * R, w * R * 0.6, 0.6, 0, TAU); g.fill(); }
+    // тулья: вытянута вдоль хода, с вмятиной посередине
+    const cw = R * 0.72, ch = R * 0.56;
+    const cr = g.createLinearGradient(0, -ch, 0, ch); cr.addColorStop(0, '#b07a46'); cr.addColorStop(0.45, '#8a5530'); cr.addColorStop(1, '#5a3216');
+    g.fillStyle = cr; g.beginPath(); g.ellipse(0, 0, cw, ch, 0, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(40, 20, 6, 0.65)'; g.lineWidth = Math.max(0.8, R * 0.07); g.beginPath(); g.moveTo(-cw * 0.7, 0); g.quadraticCurveTo(0, ch * 0.12, cw * 0.75, 0); g.stroke(); // продольная вмятина
+    g.strokeStyle = 'rgba(255, 225, 180, 0.35)'; g.lineWidth = Math.max(0.6, R * 0.04); g.beginPath(); g.moveTo(-cw * 0.65, -ch * 0.12); g.quadraticCurveTo(0, -ch * 0.02, cw * 0.7, -ch * 0.12); g.stroke(); // блик у вмятины
+    for (const sg of [-1, 1]) { g.fillStyle = 'rgba(40, 20, 6, 0.35)'; g.beginPath(); g.ellipse(cw * 0.55, sg * ch * 0.42, cw * 0.18, ch * 0.16, 0, 0, TAU); g.fill(); } // защипы спереди
+    // лента: тёмная плетёная полоса вокруг тульи + серебряная пряжка сбоку
+    g.strokeStyle = '#2a170a'; g.lineWidth = Math.max(1, R * 0.16); g.beginPath(); g.ellipse(0, 0, cw * 0.98, ch * 0.98, 0, 0, TAU); g.stroke();
+    g.setLineDash([R * 0.06, R * 0.06]); g.strokeStyle = 'rgba(180, 130, 80, 0.6)'; g.lineWidth = Math.max(0.6, R * 0.06); g.stroke(); g.setLineDash([]);
+    const sv = g.createRadialGradient(-cw * 0.15, ch * 0.88, 0, -cw * 0.1, ch * 0.95, R * 0.2); sv.addColorStop(0, '#ffffff'); sv.addColorStop(0.5, '#c8ced6'); sv.addColorStop(1, '#6d747c');
+    g.fillStyle = sv; g.beginPath(); g.arc(-cw * 0.1, ch * 0.95, R * 0.17, 0, TAU); g.fill(); g.strokeStyle = '#4a5058'; g.lineWidth = Math.max(0.5, R * 0.03); g.stroke();
+  }), W, H };
+}
+function drawSheriffHat(hx, hy, a, r) {
+  const S = sheriffHatSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), W = S.W * sc, H = S.H * sc;
+  drawRotated(S.img, hx - Math.cos(a) * r * 1.05, hy - Math.sin(a) * r * 1.05, a, W, H, W / 2, H / 2); // позади глаз — глаза видно из-под полей
+  resetWorldT();
 }
 // Граната в полёте: головная часть с хвостовыми перьями
 function grenadeSprite() {
