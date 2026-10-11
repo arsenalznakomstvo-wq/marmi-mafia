@@ -2098,7 +2098,8 @@ function showMenu(m) {
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
     wpToken = m.photo ? m.photo.t : null;
     const b = $('wpBtn'); b.disabled = false; b.textContent = '📷 Загрузите своё фото'; b.classList.toggle('hide', !m.photo);
-    if (m.photo) setTimeout(() => warmNsfw().catch(() => {}), 1500); // заранее, но не мешая экрану итогов появиться
+    // нейросеть больше НЕ грузим сама после смерти: игрок быстро жал «Играть снова», и она догружалась и прогревала
+    // видеочип прямо в игре — сильные подвисания (владелец 11.10: «виснет сильно»). Теперь — только при открытии окошка фото.
     r.classList.remove('hide');
     $('play').textContent = 'Играть снова';
   }
@@ -2149,6 +2150,7 @@ let camStream = null;
 function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
 function wpPanelClose() { camStop(); $('wpPanel').classList.add('hide'); }
 function wpPanelOpen() {
+  warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку, пока он выбирает снимок
   $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
   $('wppSelfie').classList.toggle('hide', !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
   $('wpPanel').classList.remove('hide');
