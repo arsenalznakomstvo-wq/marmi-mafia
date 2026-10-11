@@ -1329,11 +1329,11 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
-      if (bk > 2) drawBackPlate(sn.id, 0, SX[bk], SY[bk], a, sn.r, sn.boost, time, '', meta.bot ? '' : (talkingP ? '🔊 ' : '') + meta.name, meta.team);
+      if (bk > 2) drawBackPlate(sn.id, 0, SX[bk], SY[bk], a, sn.r, sn.boost, time, '', meta.bot ? (TEAM_MODE ? '' : meta.name) : (talkingP ? '🔊 ' : '') + meta.name, meta.team);
     } else if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
-      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0), meta.bot ? '' : (talkingP ? '🔊 ' : '') + meta.name);
+      if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0), (talkingP ? '🔊 ' : '') + meta.name); // у ботов тоже ник (владелец 11.10)
     }
     // Имя — белое полупрозрачное под змейкой, как в оригинале
     if (meta && !fade) {

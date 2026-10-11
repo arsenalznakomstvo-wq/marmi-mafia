@@ -55,8 +55,8 @@ function updateRoles() {
     const prev = s.role || 0;
     const r = s === top ? DON : rankFor(s.mass, prev === DON ? rankFor(s.mass, 0) : prev);
     s.role = r;
-    if (s.bot) s.name = ROLES[r].name;                 // у ботов вместо имени — роль
-    else if (s.client && r > prev && s.roleShown !== r) { // человек получил новую роль — табличка-поздравление
+    // владелец 11.10: у ботов живой ник (s.name), роль — рядом, как у людей
+    if (s.client && r > prev && s.roleShown !== r) { // человек получил новую роль — табличка-поздравление
       s.roleShown = r;
       sendJSON(s.client, { t: 'role', r });
     }
@@ -85,7 +85,20 @@ function updateRoles() {
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
 const BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба'), KILLER_ROLE = ROLES.findIndex(r => r.name === 'Киллер');
 const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
-const displayName = s => TEAM ? s.name : s.bot ? roleShort(s.role || 0) : s.name + ' ' + roleShort(s.role || 0);
+const displayName = s => TEAM ? s.name : s.name + ' ' + roleShort(s.role || 0);
+// Живые ники ботов (владелец 11.10: «рейтинг и карта скучные — Киллер, Киллер, Мафия»). На карте ники не повторяются.
+const BOT_NICKS = ['Волк', 'Тень', 'Снайпер', 'Бродяга', 'Лиса', 'Призрак', 'Гром', 'Барс', 'Кобра', 'Шторм', 'Ворон', 'Беркут', 'Скорпион', 'Пантера',
+  'Шрам', 'Туман', 'Фантом', 'Сокол', 'Ястреб', 'Медведь', 'Шакал', 'Кит', 'Буря', 'Хищник', 'Монах', 'Граф', 'Борода', 'Малыш', 'Шустрый', 'Тихий',
+  'Кот', 'Ёж', 'Удав', 'Капитан', 'Пират', 'Самурай', 'Ниндзя', 'Викинг', 'Барон', 'Бандит', 'Лис', 'Филин', 'Дракон', 'Охотник', 'Странник',
+  'Kira_07', 'Shadow', 'NightFox', 'Toxic', 'Pro100', 'lucky777', 'xXsnakeXx', 'Ghost', 'Venom', 'Raven', 'Blaze', 'Viper', 'Storm_X', 'DarkWolf',
+  'Neo', 'Zed', 'Kaito', 'Rex', 'Sly', 'Max_99', 'Nova', 'Hunter', 'Joker', 'Bishop', 'Ronin', 'Spike', 'Frost', 'Hydra', 'Echo', 'Ace', 'Duke',
+  'Lucky', 'Mamba', 'Zeus', 'Odin', 'Kaiser', 'Bandit', 'Sniper_X', 'Tiger', 'Panda_77', 'K1ller', 'Snake_Boss', 'Lord', 'Mr_Black', 'Smoky'];
+function botNick() {
+  const used = new Set(); for (const s of snakes.values()) if (s.alive) used.add(s.name);
+  const free = BOT_NICKS.filter(n => !used.has(n));
+  const pool = free.length ? free : BOT_NICKS;
+  return pool[Math.random() * pool.length | 0];
+}
 const GIANT_MASS = 500;          // боты длиннее этого — осторожные гиганты
 const BOT_HUNT_BOTS = 1.0;       // доля охот бота на других ботов: подобрано замером, чтобы разбивалось ~50 ботов в минуту
 const TAU = Math.PI * 2;
@@ -521,7 +534,7 @@ function spawnBot() {
   const pos = findSpawn(true);
   const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
   s.role = rankFor(s.mass, 0);
-  s.name = ROLES[s.role].name;
+  s.name = botNick();
   if (TEAM) { s.team = teamWithFewer(false); s.name = TEAM_BOT_NAMES[s.team]; s.role = 0; setTeamSkin(s); }
   snakes.set(s.id, s);
 }
