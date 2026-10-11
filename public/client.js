@@ -164,7 +164,8 @@ function drawShoulderBag(g, hx, hy, a, r, neck) {
   g.strokeStyle = '#c45a0c'; g.lineWidth = Math.max(1.2, r * 0.13); g.lineCap = 'round';
   g.beginPath(); g.moveTo(nx + c * r * 0.25 - px * r * 0.9, ny + s * r * 0.25 - py * r * 0.9); g.quadraticCurveTo(nx + c * r * 0.4, ny + s * r * 0.4, bx + c * r * 0.4 - px * r * 0.45, by + s * r * 0.4 - py * r * 0.45); g.stroke();
   g.save(); g.translate(bx, by); g.rotate(na + Math.PI / 2 + sw * 0.02);
-  const W = r * 1.35, H = r * 1.0, rr = r * 0.22;
+  // владелец 11.10: змея растёт — сумка тоже чуть подрастает относительно тела (до +40% у самой толстой)
+  const bk = 1 + Math.min(0.4, Math.max(0, r - 10) / 125), W = r * 1.35 * bk, H = r * 1.0 * bk, rr = r * 0.22 * bk;
   g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(r * 0.08, H * 0.62, W * 0.5, H * 0.14, 0, 0, TAU); g.fill(); // тень
   const gr = g.createLinearGradient(0, -H / 2, 0, H / 2); gr.addColorStop(0, '#ffb35c'); gr.addColorStop(0.5, '#ff8a1f'); gr.addColorStop(1, '#c45a0c');
   g.fillStyle = gr; g.beginPath(); g.moveTo(-W / 2 + rr, -H / 2); g.lineTo(W / 2 - rr, -H / 2); g.quadraticCurveTo(W / 2, -H / 2, W / 2, -H / 2 + rr);
