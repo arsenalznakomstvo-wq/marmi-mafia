@@ -579,3 +579,18 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
 /* подсказки кнопки «Установить на телефон» бывают в две строки (владелец 11.10) */
 #iosTip { white-space: normal; max-width: min(420px, calc(100vw - 24px)); text-align: center; line-height: 1.4; }
 #tipChrome { margin-top: 8px; padding: 6px 14px; border-radius: 14px; border: 1px solid rgba(90, 162, 255, 0.6); background: rgba(42, 111, 214, 0.35); color: #fff; font: 700 13px Arial, sans-serif; cursor: pointer; }
+/* Экран для Telegram (владелец 11.10): фото, «Открыть в браузере», «Играть здесь» */
+#landing { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: radial-gradient(ellipse at 50% 0%, #1f2a1f 0%, transparent 60%), radial-gradient(ellipse at 50% 100%, #24183a 0%, transparent 55%), #0f1115; }
+#landing.hide { display: none; }
+#landing .lcard { width: min(360px, 100%); text-align: center; background: rgba(22, 26, 34, 0.86); border: 1px solid rgba(255, 213, 46, 0.25); border-radius: 22px; padding: 24px 20px 20px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55); }
+#landing .licon { width: 104px; height: 104px; border-radius: 24px; display: block; margin: 0 auto 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 213, 46, 0.5); }
+#landing .ltitle { font: 700 28px/1.1 Comfortaa, Arial, sans-serif; }
+#landing .ltitle .a { background: linear-gradient(180deg, #8dffaa, #1fa65a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#landing .ltitle .b { background: linear-gradient(180deg, #b78cff, #5a28c8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#landing .lsub { color: #9aa3b2; font-size: 14px; margin: 6px 0 20px; }
+#lOpen { display: block; width: 100%; border: 0; border-radius: 28px; padding: 15px; font: 700 18px Arial, sans-serif; color: #fff; cursor: pointer;
+  background: linear-gradient(180deg, #5fd17a, #2f9a4f); box-shadow: 0 6px 18px rgba(47, 154, 79, 0.45); }
+#landing .lhint { color: #9aa3b2; font-size: 12px; margin: 10px 0 4px; }
+#lHere { margin-top: 10px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.22); color: #e8ecf1; border-radius: 22px; padding: 9px 22px; font: 700 14px Arial, sans-serif; cursor: pointer; }
+@media (max-height: 500px) { #landing .licon { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 8px; } #landing .ltitle { font-size: 22px; } #landing .lsub { margin: 4px 0 12px; } #lOpen { padding: 11px; font-size: 16px; } }

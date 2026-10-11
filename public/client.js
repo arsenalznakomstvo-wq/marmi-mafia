@@ -2074,6 +2074,22 @@ applyCtrlMode();
 // showHelp(); — подсказку под кнопкой убрали (владелец 06.10)
 if (window.VoiceChat) VoiceChat.init();
 // владелец 07.10: вместо слайд-шоу — два фото по бокам меню (index.html)
+// Владелец 11.10: открыли во встроенном браузере Telegram/Instagram — сначала экран с фото и «Открыть в браузере».
+// В обычном браузере экрана нет — сразу игра. «Играть здесь» — остаться в Telegram (до закрытия вкладки больше не спрашиваем).
+(() => {
+  const ua = navigator.userAgent, isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone);
+  let seen = false; try { seen = sessionStorage.getItem('mm_here') === '1'; } catch (e) {}
+  if (!inApp || seen) return;
+  $('landing').classList.remove('hide');
+  const url = location.origin + '/';
+  $('lOpen').addEventListener('click', () => {
+    if (!isIOS) { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end'; return; }
+    const ok = () => { $('lOpen').textContent = '✅ Ссылка скопирована'; $('lHint').innerHTML = 'Откройте <b>Safari</b> и вставьте ссылку в адресную строку'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, () => prompt('Скопируйте ссылку и откройте в Safari:', url)); else prompt('Скопируйте ссылку и откройте в Safari:', url);
+  });
+  $('lHere').addEventListener('click', () => { try { sessionStorage.setItem('mm_here', '1'); } catch (e) {} $('landing').classList.add('hide'); });
+})();
 // Владелец 11.10: считаем установки — один раз с телефона: Android сообщает сам (appinstalled), iPhone — первым запуском с иконки
 function reportInstall() {
   if (load('mm_inst_sent')) return;
