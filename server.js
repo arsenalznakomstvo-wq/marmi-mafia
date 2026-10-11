@@ -776,7 +776,9 @@ const clients = new Set();
 function sendJSON(c, obj) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(obj)); }
 
 function cleanName(n) {
-  n = String(n || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 16);
+  // владелец 11.10: в нике только буквы, цифры, пробел и _ - . (ник «🏍» попал в топ — на карточке вместо фото был значок)
+  n = String(n || '').normalize('NFC').replace(/[^\p{L}\p{N} _.\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (!/\p{L}/u.test(n)) n = ''; // хотя бы одна буква
   if (!n || n.toLowerCase() === BOT_NAME.toLowerCase()) n = 'Игрок';
   return n;
 }

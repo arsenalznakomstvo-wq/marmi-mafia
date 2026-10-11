@@ -2263,7 +2263,7 @@ function showMenu(m) {
       + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!</div>` : '');
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
     wpToken = m.photo ? m.photo.t : null;
-    const b = $('wpBtn'); b.disabled = false; b.textContent = '📷 Загрузите своё фото'; b.classList.toggle('hide', !m.photo);
+    const b = $('wpBtn'); b.disabled = false; b.textContent = '🤳 Сделайте селфи на карточку'; b.classList.toggle('hide', !m.photo);
     // нейросеть больше НЕ грузим сама после смерти: игрок быстро жал «Играть снова», и она догружалась и прогревала
     // видеочип прямо в игре — сильные подвисания (владелец 11.10: «виснет сильно»). Теперь — только при открытии окошка фото.
     r.classList.remove('hide');
@@ -2319,8 +2319,10 @@ function wpPanelClose() { camStop(); $('wpPanel').classList.add('hide'); }
 function wpPanelOpen() {
   warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку, пока он выбирает снимок
   $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
-  $('wppSelfie').classList.toggle('hide', !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  // владелец 11.10: только живое селфи с камеры — галерею убрали (ставили «непонятно что»)
   $('wpPanel').classList.remove('hide');
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) camStart(); // сразу камера, без лишнего нажатия
+  else { $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide'); $('wppSnap').classList.add('hide'); $('wppErr').textContent = 'Нужна камера: откройте игру в Chrome или Safari'; }
 }
 async function camStart() {
   $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide');
@@ -2330,7 +2332,7 @@ async function camStart() {
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false });
     $('wppVideo').srcObject = camStream; await $('wppVideo').play().catch(() => {});
   } catch (e) {
-    $('wppErr').textContent = e && e.name === 'NotAllowedError' ? 'Камера запрещена — разрешите её в настройках сайта или выберите фото из галереи' : 'Камера не включилась — выберите фото из галереи';
+    $('wppErr').textContent = e && e.name === 'NotAllowedError' ? 'Камера запрещена — разрешите её в настройках сайта (🔒 у адреса) и попробуйте снова' : 'Камера не включилась — попробуйте ещё раз (в Telegram камера не работает — откройте игру в браузере)';
     $('wppSnap').classList.add('hide');
   }
 }
@@ -2343,13 +2345,11 @@ function camSnap() {
   $('wppSnap').classList.add('hide'); $('wppAgain').classList.remove('hide'); $('wppOk').classList.remove('hide');
 }
 $('wpBtn').addEventListener('click', () => { Sound.click(); wpPanelOpen(); });
-$('wppGallery').addEventListener('click', () => { Sound.click(); wpPanelClose(); $('wpFile').click(); });
 $('wppSelfie').addEventListener('click', () => { Sound.click(); camStart(); });
 $('wppSnap').addEventListener('click', () => { Sound.click(); camSnap(); });
 $('wppAgain').addEventListener('click', () => { Sound.click(); $('wppShot').classList.add('hide'); $('wppVideo').classList.remove('hide'); $('wppSnap').classList.remove('hide'); $('wppAgain').classList.add('hide'); $('wppOk').classList.add('hide'); });
 $('wppOk').addEventListener('click', () => { Sound.click(); $('wppShot').toBlob(b => { wpPanelClose(); if (b) uploadPhoto(b); }, 'image/jpeg', 0.88); });
 $('wppClose').addEventListener('click', () => { Sound.click(); wpPanelClose(); });
-$('wpFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) uploadPhoto(f); });
 async function uploadPhoto(file) {
   const btn = $('wpBtn'); if (!file || !wpToken) return;
   btn.disabled = true; btn.textContent = '🔍 Проверяю фото…';

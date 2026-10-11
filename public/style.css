@@ -653,3 +653,4 @@ body.mvid #menuVid { display: block; position: absolute; top: 0; left: 50%; heig
   -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
 /* телефон стоя: видео на весь экран, приглушено, чтобы кнопки читались */
 @media (max-aspect-ratio: 3/4) { body.mvid #menuVid { left: 0; width: 100%; transform: none; object-fit: cover; opacity: 0.55; -webkit-mask-image: none; mask-image: none; } }
+#wpPanel .wpp-n { color: #9aa3b2; font-size: 12px; margin: 2px 0 8px; }
