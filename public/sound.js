@@ -29,6 +29,7 @@ window.Sound = (() => {
     if (!ac) return;
     const t = ac.currentTime;
     sfx.gain.setTargetAtTime(mode >= 1 ? 1 : 0, t, 0.05);
+    if (wpn) wpn.gain.setTargetAtTime(mode >= 1 ? 1 : 0, t, 0.05);
     music.gain.setTargetAtTime(mode >= 2 ? 1 : 0, t, 0.3);
   }
   const ok = () => ac && mode >= 1 && ac.state === 'running';
@@ -220,7 +221,54 @@ window.Sound = (() => {
   function beat(strong) { if (!ok()) return; tone(strong ? 70 : 58, 0.18, 'sine', strong ? 0.16 : 0.1); tone(strong ? 70 : 58, 0.16, 'sine', strong ? 0.12 : 0.07, ac.currentTime + 0.2); }
   // Тревога/событие команды: короткий двойной сигнал
   function alert() { if (!ok()) return; tone(880, 0.09, 'square', 0.035); tone(660, 0.12, 'square', 0.035, ac.currentTime + 0.11); }
-  function rocket() { if (!ok()) return; noise(0.45, 0.18, 2500, 500, 0.9); tone(300, 0.35, 'sawtooth', 0.03, 0, 900); }
-  function boom() { if (!ok()) return; noise(0.7, 0.4, 900, 60, 0.7); tone(90, 0.5, 'sine', 0.22, 0, 40); }
+  // ===== Оружие как настоящее (владелец 11.10) =====
+  // Звук оружия идёт мимо смягчающего фильтра звуков (иначе хлопок глухой) — в свою громкость и короткое «эхо местности».
+  let wpn = null;
+  function weaponBus() {
+    if (wpn) return wpn;
+    wpn = ac.createGain(); wpn.gain.value = 1;
+    const dl = ac.createDelay(1), fb = ac.createGain(), lp = ac.createBiquadFilter(), wet = ac.createGain();
+    dl.delayTime.value = 0.13; fb.gain.value = 0.32; lp.type = 'lowpass'; lp.frequency.value = 1400; wet.gain.value = 0.35;
+    wpn.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(wet); // отражения затухают и глохнут, как эхо
+    wpn.connect(master); wet.connect(master);
+    if (mode < 1) wpn.gain.value = 0;
+    return wpn;
+  }
+  // Шум с фильтром и огибающей: тип фильтра, частота от/до, атака, длительность
+  function nz(type, f0, f1, q, vol, att, dur, when, dest) {
+    const t = when || ac.currentTime, src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = dur > 0.9;
+    const f = ac.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(dest); src.start(t, Math.random() * 0.4); src.stop(t + dur + 0.05);
+    return g;
+  }
+  function thump(f0, f1, vol, dur, when, dest) {
+    const t = when || ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.02);
+  }
+  // Выстрел гранатомёта: хлопок + удар отдачи, затем рёв двигателя гранаты, удаляется и затихает. v — громкость по расстоянию (0..1)
+  function rocket(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    nz('highpass', 900, 600, 0.7, 0.55 * v, 0.003, 0.12, t, d);      // резкий хлопок
+    nz('lowpass', 600, 120, 0.8, 0.5 * v, 0.004, 0.35, t, d);        // удар отдачи
+    thump(85, 38, 0.45 * v, 0.3, t, d);
+    const motor = nz('bandpass', 1900, 520, 1.6, 0.16 * v, 0.06, 1.3, t + 0.03, d); // реактивный рёв: «фшшшш…» вниз по тону
+    void motor;
+    nz('bandpass', 3800, 1400, 3, 0.05 * v, 0.05, 0.9, t + 0.03, d); // свист сопла
+  }
+  // Взрыв: треск, тяжёлый низкий гул, рокот с хрустом обломков
+  function boom(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    nz('highpass', 1500, 700, 0.6, 0.6 * v, 0.002, 0.09, t, d);      // треск детонации
+    nz('lowpass', 1600, 110, 0.7, 0.75 * v, 0.008, 1.7, t, d);       // тело взрыва
+    thump(62, 26, 0.7 * v, 0.9, t, d);                               // удар в грудь
+    nz('lowpass', 260, 60, 0.9, 0.35 * v, 0.25, 2.4, t + 0.05, d);   // долгий рокот
+    for (let i = 0; i < 9; i++) nz('bandpass', 2000 + Math.random() * 2500, 900, 4, (0.05 + Math.random() * 0.06) * v, 0.002, 0.05, t + 0.15 + Math.random() * 0.9, d); // обломки
+  }
   return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom };
 })();

@@ -365,12 +365,12 @@ function onJSON(m) {
       bombIds = new Set(m.b || []);
       { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive && bombIds.has(myId); if (n !== myRockets || mb !== myBomb) { myRockets = n; myBomb = mb; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'bomb': bombsFly.set(m.id, { x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now(), fly: m.fly, fuse: m.fuse }); bombIds.delete(m.o); if (m.o === myId) { myBomb = false; renderFireBtn(); } Sound.click(); break;
-    case 'bombBoom': bombsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: 1, mine: m.o === myId && m.hit > 0, parts: makeDebris() }); Sound.boom();
+    case 'bombBoom': bombsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: 1, mine: m.o === myId && m.hit > 0, parts: makeDebris() }); Sound.boom(nearVol(m.x, m.y));
       if (lastHeads.has(myId) && Math.hypot(lastHeads.get(myId).x - m.x, lastHeads.get(myId).y - m.y) < 900) shakeUntil = performance.now() + 500; break;
     case 'tmsg': bigToast(m.text); Sound.alert(); break;
     case 'final': finalMinute = true; break;
-    case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(); break;
-    case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit, mine: m.o === myId, parts: m.hit ? makeDebris() : null }); if (m.hit) { Sound.boom(); if (m.o === myId) shakeUntil = performance.now() + 450; } break;
+    case 'rocket': rocketsFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); Sound.rocket(nearVol(m.x, m.y)); break;
+    case 'boom': rocketsFly.delete(m.id); booms.push({ x: m.x, y: m.y, t0: performance.now(), big: m.hit, mine: m.o === myId, parts: m.hit ? makeDebris() : null }); if (!m.hit) Sound.boom(nearVol(m.x, m.y) * 0.4); /* промах — граната рвётся в конце полёта, тише */ if (m.hit) { Sound.boom(nearVol(m.x, m.y)); if (m.o === myId) shakeUntil = performance.now() + 450; } break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
@@ -1526,6 +1526,8 @@ function renderLb() {
 }
 
 // ===== Командный режим: счёт, таймер, конец раунда, меню =====
+// Громкость выстрела/взрыва по расстоянию от своей змеи (владелец 11.10): рядом — во всю, далеко — тихо
+function nearVol(x, y) { const h = lastHeads.get(myId) || { x: cam.x, y: cam.y }; return Math.max(0.12, Math.min(1, 1 - Math.hypot(x - h.x, y - h.y) / 2600)); }
 const mmss = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 function renderTeamBar() {
   const b = $('teamBar');
