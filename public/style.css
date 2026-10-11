@@ -682,3 +682,10 @@ body.look-gold #qualityBox .ql { color: rgba(214, 170, 70, 0.7); } body.look-gol
 body.mvid.mvcanvas #menuVid { position: fixed !important; left: 0 !important; top: 0 !important; width: 1px !important; height: 1px !important; opacity: 0 !important; transform: none !important; pointer-events: none; }
 body.mvid.mvcanvas #mvCanvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.6; }
 @media (min-aspect-ratio: 3/4) { body.mvid.mvcanvas #mvCanvas { opacity: 0.75; } }
+
+/* Заставка 3 с: только видео, всё меню прозрачное (владелец 12.10) */
+#menu, #winCards, #skinBtn, #buildBtn, #soundBtn, #qualityBox, #records, #wpBtn, #vcBar, #ping, #visBtn, #installBtn, #micHelp, #mvBack { transition: opacity 0.9s ease; }
+body.intro #menu, body.intro #winCards, body.intro #skinBtn, body.intro #buildBtn, body.intro #soundBtn, body.intro #qualityBox, body.intro #records,
+body.intro #wpBtn, body.intro #vcBar, body.intro #ping, body.intro #visBtn { opacity: 0 !important; pointer-events: none; }
+body.intro.mvid #mvCanvas, body.intro.mvid #menuVid:not([style*="1px"]) { opacity: 1 !important; transition: opacity 0.9s ease; }
+body.mvid #mvCanvas { transition: opacity 0.9s ease; }

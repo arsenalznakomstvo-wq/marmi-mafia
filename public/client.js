@@ -2324,6 +2324,14 @@ function menuVideo(on) {
     menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); // выгрузить — освободить память и видеочип для игры
   }
 }
+// Заставка (владелец 12.10: «название и ник закрывают лица»): при входе 3 с чистое видео на весь экран без кнопок,
+// потом меню плавно появляется; касание или клавиша — меню сразу. Не мешаем, если человек пришёл по ссылке ?name= (сразу в игру).
+if (MENU_VIDEO && !new URLSearchParams(location.search).get('name')) {
+  document.body.classList.add('intro');
+  const endIntro = () => { document.body.classList.remove('intro'); clearTimeout(introT); ['pointerdown', 'keydown'].forEach(ev => window.removeEventListener(ev, endIntro, true)); };
+  const introT = setTimeout(endIntro, 3000);
+  ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, endIntro, true));
+}
 if (MENU_VIDEO) ['webkitbeginfullscreen', 'enterpictureinpicture'].forEach(ev => menuVid.addEventListener(ev, () => { try { menuVid.webkitExitFullscreen && menuVid.webkitExitFullscreen(); } catch (e) {} }));
 function hideMenu() {
   menuVideo(false);
