@@ -1245,7 +1245,7 @@ const server = http.createServer((req, res) => {
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
-  const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
+  const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url === '/install' ? 'install.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
