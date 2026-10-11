@@ -1563,7 +1563,7 @@ $('winCards').addEventListener('pointerenter', e => { if (e.pointerType === 'mou
 $('winCards').addEventListener('pointerleave', () => { deckHover = false; });
 function showRecord(kind) {
   const el = $('promo');
-  el.className = 'don'; el.style.setProperty('--rc', '#ffd52e');
+  el.className = 'don rec'; el.style.setProperty('--rc', '#ffd52e'); // rec — компактная табличка (владелец 11.10: «слишком большая»)
   el.innerHTML = `<div class="pi">🏆</div><div class="pn">${kind === 'all' ? 'РЕКОРД ВСЕХ ВРЕМЁН' : 'РЕКОРД ДНЯ'}</div><div class="ps">${esc(myName())}, вы — лучший${kind === 'all' ? ' за всё время' : ' сегодня'}!</div>`;
   void el.offsetWidth; el.classList.add('show');
   clearTimeout(promoT); promoT = setTimeout(() => el.classList.remove('show'), 3500);

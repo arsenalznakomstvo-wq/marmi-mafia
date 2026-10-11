@@ -637,3 +637,9 @@ body.in-menu #vcBar, body.in-menu.ctrl-joy #vcBar { left: calc(max(8px, env(safe
   background: linear-gradient(180deg, rgba(5, 7, 12, 0) 0%, rgba(5, 7, 12, 0.55) 45%, rgba(5, 7, 12, 0.85) 100%); }
 #winCards .wcap b { text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); line-height: 1.2; }
 #winCards .wcap span { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); line-height: 1.2; }
+/* Табличка «Рекорд дня / всех времён» — компактная, сбоку сверху, не закрывает игру (владелец 11.10) */
+#promo.rec { top: 18%; padding: 6px 16px; border-width: 1.5px; }
+#promo.rec .pi { font-size: 18px; animation: none; }
+#promo.rec .pn { font-size: 16px !important; margin: 1px 0; text-shadow: 0 0 8px #ffb300; }
+#promo.rec .ps { font-size: 11px; }
+@media (pointer: coarse) { #promo.rec { padding: 4px 12px; } #promo.rec .pi { font-size: 14px; } #promo.rec .pn { font-size: 13px !important; } #promo.rec .ps { font-size: 9px; } }
