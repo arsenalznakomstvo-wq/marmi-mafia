@@ -1227,6 +1227,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (!fade && bombIds.has(sn.id)) drawCarriedBomb(hx, hy, a, r, time);
+    if (meta && !fade && !TEAM_MODE && meta.role === KILLER) drawKnives(sn.id, hx, hy, a, r, sn.boost, time);
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
@@ -1645,6 +1646,51 @@ function drawBazooka(x, y, a, r) { // два гранатомёта по бок�
     drawRotated(S.img, bx, by, a, S.w * sc, S.h * sc, 0, S.h * sc / 2);
   }
   resetWorldT();
+}
+// ===== Ножи Киллера (владелец 11.10, только для вида): два стальных ножа по бокам шеи — блестят, покачиваются,
+// при ускорении разворачиваются вперёд, как для удара. На силу в игре не влияют. Заготовка рисуется один раз на размер.
+const KILLER = ROLES.findIndex(x => x.name === 'Киллер');
+function knifeSprite(r) {
+  const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), L = R * 3.6, W = R * 0.78;
+  return { img: cacheCanvas('knife|' + R + '|' + k, L * k, W * k, g => {
+    g.scale(k, k); g.translate(0, W / 2);
+    // рукоять: чёрная, с насечками; гарда — сталь
+    const h = g.createLinearGradient(0, -W * 0.22, 0, W * 0.22); h.addColorStop(0, '#3a3a3e'); h.addColorStop(0.5, '#141416'); h.addColorStop(1, '#050506');
+    g.fillStyle = h; g.beginPath(); g.moveTo(0, -W * 0.18); g.lineTo(L * 0.3, -W * 0.22); g.lineTo(L * 0.3, W * 0.22); g.lineTo(0, W * 0.18); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = Math.max(0.5, W * 0.04);
+    for (let x = L * 0.05; x < L * 0.28; x += L * 0.05) { g.beginPath(); g.moveTo(x, -W * 0.18); g.lineTo(x, W * 0.18); g.stroke(); }
+    const gu = g.createLinearGradient(0, -W * 0.45, 0, W * 0.45); gu.addColorStop(0, '#e9edf1'); gu.addColorStop(0.5, '#8d949c'); gu.addColorStop(1, '#4b5157');
+    g.fillStyle = gu; g.fillRect(L * 0.3, -W * 0.45, L * 0.04, W * 0.9);
+    // клинок: сталь с бликом по обуху и тёмным спуском к лезвию, острие
+    const bl = g.createLinearGradient(0, -W * 0.3, 0, W * 0.3); bl.addColorStop(0, '#f7f9fb'); bl.addColorStop(0.35, '#c4cad1'); bl.addColorStop(0.7, '#8a929b'); bl.addColorStop(1, '#5b626a');
+    g.fillStyle = bl; g.beginPath(); g.moveTo(L * 0.34, -W * 0.28); g.lineTo(L * 0.86, -W * 0.28); g.quadraticCurveTo(L * 0.97, -W * 0.22, L, 0); g.lineTo(L * 0.34, W * 0.3); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(40, 46, 54, 0.55)'; g.lineWidth = Math.max(0.5, W * 0.04); g.stroke();
+    g.strokeStyle = 'rgba(70, 78, 88, 0.6)'; g.lineWidth = Math.max(0.5, W * 0.05); g.beginPath(); g.moveTo(L * 0.37, -W * 0.08); g.lineTo(L * 0.78, -W * 0.08); g.stroke(); // дол
+  }), L, W };
+}
+const knifeSwing = new Map(); // id → разворот ножей (0 — по бокам, 1 — вперёд при ускорении)
+function drawKnives(id, hx, hy, a, r, boost, time) {
+  const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2);
+  let k = knifeSwing.get(id) || 0; k += ((boost ? 1 : 0) - k) * 0.18; knifeSwing.set(id, k);
+  if (knifeSwing.size > 300) knifeSwing.clear();
+  const px = -Math.sin(a), py = Math.cos(a), sway = Math.sin(time * 0.004 + id) * 0.12;
+  for (const side of [-1, 1]) {
+    const bx = hx - Math.cos(a) * r * 0.9 + px * side * r * 1.15, by = hy - Math.sin(a) * r * 0.9 + py * side * r * 1.15;
+    const ang = a + side * (0.75 * (1 - k) + 0.12 + sway * (1 - k)); // по бокам врозь; при ускорении — почти вперёд
+    drawRotated(S.img, bx, by, ang, S.L * sc, S.W * sc, 0, S.W * sc / 2);
+  }
+  resetWorldT();
+  // блик бежит по клинкам каждые ~2,5 с (и сразу при ускорении)
+  const ph = boost ? (time * 0.004) % 1 : (time * 0.0004 + id * 0.13) % 1;
+  if (ph < 0.18) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const side of [-1, 1]) {
+      const ang = a + side * (0.75 * (1 - k) + 0.12), d = r * 1.05 + S.L * sc * (0.35 + ph / 0.18 * 0.6);
+      const bx = hx - Math.cos(a) * r * 0.7 + px * side * r * 1.05 + Math.cos(ang) * (d - r * 1.05), by = hy - Math.sin(a) * r * 0.7 + py * side * r * 1.05 + Math.sin(ang) * (d - r * 1.05);
+      const hs = r * 1.1; ctx.globalAlpha = 0.8 * Math.sin(ph / 0.18 * Math.PI); ctx.drawImage(haloSprite('#ffffff'), bx - hs / 2, by - hs / 2, hs, hs);
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  }
 }
 // Граната в полёте: головная часть с хвостовыми перьями
 function grenadeSprite() {

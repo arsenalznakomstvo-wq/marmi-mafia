@@ -1122,7 +1122,18 @@ function stepBombs() {
     for (const o of snakes.values()) {
       if (!o.alive || o === b.owner) continue;
       const rr = BOMB_R + o.r, dx = o.xs[0] - b.x, dy = o.ys[0] - b.y;
-      if (dx * dx + dy * dy < rr * rr) hit.push(o);
+      if (dx * dx + dy * dy < rr * rr) { hit.push(o); continue; }
+      // Владелец 11.10: голова цела, а тело задето — змея жива, но кусок, попавший в круг, отлетает светящейся едой
+      const xs = o.xs, ys = o.ys, inR = BOMB_R + o.r * 0.5, pts = [];
+      for (let i = 1; i < xs.length; i++) { const ex = xs[i] - b.x, ey = ys[i] - b.y; if (ex * ex + ey * ey < inR * inR) pts.push(i); }
+      if (!pts.length) continue;
+      const loss = Math.min(o.mass - START_MASS, o.mass * pts.length / xs.length); // доля тела в круге = доля длины
+      if (loss <= 0) continue;
+      o.mass -= loss; // тело укоротится с хвоста плавно (moveSnake), еда — там, где был взрыв
+      const n = clamp(Math.round(pts.length / 2), 2, 60), v = loss * 0.6 / n;
+      for (let j = 0; j < n; j++) { const i = pts[Math.floor(j * pts.length / n)], sp = o.r * 0.8; addFood(xs[i] + rand(-sp, sp), ys[i] + rand(-sp, sp), v, o.dropColor(j), true); }
+      if (o.client) sendJSON(o.client, { t: 'tmsgMe', text: `💣 Взрывом оторвало кусок: −${Math.round(loss)}` });
+      if (b.owner.client && !b.owner.bot) sendJSON(b.owner.client, { t: 'tmsgMe', text: `💣 Оторвали кусок у ${o.name}: −${Math.round(loss)}` });
     }
     const msg = JSON.stringify({ t: 'bombBoom', id: b.id, x: Math.round(b.x), y: Math.round(b.y), r: BOMB_R, hit: hit.length, o: b.owner.id });
     for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
@@ -1372,4 +1383,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods } }; // _test — для проверок подрезки
