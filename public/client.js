@@ -2422,10 +2422,19 @@ function loadFace() {
 async function photoHasFace(file) {
   await loadFace();
   const img = await createImageBitmap(file).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(file); }));
+  // Владелец 12.10 («смягчи — фото, где сижу боком, не проходит»): ищем лицо мягче — 3 масштаба, обычное и зеркальное фото,
+  // низкий порог. Лица в профиль, мелкие и в полутени проходят; значки, машины, пустые картинки — по-прежнему нет (там 0).
   const c = document.createElement('canvas'), k = Math.min(1, 640 / Math.max(img.width, img.height)); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  const r = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 }));
-  return r.length > 0;
+  const g = c.getContext('2d');
+  for (const flip of [false, true]) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); if (flip) { g.translate(c.width, 0); g.scale(-1, 1); }
+    g.drawImage(img, 0, 0, c.width, c.height);
+    for (const size of [320, 512, 224]) {
+      const r = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: 0.22 }));
+      if (r.length) return true;
+    }
+  }
+  return false;
 }
 async function photoIsClean(blob) {
   const model = await warmNsfw();
