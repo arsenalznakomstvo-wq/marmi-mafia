@@ -1728,16 +1728,14 @@ function drawKillerBelt(neck, r, hasKnife) {
   // золотая пряжка сверху (слева по ходу)
   const gb = ctx.createLinearGradient(0, -bl * 0.75, 0, -bl * 0.25); gb.addColorStop(0, '#fff1b0'); gb.addColorStop(0.5, '#d4a017'); gb.addColorStop(1, '#7a5a08');
   ctx.strokeStyle = gb; ctx.lineWidth = Math.max(1, r * 0.11); ctx.strokeRect(-bw * 0.62, bl * 0.3, bw * 1.24, bl * 0.42); // пряжка — справа, ножны — слева (справа их закрывала табличка)
-  // ножны: справа, вдоль тела назад; рукоять кинжала торчит вперёд
-  const sx = -r * 0.15, sy = -r * 1.02, sl = r * 3.0, sw = r * 0.36; // ножны длиннее клинка — острие не торчит
-  if (hasKnife) { // рукоять и гарда кинжала (клинок спрятан в ножнах)
-    const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), L = S.L * sc, W = S.W * sc;
-    ctx.save(); ctx.translate(sx + L * 0.31, sy); ctx.rotate(Math.PI); ctx.drawImage(S.img, 0, -W / 2, L, W); ctx.restore();
+  // Владелец 11.10: кинжал без ножен — открытый клинок вдоль тела острием назад, рукоять прижата к ремню кожаной петлёй
+  if (hasKnife) {
+    const S = knifeSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), L = S.L * sc, W = S.W * sc, sy = -r * 1.0;
+    ctx.save(); ctx.translate(L * 0.2, sy); ctx.rotate(Math.PI); ctx.drawImage(S.img, 0, -W / 2, L, W); ctx.restore(); // рукоять у ремня, клинок назад
+    const lg2 = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0); lg2.addColorStop(0, '#2b1709'); lg2.addColorStop(0.5, '#7a4a22'); lg2.addColorStop(1, '#2b1709');
+    ctx.fillStyle = lg2; ctx.fillRect(-bw * 0.45, sy - W * 0.3, bw * 0.9, W * 0.6); // петля ремня вокруг рукояти
+    ctx.fillStyle = '#c9a227'; ctx.beginPath(); ctx.arc(0, sy, Math.max(1, r * 0.07), 0, TAU); ctx.fill(); // заклёпка
   }
-  const sg = ctx.createLinearGradient(0, sy - sw, 0, sy + sw); sg.addColorStop(0, '#5a3418'); sg.addColorStop(0.45, '#8a5428'); sg.addColorStop(1, '#2a1608');
-  ctx.fillStyle = sg; ctx.beginPath(); ctx.moveTo(sx, sy - sw); ctx.lineTo(sx - sl * 0.85, sy - sw * 0.7); ctx.quadraticCurveTo(sx - sl, sy, sx - sl * 0.85, sy + sw * 0.7); ctx.lineTo(sx, sy + sw); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(20, 10, 4, 0.7)'; ctx.lineWidth = Math.max(0.6, r * 0.05); ctx.stroke();
-  ctx.fillStyle = '#c9a227'; ctx.fillRect(sx - sl * 0.08, sy - sw, r * 0.12, sw * 2); ctx.fillRect(sx - sl * 0.92, sy - sw * 0.6, r * 0.1, sw * 1.2); // латунные накладки
   ctx.restore();
 }
 // ===== Потайные ходы (владелец 11.10): тёмная нора с оранжевым мерцающим краем и вихрем; вспышка, когда кто-то прошёл =====
