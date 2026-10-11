@@ -45,6 +45,14 @@
   @keyframes bob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 8px); } }
   .hide { display: none !important; }
   .done { color: #5fd17a; font-weight: 700; font-size: 17px; margin: 6px 0 14px; }
+  /* Подсказка «через меню Chrome»: затемнение, стрелка в правый верхний угол к ⋮ */
+  #menuTip { position: fixed; inset: 0; background: rgba(5, 7, 12, 0.82); z-index: 10; display: flex; flex-direction: column; align-items: flex-end; padding: 12px 18px; }
+  #menuTip .up { font-size: 46px; color: var(--gold); margin-right: 2px; animation: bobUp 1s ease-in-out infinite; }
+  @keyframes bobUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  #menuTip .box { margin-top: 8px; background: var(--card); border: 1px solid rgba(255, 213, 46, 0.4); border-radius: 16px; padding: 14px 16px; max-width: 300px; text-align: left; font-size: 16px; }
+  #menuTip .box b { color: var(--gold); }
+  #menuTip .close { margin-top: 14px; align-self: center; }
+  .warn { color: #ffcf70; font-size: 15px; margin: 4px 0 12px; }
 </style>
 </head>
 <body>
@@ -82,10 +90,13 @@
   </div>
   <!-- Уже установлено / готово -->
   <div id="vDone" class="hide"><div class="done">✅ Готово! Иконка игры — на экране телефона</div></div>
+  <!-- Игра с этого сайта уже стоит на телефоне — Chrome второй раз не предлагает -->
+  <div id="vInstalled" class="hide"><div class="warn">📲 Игра уже установлена на этом телефоне — откройте её с иконки.<br><br>Иконка не открывается или тёмный экран? Удалите иконку (зажмите → «Удалить») и откройте эту ссылку ещё раз.</div></div>
 
   <a class="btn ghost" id="playLink" href="/">▶ Просто играть в браузере</a>
 </div>
 <div class="arrow hide" id="iosArrow">⬇</div>
+<div id="menuTip" class="hide"><div class="up">⬆</div><div class="box">1. Нажмите <b>⋮</b> вверху справа<br>2. Выберите <b>«Установить приложение»</b><br>или <b>«Добавить на главный экран»</b></div><button class="btn ghost close" id="menuTipClose" style="width:auto;padding:10px 26px">Понятно</button></div>
 <script>
 (() => {
   'use strict';
@@ -124,15 +135,19 @@
     show('vAndroid');
     const btn = $('installBtn'); let deferred = null;
     try { navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch (e) {} // без него Chrome не предложит установку
-    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.disabled = false; btn.textContent = '📲 Установить игру'; });
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.disabled = false; btn.textContent = '📲 Установить игру'; $('vInstalled').classList.add('hide'); show('vAndroid'); });
     window.addEventListener('appinstalled', () => { reportInstall(); $('vAndroid').classList.add('hide'); show('vDone'); });
     btn.addEventListener('click', async () => {
-      if (!deferred) return;
+      if (!deferred) { show('menuTip'); return; } // Chrome сам не предложил — показываем, где в его меню «Установить»
       deferred.prompt(); try { const c = await deferred.userChoice; if (c && c.outcome === 'accepted') { reportInstall(); $('vAndroid').classList.add('hide'); show('vDone'); } } catch (e) {}
       deferred = null;
     });
-    // Chrome не прислал предложение установки: игра уже стоит или браузер не умеет — подсказываем меню Chrome
-    setTimeout(() => { if (!deferred) { btn.textContent = '📲 Установить через меню ⋮'; $('androidHint').innerHTML = 'Нажмите <b>⋮</b> вверху справа → <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>. Если игра уже установлена — откройте её с иконки.'; } }, 3500);
+    $('menuTipClose').addEventListener('click', () => $('menuTip').classList.add('hide'));
+    // Уже установлено? (Chrome на Android умеет сказать это странице — см. related_applications в манифесте)
+    if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(apps => { if (apps && apps.length && !deferred) { $('vAndroid').classList.add('hide'); show('vInstalled'); } }).catch(() => {});
+    // Chrome пока не прислал предложение установки (бывает: присматривается к странице) — кнопка ведёт к меню Chrome;
+    // если предложение придёт позже, обработчик beforeinstallprompt выше сам превратит кнопку в обычную «Установить игру»
+    setTimeout(() => { if (!deferred) { btn.disabled = false; btn.textContent = '📲 Установить через меню ⋮'; } }, 3500);
   } else {
     show('vDesktop');
   }
