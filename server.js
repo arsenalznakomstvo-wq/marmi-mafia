@@ -1234,6 +1234,7 @@ const clientErrs = [];
 const server = http.createServer((req, res) => {
   // Кривая ссылка (%E0%A4%A — так стучатся роботы-сканеры) раньше роняла весь сервер и выкидывала всех из игры
   let url; try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); res.end(); return; }
+  if (url === '/install' || url === '/install.html') { res.writeHead(302, { Location: '/' }); res.end(); return; } // владелец 11.10: отдельную страницу установки убрали — ссылка сразу открывает игру
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   // «Чёрный ящик» телефонов (владелец 11.10): ошибки браузеров игроков — последние 50, без личных данных (только текст ошибки, модель браузера)
   if (url === '/clienterr' && req.method === 'POST') {
@@ -1245,7 +1246,7 @@ const server = http.createServer((req, res) => {
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
-  const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url === '/install' ? 'install.html' : url));
+  const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
