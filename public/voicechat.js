@@ -11,6 +11,10 @@ window.VoiceChat = (() => {
   let room = null, connecting = false, micOn = false, mutedAll = false, offline = false, lowSince = 0;
   // Открытый микрофон (владелец 06.10): разрешение спрашиваем при «Играть», дальше микрофон включён сам; 🎤 / V — выключить себя
   let micAllowed = false, wantMic = true;
+  // Владелец 11.10 («микрофон на телефоне не включается»): запоминаем, почему не включился, и по нажатию 🎤 объясняем одной строкой
+  let micErr = null;
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const inTelegram = !!window.TelegramWebviewProxy || /Telegram/i.test(navigator.userAgent); // встроенный браузер Telegram
 
   function loadSdk() {
     if (window.LivekitClient) return Promise.resolve();
@@ -50,13 +54,24 @@ window.VoiceChat = (() => {
 
   async function setMic(on) {
     if (!room) return;
-    try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) micAllowed = true; }
-    catch (e) { micOn = false; toastMic(e); }
+    try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) { micAllowed = true; micErr = null; } }
+    catch (e) { micOn = false; micErr = (e && e.name) || 'err'; }
     try { await room.startAudio(); } catch (e) {}
     render();
   }
-  // Владелец 06.10: никаких предупреждений про микрофон — если не разрешён, человек просто слушает, кнопка показывает «🔇 Выкл»
-  function toastMic() {}
+  // Владелец 06.10: сами по себе предупреждения не всплывают — подсказка появляется, только когда человек нажал 🎤, а микрофон не включился
+  function toastMic(e) { micErr = (e && e.name) || 'nosupport'; }
+  let tipT = 0;
+  function showTip() {
+    const t = (inTelegram || micErr === 'nosupport') ? 'Telegram не даёт микрофон. Нажмите ⋮ вверху → «Открыть в браузере»'
+      : micErr === 'NotAllowedError' ? (isIOS ? 'Микрофон запрещён: Настройки → Safari → Микрофон → Разрешить, затем обновите страницу'
+        : 'Микрофон запрещён: нажмите 🔒 слева от адреса сайта → Разрешения → Микрофон')
+      : micErr === 'NotReadableError' || micErr === 'AbortError' ? 'Микрофон занят другим приложением (звонок?) — закройте его и нажмите 🎤 ещё раз'
+      : micErr === 'NotFoundError' ? 'На устройстве не найден микрофон'
+      : 'Микрофон не включился — нажмите 🎤 ещё раз';
+    const el = $('vcHint'); el.textContent = t; el.classList.remove('hide');
+    clearTimeout(tipT); tipT = setTimeout(() => el.classList.add('hide'), 6000);
+  }
   // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
   async function askMic() {
     if (micAllowed || offline) return;
@@ -99,7 +114,13 @@ window.VoiceChat = (() => {
 
   function init() {
     // V (компьютер) и кнопка 🎤 — выключить/включить свой микрофон
-    const flip = () => { wantMic = !micOn; if (wantMic && !micAllowed) askMic(); setMic(wantMic); };
+    // Раньше при включении askMic и setMic спрашивали микрофон одновременно и мешали друг другу — теперь один запрос
+    const flip = async () => {
+      wantMic = !micOn;
+      if (wantMic && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) { micErr = 'nosupport'; showTip(); return; }
+      await setMic(wantMic);
+      if (wantMic && !micOn) showTip();
+    };
     window.addEventListener('keydown', e => {
       if (e.code !== 'KeyV' || e.repeat || !room || document.activeElement === $('nick')) return;
       flip();
