@@ -53,6 +53,11 @@
   #menuTip .box b { color: var(--gold); }
   #menuTip .close { margin-top: 14px; align-self: center; }
   .warn { color: #ffcf70; font-size: 15px; margin: 4px 0 12px; }
+  /* «Шаг 1 из 2» / «Шаг 2 из 2» над кнопкой — чтобы два нажатия не путались (владелец 11.10) */
+  .step { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gold);
+    background: rgba(255, 213, 46, 0.12); border: 1px solid rgba(255, 213, 46, 0.35); border-radius: 12px; padding: 3px 10px; margin-bottom: 10px; }
+  .step:empty { display: none; }
+  .btn.blue { background: linear-gradient(180deg, #5aa2ff, #2a6fd6); box-shadow: 0 6px 18px rgba(42, 111, 214, 0.4); }
 </style>
 </head>
 <body>
@@ -63,8 +68,9 @@
 
   <!-- Telegram/Instagram на Android: сначала в Chrome -->
   <div id="vInappAndroid" class="hide">
-    <button class="btn gold" id="toChrome">Открыть в Chrome и установить</button>
-    <div class="hint">В Telegram установить нельзя — игра откроется в Chrome, там одно нажатие</div>
+    <div class="step">Шаг 1 из 2</div>
+    <button class="btn blue" id="toChrome">🌐 Открыть в Chrome</button>
+    <div class="hint">Дальше в Chrome нажмёте «Установить игру»</div>
   </div>
   <!-- Telegram на iPhone: скопировать ссылку в Safari -->
   <div id="vInappIOS" class="hide">
@@ -73,6 +79,7 @@
   </div>
   <!-- Chrome на Android: системная установка -->
   <div id="vAndroid" class="hide">
+    <div class="step" id="stepLbl"></div>
     <button class="btn" id="installBtn" disabled>⏳ Подготовка…</button>
     <div class="hint" id="androidHint"></div>
   </div>
@@ -135,7 +142,9 @@
     show('vAndroid');
     const btn = $('installBtn'); let deferred = null;
     try { navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch (e) {} // без него Chrome не предложит установку
-    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.disabled = false; btn.textContent = '📲 Установить игру'; $('vInstalled').classList.add('hide'); show('vAndroid'); });
+    const step2 = new URLSearchParams(location.search).has('c'); // пришли сюда с шага 1 — уже настоящий Chrome
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.disabled = false; btn.className = 'btn'; btn.textContent = '📲 Установить игру';
+      $('stepLbl').textContent = step2 ? 'Шаг 2 из 2' : ''; $('androidHint').textContent = ''; $('vInstalled').classList.add('hide'); show('vAndroid'); });
     window.addEventListener('appinstalled', () => { reportInstall(); $('vAndroid').classList.add('hide'); show('vDone'); });
     btn.addEventListener('click', async () => {
       if (!deferred) {
@@ -153,7 +162,12 @@
     if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(apps => { if (apps && apps.length && !deferred) { $('vAndroid').classList.add('hide'); show('vInstalled'); } }).catch(() => {});
     // Chrome пока не прислал предложение установки (бывает: присматривается к странице) — кнопка ведёт к меню Chrome;
     // если предложение придёт позже, обработчик beforeinstallprompt выше сам превратит кнопку в обычную «Установить игру»
-    setTimeout(() => { if (!deferred) { btn.disabled = false; btn.textContent = new URLSearchParams(location.search).has('c') ? '📲 Установить через меню ⋮' : '📲 Установить игру'; } }, 2500);
+    setTimeout(() => {
+      if (deferred) return;
+      btn.disabled = false;
+      if (step2) { $('stepLbl').textContent = 'Шаг 2 из 2'; btn.textContent = '📲 Установить через меню ⋮'; }
+      else { $('stepLbl').textContent = 'Шаг 1 из 2'; btn.className = 'btn blue'; btn.textContent = '🌐 Открыть в Chrome'; $('androidHint').textContent = 'Дальше в Chrome нажмёте «Установить игру»'; }
+    }, 2500);
   } else {
     show('vDesktop');
   }
