@@ -2322,7 +2322,7 @@ var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызыв
 // Владелец 12.10 («звук опаздывает»): звук теперь внутри самого видео (menu.mp4 со звуком) — всегда точно в такт картинке.
 // Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
-  const want = on && userTapped && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео
+  const want = on && userTapped && vidLoops < 1 && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
   if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused && !vidUserPaused) menuVid.play().catch(() => {}); } // на паузе по просьбе — не запускаем
   clearTimeout(stepT); return;
   const tick = () => {
@@ -2338,6 +2338,7 @@ function menuVideo(on) {
   menuSteps(on);
   if (on) {
     vidUserPaused = false; document.body.classList.remove('vidpaused'); // вернулся в меню — видео снова идёт
+    if (menuVid.getAttribute('src') === null) { vidLoops = 0; vidLastT = 0; } // новый заход в меню — звук снова один раз
     if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4';
     menuVid.play().catch(() => {});
     if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
@@ -2358,6 +2359,13 @@ if (MENU_VIDEO) window.addEventListener('pointerdown', () => { userTapped = true
 // Пауза видео (владелец 12.10: «нажал на пустое место — пауза, а то видео всё время повторяется»): касание пустого места меню —
 // пауза / снова играть (и звук тоже). Не срабатывает на кнопках, поле имени, карточках и в первые мгновения после заставки.
 var introEndAt = 0, vidUserPaused = false;
+// Владелец 12.10: звук — только первый проход ролика; со второго круга видео идёт без звука. Вернулся в меню — снова один раз со звуком.
+var vidLoops = 0, vidLastT = 0;
+if (MENU_VIDEO) menuVid.addEventListener('timeupdate', () => {
+  const t = menuVid.currentTime;
+  if (t + 0.5 < vidLastT) { vidLoops++; if (!menuVid.muted) menuVid.muted = true; } // ролик начался заново
+  vidLastT = t;
+});
 if (MENU_VIDEO) window.addEventListener('click', e => {
   if (!document.body.classList.contains('in-menu') || document.body.classList.contains('intro') || performance.now() - introEndAt < 500) return;
   if (e.target.closest('button, input, a, canvas#skinIcon, canvas#buildIcon, #winCards, #records, #wpPanel, #landing, #vcBar, #pnList, #visList, #ping, #visBtn, #skinScreen, #buildScreen')) return;
