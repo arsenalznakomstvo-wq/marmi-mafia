@@ -30,6 +30,7 @@ window.Sound = (() => {
     const t = ac.currentTime;
     sfx.gain.setTargetAtTime(mode >= 1 ? 1 : 0, t, 0.05);
     if (wpn) wpn.gain.setTargetAtTime(mode >= 1 ? 1 : 0, t, 0.05);
+    if (ambGain) ambGain.gain.setTargetAtTime(mode >= 1 ? AMB_VOL : 0, t, 0.1);
     music.gain.setTargetAtTime(mode >= 2 ? 1 : 0, t, 0.3);
   }
   const ok = () => ac && mode >= 1 && ac.state === 'running';
@@ -289,5 +290,20 @@ window.Sound = (() => {
     nz('bandpass', 1200, 700, 2.5, 0.12 * v, 0.002, 0.06, t, d);     // каблук
     thump(180, 90, 0.10 * v, 0.07, t, d);                            // доска
   }
-  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel };
+  // Звук из видео меню (владелец 12.10: «сделай свой звук как на видео») — по кругу, пока открыто меню; кнопка 🔊 выключает
+  const AMB_VOL = 0.7;
+  let amb = null, ambBuf = null, ambGain = null, ambWant = false, ambLoading = null;
+  async function ambient(on, url) {
+    ambWant = on;
+    if (!on) { if (amb) { const a0 = amb, g0 = ambGain; amb = null; try { g0.gain.setTargetAtTime(0, ac.currentTime, 0.15); setTimeout(() => { try { a0.stop(); } catch (e) {} }, 600); } catch (e) {} } return; }
+    if (!ac || amb) return;
+    try {
+      if (!ambBuf) { if (!ambLoading) ambLoading = fetch(url).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))); ambBuf = await ambLoading; }
+    } catch (e) { ambLoading = null; return; }
+    if (!ambWant || amb) return;
+    ambGain = ac.createGain(); ambGain.gain.value = 0; ambGain.connect(master);
+    amb = ac.createBufferSource(); amb.buffer = ambBuf; amb.loop = true; amb.connect(ambGain); amb.start();
+    ambGain.gain.setTargetAtTime(mode >= 1 ? AMB_VOL : 0, ac.currentTime, 0.3); // плавно нарастает
+  }
+  return { init, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient };
 })();
