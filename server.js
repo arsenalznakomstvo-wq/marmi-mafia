@@ -223,13 +223,17 @@ function moveSnake(s) {
   // Первая невылезшая точка тянется не к соседу у B, а к его «отражению» у A — так тело втягивается в нору,
   // а перейдя плоскость норы, точка переносится к выходу. Когда втянулся хвост — тоннель закончен.
   const T = s.tun, ox = T ? T.bx - T.ax : 0, oy = T ? T.by - T.ay : 0;
+  let passed = 0;
   for (let i = 1; i < n; i++) {
     const lx = T && i === T.k ? xs[i - 1] - ox : xs[i - 1], ly = T && i === T.k ? ys[i - 1] - oy : ys[i - 1];
     const dx = xs[i] - lx, dy = ys[i] - ly;
     const d = Math.sqrt(dx * dx + dy * dy);
     if (d > SEG_D) { const k = SEG_D / d; xs[i] = lx + dx * k; ys[i] = ly + dy * k; }
-    if (T && i === T.k && (xs[i] - T.ax) * T.ux + (ys[i] - T.ay) * T.uy >= 0) { xs[i] += ox; ys[i] += oy; T.k++; } // прошла нору
+    if (T && i === T.k && (xs[i] - T.ax) * T.ux + (ys[i] - T.ay) * T.uy >= 0) { xs[i] += ox; ys[i] += oy; T.k++; passed++; } // прошла нору
   }
+  // Владелец 11.10 («после дыры поделился на 2 части»): если сразу после выхода повернуть назад, хвост переставал
+  // тянуться к норе и застревал навсегда. Теперь хвост втягивается всегда — не медленнее, чем ползёт змея.
+  if (T) { for (let m = Math.max(1, Math.round(spd / SEG_D)); passed < m && T.k < n; passed++) { xs[T.k] += ox; ys[T.k] += oy; T.k++; } }
   if (T && T.k >= n) s.tun = null;
   s.bbox();
 }
