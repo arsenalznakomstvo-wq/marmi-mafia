@@ -2236,7 +2236,18 @@ function play() {
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
 
+// ===== Видео на заднем фоне меню (владелец 11.10). Вернуть фото по бокам: MENU_VIDEO = false =====
+// Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
+const MENU_VIDEO = true;
+const menuVid = $('menuVid');
+if (MENU_VIDEO) { document.body.classList.add('mvid'); menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); }
+function menuVideo(on) {
+  if (!MENU_VIDEO) return;
+  if (on) { if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); }
+  else { menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); } // выгрузить — освободить память и видеочип для игры
+}
 function hideMenu() {
+  menuVideo(false);
   $('menu').classList.add('hide'); $('skinScreen').classList.add('hide'); $('hud').classList.remove('hide');
   document.body.classList.remove('in-menu');
   $('boostBtn').classList.toggle('hide', !isTouch || ctrlMode === 'joy'); // с джойстиком ускорение — вся правая половина, кнопка не нужна
@@ -2260,6 +2271,7 @@ function showMenu(m) {
   }
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
   document.body.classList.add('in-menu');
+  menuVideo(true);
 }
 // ===== Фото на карточку победителя (владелец 11.10): топ-5 рекордов всех времён ставят своё фото =====
 // Фото сжимается прямо в телефоне до квадрата 320×320 (~25 КБ) и уходит на сервер с одноразовым пропуском из 'dead'.

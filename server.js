@@ -1383,7 +1383,7 @@ setInterval(() => {
 
 // ===== HTTP + WebSocket =====
 const PUBLIC = path.join(__dirname, 'public');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
+const TYPES = { '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
 
 const clientErrs = [];
 const server = http.createServer((req, res) => {
@@ -1405,6 +1405,17 @@ const server = http.createServer((req, res) => {
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
+  if (file.endsWith('.mp4')) { // видео меню (владелец 11.10): отдаём кусками по запросу Range — так требует Safari на iPhone
+    fs.stat(file, (err, st) => {
+      if (err) { res.writeHead(404); res.end('not found'); return; }
+      const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || ''), size = st.size;
+      const start = m && m[1] ? +m[1] : 0, end = m && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+      if (start >= size || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); res.end(); return; }
+      res.writeHead(m ? 206 : 200, { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Cache-Control': 'public, max-age=86400', ...(m ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}) });
+      fs.createReadStream(file, { start, end }).pipe(res);
+    });
+    return;
+  }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
