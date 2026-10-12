@@ -790,3 +790,23 @@ body.mvid #mvBack { background-image: url(photos/menu_bg_blur.jpg) !important; f
 }
 /* Владелец 12.10: по бокам меню — первые две фото (как в самом начале), сильно размыты и еле заметны; готовые картинки, без фильтров — меню не тяжелеет */
 body.mvid #mvBack { background: url(photos/side_l.jpg?v=2) left center / auto 100% no-repeat, url(photos/side_r.jpg?v=2) right center / auto 100% no-repeat, #07080c !important; filter: none !important; opacity: 0.7; } /* 12.10: девушка-якудза слева, парни с наколками справа, лёгкое размытие */
+
+/* ===== «Окна-витрины» по бокам меню (владелец 12.10, вариант 1) — только компьютер: золотая рамка, фото чётко,
+   внутри медленное «киношное» приближение (только transform — делает видеочип, меню не тяжелеет) ===== */
+.win { display: none; }
+@media (pointer: fine) and (min-width: 1000px) {
+  body.mvid .win { display: block; position: absolute; top: 50%; width: 15vw; max-width: 240px; height: 66vh; transform: translateY(-46%); overflow: hidden; border-radius: 14px;
+    border: 1.5px solid rgba(214, 170, 70, 0.75); box-shadow: 0 0 0 4px rgba(10, 12, 18, 0.55), 0 0 26px rgba(214, 170, 70, 0.22), 0 18px 40px rgba(0, 0, 0, 0.7); background: #0b0d12; }
+  body.mvid #winL { left: 2.4vw; }
+  body.mvid #winR { right: 1.6vw; }
+  body.mvid .win img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 50% 40%; animation: kenburns 14s ease-in-out infinite alternate; will-change: transform; }
+  body.mvid #winL img { object-position: 45% 35%; }                        /* спина с татуировкой и катана */
+  body.mvid #winR img { object-position: 30% 20%; animation-delay: -7s; }   /* лица и наколки */
+  body.mvid .win::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,0.25), transparent 22%, transparent 70%, rgba(0,0,0,0.55)); }
+  body.mvid #mvBack { background: #07080c !important; } /* прежние размытые фото по бокам больше не нужны */
+  body.mvid #winCards { right: calc(min(15vw, 240px) + 1.6vw + 22px) !important; }
+}
+@keyframes kenburns { 0% { transform: scale(1.04) translate(0, 0); } 100% { transform: scale(1.16) translate(-2%, -2%); } }
+@media (prefers-reduced-motion: reduce) { .win img { animation: none !important; } }
+body:not(.in-menu) .win { display: none !important; }
+@media (pointer: fine) and (min-width: 1000px) { body.mvid .win { height: 62vh; transform: translateY(-52%); } body.mvid #winL img { object-position: 45% 12%; } }
