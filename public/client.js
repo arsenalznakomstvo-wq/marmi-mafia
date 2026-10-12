@@ -33,7 +33,7 @@ function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= TAU; while (d <
 // Владелец 07.10: Дону и Киллеру (и Мафии — она старше Киллера) камера выше — видно больше карты
 const ROLE_ZOOM = { 7: 0.85, 8: 0.85, 9: 0.72 }; // номера ролей: 7 Киллер, 8 Мафия, 9 Дон (см. public/roles.js)
 // Владелец 07.10: в командной игре чем длиннее змея, тем выше камера (видно красоту карты): с 300 плавно до ×0,5 на 8000
-let farView = false;
+let farView = false, zoomedOut = false;
 const teamZoom = mass => mass > 300 ? 1 - 0.5 * Math.min(1, Math.log(mass / 300) / Math.log(8000 / 300)) : 1;
 function viewScale(w, h, r, role, mass, eye) {
   // Владелец 06.10: на телефоне камера ближе (как на компьютере) — раньше змейка на старте была 15 px и терялась
@@ -360,7 +360,10 @@ function photoLoad(i) {
   const url = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg', H = isTouch ? (i >= 29 ? 480 : 640) : 1100; // p29–p36 на телефоне — 480 px (владелец 12.10) // на телефоне — лёгкая копия (640 px)
   if (window.createImageBitmap) return fetch(url).then(r => r.blob())
     .then(b => createImageBitmap(b, { resizeHeight: H, resizeQuality: 'medium' }).catch(() => createImageBitmap(b)))
-    .then(bmp => { photoBmp[i] = brighten(bmp); }).catch(() => {});
+    // Аудит 12.10: после «запекания» яркости — снова ImageBitmap (лежит в видеочипе). Холст-картинка перекачивалась в видеочип
+    // каждый кадр: с отдалённой камерой (несколько постеров на экране) это давало 24 к/с вместо 51
+    .then(bmp => { const c = brighten(bmp); return c === bmp ? bmp : createImageBitmap(c); })
+    .then(bmp => { photoBmp[i] = bmp; }).catch(() => {});
   const im = new Image(); im.src = url;
   return im.decode().then(() => { photoBmp[i] = brighten(im); }).catch(() => {});
 }
@@ -1268,7 +1271,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (ghostT && ghostT < performance.now()) docGhost.delete(sn.id);
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
-  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView ? 0.6 : isTouch ? 0.42 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
+  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView || zoomedOut ? 0.6 : isTouch ? 0.42 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
   let cnt = 0;
   SX[0] = sn.xs[0]; SY[0] = sn.ys[0]; SI[0] = sn.idx[0]; cnt = 1;
   let rem = sp;
@@ -1417,6 +1420,7 @@ setInterval(() => {
     snakes: lastDrawn.size, foods: foods.size, mass: myMass, w: innerWidth, h: innerHeight, dpr: DPR, cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, app: isApp, name: myName() })); } catch (e) {}
   pf.n = pf.j50 = pf.j100 = pf.worst = 0; pf.t0 = performance.now();
 }, 20000);
+window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
@@ -1452,6 +1456,8 @@ function frame(time) {
   cam.s += (target - cam.s) * 0.06;
 
   const s = cam.s;
+  // Аудит 12.10: камера далеко (большая змея) — еда простыми точками, кружки тела реже: на экране в разы больше объектов
+  zoomedOut = s < (isTouch ? 0.62 : 0.45);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = BG.floor; ctx.fillRect(0, 0, W, H);
   const shk = shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
@@ -1475,7 +1481,7 @@ function frame(time) {
     if (f.x < view.x0 - 40 || f.x > view.x1 + 40 || f.y < view.y0 - 40 || f.y > view.y1 + 40) continue;
     const pulse = 1 + 0.12 * Math.sin(tt * 2 + f.ph);
     // Низкое качество: маленький ореол — в разы меньше закрашиваемых пикселей
-    const hq = hiQ && !farView, sz = f.r * pulse * (hq ? SPR / FOOD_CORE * FOOD_K : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
+    const hq = hiQ && !farView && !zoomedOut, sz = f.r * pulse * (hq ? SPR / FOOD_CORE * FOOD_K : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
   if (BASES) drawBases(view, time);
@@ -2557,7 +2563,7 @@ function wpPanelOpen() {
   warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку, пока он выбирает снимок
   $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
   // владелец 11.10: снова фото из галереи (главное) или селфи; мусор отсекает проверка «на фото есть лицо» (photoHasFace)
-  $('wppSelfie').classList.toggle('hide', !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  // владелец 12.10: селфи убрано — только фото из галереи
   $('wpPanel').classList.remove('hide');
   loadFace().catch(() => {});
 }
@@ -2583,7 +2589,6 @@ function camSnap() {
   $('wppSnap').classList.add('hide'); $('wppAgain').classList.remove('hide'); $('wppOk').classList.remove('hide');
 }
 $('wpBtn').addEventListener('click', () => { Sound.click(); wpPanelOpen(); });
-$('wppSelfie').addEventListener('click', () => { Sound.click(); camStart(); });
 $('wppGallery').addEventListener('click', () => { Sound.click(); wpPanelClose(); $('wpFile').click(); });
 $('wpFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) uploadPhoto(f); });
 $('wppSnap').addEventListener('click', () => { Sound.click(); camSnap(); });
@@ -2593,9 +2598,12 @@ $('wppClose').addEventListener('click', () => { Sound.click(); wpPanelClose(); }
 async function uploadPhoto(file) {
   const btn = $('wpBtn'); if (!file || !wpToken) return;
   btn.disabled = true; btn.textContent = '🔍 Проверяю фото…';
+  const breathe = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30))); // владелец 12.10: «загрузить фото виснет» — экран успевает обновиться
+  await breathe();
   try {
     let face; try { face = await photoHasFace(file); } catch (err) { throw new Error('check'); }
     if (!face) throw new Error('noface');
+    await breathe();
     const jpg = await squareJpeg(file, 320);
     let clean; try { clean = await photoIsClean(jpg); } catch (err) { throw new Error('check'); }
     if (!clean) throw new Error('nsfw');

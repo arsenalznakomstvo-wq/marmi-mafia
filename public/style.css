@@ -777,3 +777,14 @@ body.vidpaused.in-menu::after { content: none !important; display: none !importa
 body:not(.in-menu) #menu, body:not(.in-menu) #winCards, body:not(.in-menu) #records { display: none !important; } /* в игре меню совсем не участвует в раскладке */
 @media (pointer: coarse) { body:not(.in-menu) #mvBack { display: none !important; } }
 #lb .row.hide { display: none; }
+/* ===== Аудит меню 12.10 («виснет»): меню было тяжелее самой игры (30 к/с) ===== */
+/* размытый фон — готовая размытая картинка, а не фильтр размытия на весь экран каждый кадр */
+body.mvid #mvBack { background-image: url(photos/menu_bg_blur.jpg) !important; filter: none !important; inset: 0 !important; }
+@media (pointer: coarse) {
+  /* «стекло» без размытия: размытие поверх движущегося видео пересчитывалось каждый кадр */
+  #menu *, #wpBtn, #modeBtn, #inviteBtn, #installBtn, #nick, #play, #winCards, #records, #vcBar, #landing .lcard { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  /* без постоянной перерисовки: пульсация тени и бегущие блики */
+  #wpBtn { animation: none !important; }
+  #play::after, #winCards .wcard.p0::after { animation: none !important; display: none !important; }
+  .title i { filter: none !important; }
+}
