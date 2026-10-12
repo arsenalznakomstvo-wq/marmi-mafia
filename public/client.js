@@ -834,14 +834,13 @@ function cacheCanvas(key, w, h, paint) {
 }
 // Табличка: фон в цвет змеи, рамка, 1–2 строки текста. Возвращает {img, w, h} в мировых единицах.
 function plateSprite(ri, bodyCol, nick, s, team) {
-  const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4, tm = team >= 0 ? team : -1;
+  const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.max(0.5, Math.round(s * 2) / 2), tm = team >= 0 ? team : -1; // шаг 0,5 — табличка перерисовывается реже
   const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k + '|' + tm;
   const hit = plateCache.get(key); if (hit) return hit; // аудит 12.10: размеры и картинка — из запаса; раньше measureText шёл каждый кадр на каждой табличке
   const label = tm >= 0 ? TEAM_NAME[tm].toUpperCase() : (R.icon ? R.icon + ' ' : '') + (SHORT[R.name] || R.name.toUpperCase());
   const fs = 11 * sb, fs2 = 10 * sb;
-  const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
-  let w = mctx.measureText(label).width + 12 * sb;
-  if (nick) { mctx.font = `bold ${fs2}px Arial, sans-serif`; w = Math.max(w, mctx.measureText(nick).width + 12 * sb); }
+  let w = textW(label, 11) * sb + 12 * sb;
+  if (nick) w = Math.max(w, textW(nick, 10) * sb + 12 * sb);
   const h = nick ? fs * 1.45 + fs2 * 1.35 : fs * 1.7, pad = 5 * sb;
   const img = cacheCanvas(key, (w + pad * 2) * k, (h + pad * 2) * k, g => {
     g.scale(k, k); g.translate(pad, pad);
@@ -863,6 +862,10 @@ function plateSprite(ri, bodyCol, nick, s, team) {
 }
 const plateCache = new Map();
 const textMeasure = document.createElement('canvas').getContext('2d');
+// Аудит 12.10: ширина надписи мерится один раз на строку (при размере 1) и дальше берётся из запаса —
+// measureText со значками (💋 🔪 👑) на телефоне очень медленный, и он шёл при каждом росте змеи (кадры по 130–180 мс)
+const textWCache = new Map();
+function textW(t, size) { const key = size + '|' + t; let w = textWCache.get(key); if (w === undefined) { textMeasure.font = `bold ${size}px Arial, sans-serif`; w = textMeasure.measureText(t).width; if (textWCache.size > 2000) textWCache.clear(); textWCache.set(key, w); } return w; }
 // Одна буква надписи по телу (с обводкой)
 function glyphSprite(ch, fs, fill, stroke) {
   const k = PX_PER_UNIT(), fb = Math.round(fs);
