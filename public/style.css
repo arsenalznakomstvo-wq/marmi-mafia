@@ -829,3 +829,10 @@ body:not(.in-menu) .win { display: none !important; }
 @media (pointer: fine) and (min-width: 1000px) { body.mvid .win { width: 27vw; max-width: 520px; } body.mvid #winCards { right: calc(min(27vw, 520px) + 1.6vw + 18px) !important; } } /* 12.10: окна 27% ширины */
 /* на неширокой странице карусель уже, чтобы не налезать на кнопки в центре */
 @media (pointer: fine) and (min-width: 1000px) and (max-width: 1600px) { body.mvid #winCards { --cw: 170px !important; } }
+/* Компьютер (владелец 12.10): «Топ-5» — внизу по центру, карточки крупные как раньше; «Рекорды дня» в меню убраны */
+@media (pointer: fine) and (min-width: 1000px) {
+  body.mvid #winCards { --cw: 230px !important; --ih: 226px !important; right: auto !important; left: 50% !important; top: auto !important; bottom: 12px !important; transform: translateX(-50%) !important; }
+  body.mvid #winCards .wtitle { margin-bottom: 20px !important; }
+  body.mvid:not(.team-mode) #records { display: none !important; }
+}
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 200px !important; --ih: 170px !important; } }
