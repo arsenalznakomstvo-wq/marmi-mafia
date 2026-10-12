@@ -817,3 +817,11 @@ body:not(.in-menu) .win { display: none !important; }
   body.mvid #records:not(.hide) { bottom: 8px !important; }
 }
 @media (pointer: fine) and (max-height: 820px) { #menu .title { margin-bottom: 4px !important; } #nick { height: 46px !important; } #play { height: 52px !important; } }
+/* Владелец 12.10: окна чуть шире; справа — девушка за роялем; без затемнения — фото в своём качестве */
+@media (pointer: fine) and (min-width: 1000px) {
+  body.mvid .win { width: 18vw; max-width: 300px; }
+  body.mvid .win::after { display: none !important; }
+  body.mvid #winR img { object-position: 35% 25%; }
+  body.mvid #winCards { right: calc(min(18vw, 300px) + 1.6vw + 22px) !important; }
+}
+@keyframes kenburns { 0% { transform: scale(1.02) translate(0, 0); } 100% { transform: scale(1.12) translate(-2%, -2%); } }
