@@ -826,3 +826,6 @@ body:not(.in-menu) .win { display: none !important; }
 }
 @keyframes kenburns { 0% { transform: scale(1.02) translate(0, 0); } 100% { transform: scale(1.12) translate(-2%, -2%); } }
 @media (pointer: fine) and (min-width: 1000px) { body.mvid .win { width: 21vw; max-width: 340px; } body.mvid #winCards { right: calc(min(21vw, 340px) + 1.6vw + 22px) !important; } } /* 12.10: окна ещё чуть шире */
+@media (pointer: fine) and (min-width: 1000px) { body.mvid .win { width: 27vw; max-width: 520px; } body.mvid #winCards { right: calc(min(27vw, 520px) + 1.6vw + 18px) !important; } } /* 12.10: окна 27% ширины */
+/* на неширокой странице карусель уже, чтобы не налезать на кнопки в центре */
+@media (pointer: fine) and (min-width: 1000px) and (max-width: 1600px) { body.mvid #winCards { --cw: 170px !important; } }
