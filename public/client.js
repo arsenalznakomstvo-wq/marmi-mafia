@@ -1323,10 +1323,13 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
     ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
   }
-  if (sk.water && !fade) drawWaterFx(sk.water, cnt, r, view, time);
+  // Аудит 12.10 («всё равно виснет»): мелкие на экране чужие змеи (камера высоко или змея тонкая) — без мелких деталей,
+  // их всё равно не видно: эффекты воды, золото Дона, узоры ролей, очки, жетоны, ремни, губы, сигара, надписи по телу
+  const lod = !isMe && !fade && sn.r * cam.s < (isTouch ? 9 : 6);
+  if (sk.water && !fade && !lod) drawWaterFx(sk.water, cnt, r, view, time);
 
-  if (isDon) drawDonTrim(sn.id, cnt, sn.r, view, time);
-  if (roleIdx && !sk.text && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
+  if (isDon && !lod) drawDonTrim(sn.id, cnt, sn.r, view, time);
+  if (roleIdx && !sk.text && !lod && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
   if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);
   if (sn.idx[0] === 0) { // голова на экране
@@ -1337,16 +1340,16 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
-    if (meta && !fade && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r, sn.id); } // владелец 12.10: без шляпы — жетон и тёмные очки (у каждого свой стиль)
-    if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка') drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
+    if (meta && !fade && !lod && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r, sn.id); } // владелец 12.10: без шляпы — жетон и тёмные очки (у каждого свой стиль)
+    if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка' && !lod) drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
-    if (meta && !fade && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
+    if (meta && !fade && !lod && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
     if (!fade && bombIds.has(sn.id)) { drawCarriedBomb(hx, hy, a, r, time, 1); if (bombIds.get(sn.id) > 1) drawCarriedBomb(hx, hy, a, r, time + 400, -1); } // вторая бомба — с другого бока
-    if (meta && !fade && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
+    if (meta && !fade && !lod && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
-    if (meta && !fade && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
-    else if (!fade && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
+    if (meta && !fade && !lod && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
+    else if (!fade && !lod && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
       const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
@@ -1405,9 +1408,20 @@ function showVisits() {
   el.classList.remove('hide');
 }
 $('visBtn').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = 0; $('pnList').classList.add('hide'); visShowUntil = Date.now() + 5000; showVisits(); });
+// «Чёрный ящик скорости» (12.10): в игре считаем кадры, рывки (>50 / >100 мс) и самый долгий кадр, раз в 20 с шлём на сервер
+const pf = { n: 0, j50: 0, j100: 0, worst: 0, last: 0, t0: performance.now(), dpr: 0 };
+setInterval(() => {
+  if (!alive || pf.n < 30) { pf.n = pf.j50 = pf.j100 = pf.worst = 0; pf.t0 = performance.now(); return; }
+  const secs = (performance.now() - pf.t0) / 1000;
+  try { navigator.sendBeacon('/perfc', JSON.stringify({ fps: Math.round(pf.n / secs), j50: pf.j50, j100: pf.j100, worst: Math.round(pf.worst), ping: pingMs, interp: +interpTicks.toFixed(1), autoLow,
+    snakes: lastDrawn.size, foods: foods.size, mass: myMass, w: innerWidth, h: innerHeight, dpr: DPR, cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, app: isApp, name: myName() })); } catch (e) {}
+  pf.n = pf.j50 = pf.j100 = pf.worst = 0; pf.t0 = performance.now();
+}, 20000);
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
+  if (alive) { const d = pf.last ? time - pf.last : 0; pf.n++; if (d > 50) pf.j50++; if (d > 100) pf.j100++; if (d > pf.worst && d < 5000) pf.worst = d; }
+  pf.last = time;
   sendInput();
   const tickMs = 1000 / TICK_RATE;
   interpTicks += (interpWant - interpTicks) * (interpWant > interpTicks ? 0.06 : 0.01); // запас растёт быстро (после рывка), уменьшается медленно — картинка не дёргается

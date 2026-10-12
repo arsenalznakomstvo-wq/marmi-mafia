@@ -1392,7 +1392,7 @@ setInterval(() => {
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
 
-const clientErrs = [];
+const clientErrs = [], clientPerf = [];
 const server = http.createServer((req, res) => {
   // Кривая ссылка (%E0%A4%A — так стучатся роботы-сканеры) раньше роняла весь сервер и выкидывала всех из игры
   let url; try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); res.end(); return; }
@@ -1406,6 +1406,13 @@ const server = http.createServer((req, res) => {
   }
   if (url === '/perf') { const m = process.memoryUsage(); res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ now: { gapMax: Math.round(perf.gapMax), gaps100: perf.gaps100, stepMax: +perf.stepMax.toFixed(1) }, prevMinute: perf.prev, clients: clients.size, snakes: snakes.size, foods: foods.size, memMB: Math.round(m.rss / 1e6), heapMB: Math.round(m.heapUsed / 1e6), uptimeMin: Math.round(process.uptime() / 60) })); return; }
+  // «Чёрный ящик скорости» (12.10): телефоны раз в 20 с присылают замеры игры — видно на /perfc
+  if (url === '/perfc' && req.method === 'POST') {
+    let body = ''; req.on('data', d => { if (body.length < 3000) body += d; });
+    req.on('end', () => { try { const m = JSON.parse(body); clientPerf.unshift({ t: new Date().toISOString().slice(11, 19), ...m, ua: String(req.headers['user-agent'] || '').replace(/^Mozilla\/5\.0 /, '').slice(0, 110) }); clientPerf.length = Math.min(clientPerf.length, 60); } catch {} res.writeHead(204); res.end(); });
+    return;
+  }
+  if (url === '/perfc') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientPerf, null, 1)); return; }
   if (url === '/errs') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientErrs, null, 1)); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
