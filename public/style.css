@@ -770,3 +770,10 @@ body.vidpaused.in-menu::after { content: none !important; display: none !importa
   body.mvid #menu .title { font-size: min(11vh, 6vw) !important; }
 }
 @media (pointer: coarse) and (orientation: landscape) { body.mvid #wpBtn { right: auto !important; left: max(10px, env(safe-area-inset-left)) !important; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 82px) !important; font-size: 12px !important; padding: 7px 12px !important; } }
+/* Аудит скорости 12.10: надписи поверх игры пересчитываются отдельно от остальной страницы (раньше каждая смена текста
+   пересчитывала раскладку всей страницы со спрятанным меню, видео и карточками — 15–20 мс на телефоне) */
+#scorebox, #lb, #netInfo, #ping, #toast, #bigToast, #teamBar, #evPill, #fireBtn, #boostBtn, #promo, #pnList, #visList { contain: layout style paint; }
+#game { will-change: transform; }
+body:not(.in-menu) #menu, body:not(.in-menu) #winCards, body:not(.in-menu) #records { display: none !important; } /* в игре меню совсем не участвует в раскладке */
+@media (pointer: coarse) { body:not(.in-menu) #mvBack { display: none !important; } }
+#lb .row.hide { display: none; }

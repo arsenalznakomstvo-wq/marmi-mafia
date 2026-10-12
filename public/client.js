@@ -340,15 +340,29 @@ const PHOTO_LIST = [2, 3, 5, 6, 7, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
 // Постер для карты: фото распаковывается и уменьшается В ФОНЕ (createImageBitmap), а не посреди кадра.
 // Раньше телефон распаковывал фото 1280 px прямо в игре — экран замирал до 0,8 с у каждого постера.
 const photoBmp = [];
+// Аудит 12.10: постеров стало 31 — распаковываем строго по одному и в свободное время телефона (раньше несколько сразу → рывки)
+const photoQueue = []; let photoBusy = false;
+function photoNext() {
+  if (photoBusy || !photoQueue.length) return;
+  photoBusy = true; const job = photoQueue.shift();
+  const go = () => job().finally(() => { photoBusy = false; photoNext(); });
+  if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 600 }); else setTimeout(go, 30);
+}
 function photo(i) {
   if (photoBmp[i] === undefined) {
     photoBmp[i] = null;
-    const im = new Image(); im.src = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg'; // на телефоне — лёгкая копия (640 px)
-    const H = isTouch ? 640 : 1100;
-    im.decode().then(() => (window.createImageBitmap ? createImageBitmap(im, { resizeHeight: Math.min(H, im.naturalHeight), resizeQuality: 'medium' }) : im))
-      .then(bmp => { photoBmp[i] = brighten(bmp); }).catch(() => {});
+    photoQueue.push(() => photoLoad(i)); photoNext();
   }
   return photoBmp[i];
+}
+function photoLoad(i) {
+  // Аудит 12.10: распаковка из файла в фоновом потоке (fetch → createImageBitmap) — раньше Image.decode занимал главный поток на ~45 мс
+  const url = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg', H = isTouch ? 640 : 1100; // на телефоне — лёгкая копия (640 px)
+  if (window.createImageBitmap) return fetch(url).then(r => r.blob())
+    .then(b => createImageBitmap(b, { resizeHeight: H, resizeQuality: 'medium' }).catch(() => createImageBitmap(b)))
+    .then(bmp => { photoBmp[i] = brighten(bmp); }).catch(() => {});
+  const im = new Image(); im.src = url;
+  return im.decode().then(() => { photoBmp[i] = brighten(im); }).catch(() => {});
 }
 // Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
 const POSTERS = (() => {
@@ -389,7 +403,7 @@ const eatAnims = [];
 const lastHeads = new Map(); // id -> {x,y} где голова нарисована сейчас
 let tickOffset = null;       // сдвиг серверного времени относительно нашего
 let lb = null, pingMs = 0;
-let myMass = 0, shownMass = -1;
+let myMass = 0, shownMass = -1, mmFrame = 0;
 // ===== Командный режим (владелец 07.10): ?mode=team — арена «Мирные (белые) против Мафии (чёрно-оранжевые)», ?team=0/1 — сразу в команду друга =====
 const QS = new URLSearchParams(location.search);
 // Владелец 07.10: командная игра: выключалась 07.10 из-за лагов на бесплатном сервере, включена снова после перехода на Starter (0,5 CPU). Выключить: TEAM_ENABLED = false здесь и в server.js
@@ -805,7 +819,7 @@ const swing = new Map(); // id → { ang, vel, lastA, t }
 // дальше в каждом кадре только копируется — как шарики тела. Раньше текст табличек и надписей по телу
 // заново растрировался каждый кадр у каждой змеи — это и тормозило телефоны.
 const textCache = new Map();
-const PX_PER_UNIT = () => Math.max(0.5, Math.round(cam.s * DPR * 4) / 4); // чёткость заготовки = масштабу экрана (с шагом 0.25)
+const PX_PER_UNIT = () => Math.max(0.5, Math.round(cam.s * DPR * 2) / 2); // аудит 12.10: шаг 0,5 — заготовки пересоздаются вдвое реже // чёткость заготовки = масштабу экрана (с шагом 0.25)
 function cacheCanvas(key, w, h, paint) {
   let c = textCache.get(key);
   if (!c) {
@@ -819,6 +833,7 @@ function cacheCanvas(key, w, h, paint) {
 function plateSprite(ri, bodyCol, nick, s, team) {
   const R = ROLES[ri], k = PX_PER_UNIT(), sb = Math.round(s * 4) / 4, tm = team >= 0 ? team : -1;
   const key = 'pl|' + ri + '|' + nick + '|' + sb + '|' + k + '|' + tm;
+  const hit = plateCache.get(key); if (hit) return hit; // аудит 12.10: размеры и картинка — из запаса; раньше measureText шёл каждый кадр на каждой табличке
   const label = tm >= 0 ? TEAM_NAME[tm].toUpperCase() : (R.icon ? R.icon + ' ' : '') + (SHORT[R.name] || R.name.toUpperCase());
   const fs = 11 * sb, fs2 = 10 * sb;
   const mctx = textMeasure; mctx.font = `bold ${fs}px Arial, sans-serif`;
@@ -839,8 +854,11 @@ function plateSprite(ri, bodyCol, nick, s, team) {
       g.font = `bold ${fs2}px Arial, sans-serif`; g.globalAlpha = 0.9; g.fillText(nick, w / 2, fs * 1.45 + fs2 * 0.6);
     } else { g.font = `bold ${fs}px Arial, sans-serif`; g.fillText(label, w / 2, h / 2 + 0.5); }
   });
-  return { img, w: w + pad * 2, h: h + pad * 2, pad };
+  const res = { img, w: w + pad * 2, h: h + pad * 2, pad };
+  if (plateCache.size > 400) plateCache.clear();
+  plateCache.set(key, res); return res;
 }
+const plateCache = new Map();
 const textMeasure = document.createElement('canvas').getContext('2d');
 // Одна буква надписи по телу (с обводкой)
 function glyphSprite(ch, fs, fill, stroke) {
@@ -1351,7 +1369,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
 }
 
 // Строка замеров внизу экрана: кадры в секунду, пинг, запас плавности — чтобы видеть, что тормозит
-let lowSecs = 0, autoLow = 0; // 1 — чёткость 1×, 2 — ещё и упрощённые змеи
+let lowSecs = 0, autoLow = 0, netHtml = ''; // 1 — чёткость 1×, 2 — ещё и упрощённые змеи
 let fpsCount = 0, fpsT = performance.now(), netFrames = 0, netJerks = 0, netT = performance.now(); // кадров от сервера за секунду; пауз между ними дольше 150 мс
 setInterval(() => {
   const now = performance.now(), fps = Math.round(fpsCount * 1000 / (now - fpsT));
@@ -1364,9 +1382,9 @@ setInterval(() => {
   // Владелец 07.10: надпись-замер во время игры — что тормозит: связь (пинг, кадры от сервера, рывки) или телефон (кадры экрана)
   { const secs = Math.max(1, (now - netT) / 1000), srv = Math.round(netFrames / secs), jerks = netJerks; netFrames = 0; netJerks = 0; netT = now; // делим на настоящее прошедшее время (вкладка могла уходить в фон)
     const bad = (v, b) => v ? ' style="color:#ff6b6b"' : '';
-    $('netInfo').innerHTML = alive ? `<span${bad(pingMs > 150)}>📶 ${pingMs} мс</span> · <span${bad(srv < 26)}>сервер ${srv}/30</span>${jerks ? ` · <span style="color:#ff6b6b">рывки ${jerks}</span>` : ''} · <span${bad(fps < 40)}>экран ${fps} к/с</span>` : ''; }
+    const ni = alive ? `<span${bad(pingMs > 150)}>📶 ${pingMs} мс</span> · <span${bad(srv < 26)}>сервер ${srv}/30</span>${jerks ? ` · <span style="color:#ff6b6b">рывки ${jerks}</span>` : ''} · <span${bad(fps < 40)}>экран ${fps} к/с</span>` : ''; if (ni !== netHtml) { netHtml = ni; $('netInfo').innerHTML = ni; } }
   // Владелец 06.10: внизу только маленькая цифра без подписи — сколько живых людей сейчас в игре (боты не считаются)
-  $('ping').textContent = lb && typeof lb.players === 'number' ? String(lb.players) : '';
+  { const pt = lb && typeof lb.players === 'number' ? String(lb.players) : ''; if ($('ping').textContent !== pt) $('ping').textContent = pt; }
   if (window.VoiceChat) VoiceChat.tick(alive, lb && typeof lb.online === 'number' ? lb.online : 0); // общий голос: когда на сайте есть кто-то ещё
   if (pnShowUntil > Date.now()) showPlayerNames(); else $('pnList').classList.add('hide');
   if (visShowUntil > Date.now()) showVisits(); else $('visList').classList.add('hide');
@@ -1492,7 +1510,7 @@ function frame(time) {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
-  if (alive) { if (myMass !== shownMass) { shownMass = myMass; $('len').textContent = myMass; } drawMinimap(me); } // текст меняем только когда изменился
+  if (alive) { if (myMass !== shownMass && mmFrame % 8 === 0) { shownMass = myMass; $('len').textContent = myMass; } if (++mmFrame % 4 === 0) drawMinimap(me); } // аудит 12.10: миникарта 15 раз в секунду, не 60 // текст меняем только когда изменился
   renderEventArrow(me);
 }
 
@@ -1626,16 +1644,23 @@ function drawMinimap(me) {
 // ===== Рейтинг: топ-10, как в slither.io — у каждой строки свой цвет =====
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const LB_COLORS = ['#ff9d9d', '#ffc09d', '#ffe39d', '#d4ff9d', '#9dffb4', '#9dffe8', '#9de2ff', '#9db8ff', '#c49dff', '#ff9de6'];
+// Аудит 12.10: рейтинг больше не пересобирается заново 2 раза в секунду — 11 строк созданы один раз,
+// в них меняются только изменившиеся тексты (пересборка давала пересчёт раскладки страницы 15–20 мс на телефоне)
+let rankHtml = '', lbRows = null;
+function lbSet(el, k, v) { if (el['_' + k] !== v) { el['_' + k] = v; if (k === 'c') el.style.color = v; else if (k === 'cls') el.className = v; else el.textContent = v; } }
 function renderLb() {
   if (!lb) return;
-  let html = '';
-  lb.top.forEach(([name, score, id, tm], i) => {
-    const me = id === myId && alive;
-    html += `<div class="row${me ? ' me' : ''}" style="color:${TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i]}"><span class="p">#${i + 1}</span><span class="n">${esc(name)}</span><span class="s">${score}</span></div>`;
+  const box = $('lb-rows');
+  if (!lbRows) { box.textContent = ''; lbRows = []; for (let i = 0; i < 11; i++) { const r = document.createElement('div'); r.innerHTML = '<span class="p"></span><span class="n"></span><span class="s"></span>'; box.appendChild(r); lbRows.push({ r, p: r.children[0], n: r.children[1], s: r.children[2] }); } }
+  const list = lb.top.map(([name, score, id, tm], i) => ({ p: '#' + (i + 1), n: name, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] }));
+  if (alive && lb.rank > 10) list.push({ p: '#' + lb.rank, n: myName(), s: String(lb.score), me: true, sep: true, c: '' });
+  lbRows.forEach((R, i) => {
+    const d = list[i];
+    lbSet(R.r, 'cls', d ? 'row' + (d.me ? ' me' : '') + (d.sep ? ' sep' : '') : 'row hide');
+    if (!d) return;
+    lbSet(R.r, 'c', d.c); lbSet(R.p, 't', d.p); lbSet(R.n, 't', d.n); lbSet(R.s, 't', d.s);
   });
-  if (alive && lb.rank > 10) html += `<div class="row me sep"><span class="p">#${lb.rank}</span><span class="n">${esc(myName())}</span><span class="s">${lb.score}</span></div>`;
-  $('lb-rows').innerHTML = html;
-  $('rank').innerHTML = alive && lb.rank ? `Ваше место: <b>${lb.rank}</b> из ${lb.total}` : '';
+  const rk = alive && lb.rank ? `Ваше место: <b>${lb.rank}</b> из ${lb.total}` : ''; if (rk !== rankHtml) { rankHtml = rk; $('rank').innerHTML = rk; }
 }
 
 // ===== Командный режим: счёт, таймер, конец раунда, меню =====
@@ -2332,11 +2357,13 @@ const MENU_VIDEO = !!menuVid; // старая страница из кэша б�
 // Телефон: само видео спрятано (1 px), кадры рисуются на холст. Иначе Яндекс Браузер и браузеры Xiaomi/Samsung перехватывают
 // видео и открывают его в своём плеере на весь экран — «на телефоне только видео открывается» (владелец 12.10).
 const MV_CANVAS = MENU_VIDEO && isTouch && !!mvCanvas;
-let mvRaf = 0;
+let mvRaf = 0, mvLastT = -1;
 function mvDraw() {
   mvRaf = requestAnimationFrame(mvDraw);
   if (menuVid.readyState < 2) return;
   const cw = mvCanvas.clientWidth, ch = mvCanvas.clientHeight; if (!cw || !ch) return;
+  if (menuVid.currentTime === mvLastT && mvCanvas.width === cw) return; // аудит 12.10: рисуем только новый кадр видео (24 в секунду), не 60
+  mvLastT = menuVid.currentTime;
   if (mvCanvas.width !== cw || mvCanvas.height !== ch) { mvCanvas.width = cw; mvCanvas.height = ch; }
   const g = mvCanvas.getContext('2d'), vw = menuVid.videoWidth, vh = menuVid.videoHeight;
   if (cw / ch > vw / vh) {
