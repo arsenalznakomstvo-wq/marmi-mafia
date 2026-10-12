@@ -324,9 +324,9 @@ body.in-menu #evPill { display: none !important; } /* в меню не закр�
 
 /* ===== Фото владельца ===== */
 #menuPhotos { position: fixed; inset: 0; z-index: 29; pointer-events: none; overflow: hidden; background: #0b1018; } /* игра под меню не просвечивает — только фото */
-#menuPhotos img { position: absolute; left: 50%; top: 50%; height: 100%; max-width: none; transform: translate(-50%, -50%) scale(1.04);
+#menuPhotos > img { position: absolute; left: 50%; top: 50%; height: 100%; max-width: none; transform: translate(-50%, -50%) scale(1.04);
   opacity: 0; transition: opacity 1.4s ease, transform 7s linear; }
-#menuPhotos img.on { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+#menuPhotos > img.on { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
 body:not(.in-menu) #menuPhotos { display: none; }
 #menu { background: rgba(11, 16, 24, 0.45); }
 #promo .pimg { display: block; width: 74px; height: 74px; border-radius: 50%; object-fit: cover; object-position: center 20%;
@@ -339,15 +339,15 @@ body:not(.in-menu) #menuPhotos { display: none; }
   #records .rcols { flex-direction: row; gap: 18px; }
 }
 
-@media (pointer: coarse) { #menuPhotos img, #menuPhotos img.on { transform: translate(-50%, -50%); transition: opacity 1.2s ease; } } /* телефон: без медленного приближения — легче */
+@media (pointer: coarse) { #menuPhotos > img, #menuPhotos > img.on { transform: translate(-50%, -50%); transition: opacity 1.2s ease; } } /* телефон: без медленного приближения — легче */
 
 /* Меню: два фото по бокам вместо слайд-шоу (владелец 07.10); к середине плавно уходят в темноту */
-#menuPhotos img { position: absolute; top: 0; height: 100%; width: 34vw; object-fit: cover; opacity: 0.95 !important;
+#menuPhotos > img { position: absolute; top: 0; height: 100%; width: 34vw; object-fit: cover; opacity: 0.95 !important;
   transform: none !important; transition: none !important; left: auto; }
 #mpL { left: 0 !important; object-position: 25% center; -webkit-mask-image: linear-gradient(to right, #000 55%, transparent); mask-image: linear-gradient(to right, #000 55%, transparent); }
 #mpR { right: 0 !important; object-position: 20% center; -webkit-mask-image: linear-gradient(to left, #000 55%, transparent); mask-image: linear-gradient(to left, #000 55%, transparent); }
 @media (max-width: 700px) { /* телефон стоя: фото на всю половину, приглушены, чтобы кнопки читались */
-  #menuPhotos img { width: 50vw; opacity: 0.45 !important; -webkit-mask-image: none; mask-image: none; }
+  #menuPhotos > img { width: 50vw; opacity: 0.45 !important; -webkit-mask-image: none; mask-image: none; }
 }
 
 /* Плашка событий — чёрная, плотная (владелец 07.10) */
@@ -807,6 +807,6 @@ body.mvid #mvBack { background: url(photos/side_l.jpg?v=2) left center / auto 10
   body.mvid #winCards { right: calc(min(15vw, 240px) + 1.6vw + 22px) !important; }
 }
 @keyframes kenburns { 0% { transform: scale(1.04) translate(0, 0); } 100% { transform: scale(1.16) translate(-2%, -2%); } }
-@media (prefers-reduced-motion: reduce) { .win img { animation: none !important; } }
+/* окна-витрины двигаются очень медленно — оставляем и при «меньше анимаций» */
 body:not(.in-menu) .win { display: none !important; }
 @media (pointer: fine) and (min-width: 1000px) { body.mvid .win { height: 62vh; transform: translateY(-52%); } body.mvid #winL img { object-position: 45% 12%; } }
