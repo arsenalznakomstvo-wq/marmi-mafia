@@ -851,3 +851,31 @@ body:not(.in-menu) .win { display: none !important; }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 231px !important; --ih: 220px !important; } }
 /* Телефон (12.10): сменяемая карточка не улетает через всё меню поверх кнопок — растворяется на месте */
 @media (pointer: coarse) { #winCards .wcard.out { transform: scale(0.94) !important; opacity: 0 !important; } }
+/* ===== Телефон лёжа (владелец 12.10): без «Рекордов дня»; слева — окно с девушкой-якудзой (спина живая, без затемнения);
+   справа — карточка на 10% ниже, под ней «Загрузите своё фото» ===== */
+@media (pointer: coarse) and (orientation: landscape) {
+  body.mvid:not(.team-mode) #records { display: none !important; }
+  body.mvid #mvBack { background: #07080c !important; }
+  body.mvid #winL { display: block !important; position: absolute; left: max(10px, env(safe-area-inset-left)); top: 58px; transform: none; width: 23vw; max-width: 210px;
+    height: calc(100vh - 58px - 92px); border-radius: 12px; overflow: hidden; border: 1.5px solid rgba(214, 170, 70, 0.75);
+    box-shadow: 0 0 0 3px rgba(10, 12, 18, 0.55), 0 0 18px rgba(214, 170, 70, 0.2); background: #0b0d12; }
+  body.mvid #winL::after { display: none !important; }
+  body.mvid #winL img { width: 100%; height: 100%; object-fit: cover; object-position: 45% 30%; display: block; transform-origin: 50% 40%; animation: kenburns 14s ease-in-out infinite alternate; }
+  body.mvid #winR { display: none !important; }
+  body.mvid #winCards { --ih: calc((100vh - 128px) * 0.9 - 40px) !important; top: 6px !important; }
+  body.mvid #wpBtn { left: auto !important; right: max(12px, env(safe-area-inset-right)) !important; bottom: max(6px, env(safe-area-inset-bottom)) !important; top: auto !important; width: 196px; font-size: 12px !important; padding: 7px 10px !important; }
+}
+@media (pointer: coarse) and (orientation: landscape) {
+  body.mvid:not(.team-mode) #records:not(.hide) { display: none !important; }
+  body.mvid #wpBtn { bottom: auto !important; top: calc((100vh - 128px) * 0.9 + 74px) !important; }
+}
+/* Владелец 12.10: цифра «сколько людей в игре» и значок 👥 «сколько заходили» — на одном уровне */
+#ping, #visBtn { bottom: max(4px, env(safe-area-inset-bottom)) !important; top: auto !important; height: 22px; line-height: 22px !important; padding: 0 8px !important; display: flex; align-items: center; transform: none; }
+#ping { left: auto !important; right: calc(50% + 2px) !important; }
+#visBtn { left: calc(50% + 2px) !important; font-size: 13px; }
+/* цифра и 👥 — вместе в правом нижнем углу (по центру внизу они наезжали на «Установить на телефон» и точки карусели) */
+#ping { left: auto !important; right: calc(max(10px, env(safe-area-inset-right)) + 34px) !important; }
+#visBtn { left: auto !important; right: max(10px, env(safe-area-inset-right)) !important; }
+/* в игре — по центру внизу, как раньше (в правом нижнем углу на компьютере миникарта) */
+body:not(.in-menu) #ping { right: calc(50% + 2px) !important; }
+body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !important; }
