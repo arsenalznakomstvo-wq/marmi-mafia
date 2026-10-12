@@ -357,7 +357,7 @@ function photo(i) {
 }
 function photoLoad(i) {
   // Аудит 12.10: распаковка из файла в фоновом потоке (fetch → createImageBitmap) — раньше Image.decode занимал главный поток на ~45 мс
-  const url = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg', H = isTouch ? 640 : 1100; // на телефоне — лёгкая копия (640 px)
+  const url = (isTouch ? 'photos/m/p' : 'photos/p') + i + '.jpg', H = isTouch ? (i >= 29 ? 480 : 640) : 1100; // p29–p36 на телефоне — 480 px (владелец 12.10) // на телефоне — лёгкая копия (640 px)
   if (window.createImageBitmap) return fetch(url).then(r => r.blob())
     .then(b => createImageBitmap(b, { resizeHeight: H, resizeQuality: 'medium' }).catch(() => createImageBitmap(b)))
     .then(bmp => { photoBmp[i] = brighten(bmp); }).catch(() => {});
