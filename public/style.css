@@ -846,3 +846,6 @@ body:not(.in-menu) .win { display: none !important; }
   #modeRow { margin-top: 8px !important; }
 }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 210px !important; --ih: 200px !important; } }
+/* Владелец 12.10: карточка шире и выше на 10% */
+@media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards { --cw: 253px !important; --ih: 249px !important; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 231px !important; --ih: 220px !important; } }
