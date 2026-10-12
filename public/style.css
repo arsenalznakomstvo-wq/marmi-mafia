@@ -789,4 +789,4 @@ body.mvid #mvBack { background-image: url(photos/menu_bg_blur.jpg) !important; f
   .title i { filter: none !important; }
 }
 /* Владелец 12.10: по бокам меню — первые две фото (как в самом начале), сильно размыты и еле заметны; готовые картинки, без фильтров — меню не тяжелеет */
-body.mvid #mvBack { background: url(photos/side_l.jpg) left center / auto 100% no-repeat, url(photos/side_r.jpg) right center / auto 100% no-repeat, #07080c !important; filter: none !important; opacity: 0.55; }
+body.mvid #mvBack { background: url(photos/side_l.jpg?v=2) left center / auto 100% no-repeat, url(photos/side_r.jpg?v=2) right center / auto 100% no-repeat, #07080c !important; filter: none !important; opacity: 0.7; } /* 12.10: девушка-якудза слева, парни с наколками справа, лёгкое размытие */
