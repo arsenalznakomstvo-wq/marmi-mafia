@@ -849,3 +849,5 @@ body:not(.in-menu) .win { display: none !important; }
 /* Владелец 12.10: карточка шире и выше на 10% */
 @media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards { --cw: 253px !important; --ih: 249px !important; } }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 231px !important; --ih: 220px !important; } }
+/* Телефон (12.10): сменяемая карточка не улетает через всё меню поверх кнопок — растворяется на месте */
+@media (pointer: coarse) { #winCards .wcard.out { transform: scale(0.94) !important; opacity: 0 !important; } }
