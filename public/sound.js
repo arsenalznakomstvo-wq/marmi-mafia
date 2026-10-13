@@ -273,6 +273,22 @@ window.Sound = (() => {
     nz('lowpass', 260, 60, 0.9, 0.35 * v, 0.25, 2.4, t + 0.05, d);   // долгий рокот
     for (let i = 0; i < 9; i++) nz('bandpass', 2000 + Math.random() * 2500, 900, 4, (0.05 + Math.random() * 0.06) * v, 0.002, 0.05, t + 0.15 + Math.random() * 0.9, d); // обломки
   }
+  // Ниндзя (владелец 13.10: «звуки как у гранаты, острые, как настоящие»): бросок — щелчок чеки и свист; срабатывание — хлопок и шипение дыма
+  function smokeThrow(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    nz('highpass', 4200, 3000, 1.5, 0.22 * v, 0.001, 0.03, t, d);          // щелчок чеки
+    tone(2900, 0.09, 'triangle', 0.05 * v, t + 0.01, 2500);                 // звон кольца
+    nz('bandpass', 1800, 900, 3, 0.16 * v, 0.03, 0.32, t + 0.06, sfx);      // свист полёта
+  }
+  function smokePop(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    nz('highpass', 2600, 1200, 0.8, 0.55 * v, 0.001, 0.06, t, d);          // резкий хлопок
+    thump(120, 45, 0.45 * v, 0.25, t, d);                                   // глухой удар
+    nz('highpass', 5200, 2400, 0.7, 0.2 * v, 0.06, 2.2, t + 0.03, d);       // шипение дыма
+    nz('bandpass', 1400, 600, 1.2, 0.1 * v, 0.1, 1.8, t + 0.05, d);         // «пшшш» пониже
+  }
   // Потайной ход: «вжух» — шум уходит вниз и тут же поднимается (провалился и вынырнул)
   function portal(v) {
     if (!ok()) return; v = v == null ? 1 : v;
@@ -309,5 +325,5 @@ window.Sound = (() => {
   }
   const isOn = () => mode >= 1;
   const state = () => ac ? ac.state : 'none';
-  return { init, state, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient, isOn };
+  return { init, state, smokeThrow, smokePop, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient, isOn };
 })();

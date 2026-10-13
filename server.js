@@ -834,7 +834,7 @@ function handleJSON(c, m) {
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
-    if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 1; sendJSON(c, { t: 'tmsgMe', text: '🥷 Вы Ниндзя! Одна дымовая шашка — кнопка 💨' + (isTouchUA(c) ? '' : ', F или правая кнопка мыши') + ': 4 секунды вокруг густой дым, в нём никого не видно' }); }
+    if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 2; sendJSON(c, { t: 'tmsgMe', text: '🥷 2 дымовые шашки — 💨' + (isTouchUA(c) ? '' : ' или F') }); } // владелец 13.10: две шашки; надпись короче — мешала
     if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
@@ -1058,7 +1058,7 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
       for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push([s.id, s.bomb]); // у кого бомбы едут рядом и сколько
       for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push(s.id); // у кого кинжал ещё не брошен
-      for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push(s.id); // у какого Ниндзя ещё висит дымовая шашка
+      for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push([s.id, s.smoke]); // у какого Ниндзя сколько шашек
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
     return;
@@ -1330,7 +1330,7 @@ const SMOKE_MS = 4000, SMOKE_R = 200, SMOKE_DIST = 400, SMOKE_FLY = Math.round(0
 function inSmoke(x, y) { for (const m of smokes) if (m.from <= tick && m.until > tick && (x - m.x) ** 2 + (y - m.y) ** 2 < SMOKE_R * SMOKE_R) return true; return false; }
 function throwSmoke(s) {
   if (!s.smoke) return;
-  s.smoke = 0;
+  s.smoke--;
   const x0 = s.xs[0], y0 = s.ys[0];
   let x = x0 + Math.cos(s.a) * SMOKE_DIST, y = y0 + Math.sin(s.a) * SMOKE_DIST;
   const d = Math.hypot(x, y), lim = MAP_R - 80; if (d > lim) { x *= lim / d; y *= lim / d; }
