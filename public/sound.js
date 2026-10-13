@@ -273,6 +273,14 @@ window.Sound = (() => {
     nz('lowpass', 260, 60, 0.9, 0.35 * v, 0.25, 2.4, t + 0.05, d);   // долгий рокот
     for (let i = 0; i < 9; i++) nz('bandpass', 2000 + Math.random() * 2500, 900, 4, (0.05 + Math.random() * 0.06) * v, 0.002, 0.05, t + 0.15 + Math.random() * 0.9, d); // обломки
   }
+  // Предметы (владелец 14.10): подобрал — звонкий «дзинь»; шокер — треск электрического разряда
+  function pickup(v) { if (!ok()) return; v = v == null ? 1 : v; const t = ac.currentTime; tone(880, 0.09, 'triangle', 0.07 * v, t, 1320); tone(1320, 0.14, 'triangle', 0.06 * v, t + 0.08, 1760); }
+  function zap(v) {
+    if (!ok()) return; v = v == null ? 1 : v;
+    const d = weaponBus(), t = ac.currentTime;
+    for (let i = 0; i < 6; i++) nz('highpass', 2600 + Math.random() * 3000, 1800, 2, 0.18 * v, 0.001, 0.04, t + i * 0.045 + Math.random() * 0.02, d); // треск
+    tone(110, 0.35, 'sawtooth', 0.05 * v, t, 90, d);                                                                                          // гул
+  }
   // Ниндзя (владелец 13.10: «звуки как у гранаты, острые, как настоящие»): бросок — щелчок чеки и свист; срабатывание — хлопок и шипение дыма
   function smokeThrow(v) {
     if (!ok()) return; v = v == null ? 1 : v;
@@ -337,5 +345,5 @@ window.Sound = (() => {
   }
   const isOn = () => mode >= 1;
   const state = () => ac ? ac.state : 'none';
-  return { init, state, smokeThrow, smokePop, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient, isOn };
+  return { init, state, pickup, zap, smokeThrow, smokePop, eat, boost, kill, death, click, spawn, cycle, icon, promo, beat, alert, rocket, boom, portal, knifeThrow, knifeHit, heel, ambient, isOn };
 })();

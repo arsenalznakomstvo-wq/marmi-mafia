@@ -211,14 +211,15 @@ class Snake {
 }
 
 function moveSnake(s) {
-  const tr = turnFor(s.r, s.bot);
+  const stun = s.stunUntil > tick, turbo = s.turboUntil > tick; // предметы (владелец 14.10): ⚡ шокер, 🚀 ускоритель
+  const tr = stun ? 0 : turnFor(s.r, s.bot);
   s.a += clamp(angDiff(s.a, s.ta), -tr, tr);
   if (s.a > Math.PI) s.a -= TAU; else if (s.a < -Math.PI) s.a += TAU;
-  s.boosting = s.boost && s.mass >= MIN_BOOST_MASS;
-  const spd = speedFor(s.r, s.boosting);
+  s.boosting = turbo || (s.boost && s.mass >= MIN_BOOST_MASS);
+  const spd = speedFor(s.r, s.boosting) * (stun ? 0.35 : 1);
   const xs = s.xs, ys = s.ys;
   xs[0] += Math.cos(s.a) * spd; ys[0] += Math.sin(s.a) * spd;
-  if (s.boosting) {
+  if (s.boosting && !turbo) {
     // Ускорение стоит длины: змейка худеет и роняет еду с хвоста, как в slither.io
     const cost = (0.15 + s.mass * 0.0008) * 0.7; // владелец 07.10: при ускорении теряет на 30% меньше
     s.mass -= cost; s.boostAcc += cost;
@@ -483,13 +484,14 @@ function killSnake(s, killer) {
 }
 
 function eat(s) {
-  const hx = s.xs[0], hy = s.ys[0], reach = s.r * 1.25 + 10 + 18;
+  const mg = s.magnetUntil > tick; // 🧲 магнит (владелец 14.10): еда летит в пасть с 300 единиц
+  const hx = s.xs[0], hy = s.ys[0], reach = mg ? 300 : s.r * 1.25 + 10 + 18;
   const cx0 = Math.floor((hx - reach) / FCELL), cx1 = Math.floor((hx + reach) / FCELL);
   const cy0 = Math.floor((hy - reach) / FCELL), cy1 = Math.floor((hy + reach) / FCELL);
   for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
     const cell = fcells.get(((cx + 64) << 8) | (cy + 64)); if (!cell) continue;
     for (const f of cell) {
-      const dx = f.x - hx, dy = f.y - hy, rr = s.r * 1.25 + 10 + f.r;
+      const dx = f.x - hx, dy = f.y - hy, rr = mg ? 300 : s.r * 1.25 + 10 + f.r;
       if (dx * dx + dy * dy < rr * rr) { s.mass += finalMin ? f.v * 2 : f.v; removeFood(f, s.id); } // последняя минута командного раунда — еда ×2
     }
   }
@@ -691,6 +693,7 @@ function findPrey(b, hx, hy) {
   for (const o of snakes.values()) {
     if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
     if (smokes.length && inSmoke(o.xs[0], o.ys[0])) continue; // в дыму Ниндзя — не видно
+    if (o.invisUntil > tick) continue; // 👻 невидимку боты не видят
     const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = Math.hypot(dx, dy);
     if (d > 550 + b.r * 4) continue;
     const ahead = -(Math.cos(o.a) * dx + Math.sin(o.a) * dy); // я впереди него (+) или сзади (−)
@@ -836,6 +839,7 @@ function handleJSON(c, m) {
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
+    if (process.env.TEST_ITEM) { items.push({ id: ++itemSeq, type: process.env.TEST_ITEM, x: s.xs[0] + Math.cos(s.a) * 20, y: s.ys[0] + Math.sin(s.a) * 20 }); itemsDirty = true; } // только для проверок: предмет перед носом
     if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = process.env.TEST_WEAPONS === 'knife' ? 2 : 0; s.badge = process.env.TEST_WEAPONS === 'badge' ? 2 : 0; if (s.knife || s.badge) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
     snakes.set(s.id, s);
     stats.onJoin(c);
@@ -845,7 +849,7 @@ function handleJSON(c, m) {
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.smoke) throwSmoke(c.snake); }
+    if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -975,6 +979,7 @@ function sendLeaderboard() {
     const q = v => Math.max(0, Math.min(255, Math.round((v / MAP_R + 1) * 127.5)));
     for (const s of arr) {
       if (smokes.length && inSmoke(s.xs[0], s.ys[0])) continue; // в дыму Ниндзя — на миникарте не видно
+      if (s.invisUntil > tick) continue; // 👻 невидимки на миникарте нет
       const len = s.xs.length, step = Math.max(Math.round(150 / SEG_D), Math.ceil(len / 30));
       const line = [(s.bot ? 0 : 1) | (s.team == null ? 0 : (s.team + 1) << 1)];
       for (let i = 0; i < len; i += step) line.push(q(s.xs[i]), q(s.ys[i]));
@@ -1066,6 +1071,13 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push([s.id, s.knife]); // у кого сколько кинжалов
       for (const s of snakes.values()) if (s.alive && s.badge) (m.bd || (m.bd = [])).push([s.id, s.badge]); // у какого Шерифа сколько бросков значка
       for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push([s.id, s.smoke]); // у какого Ниндзя сколько шашек
+      for (const s of snakes.values()) if (s.alive) { // действующие предметы: оглушён, невидим, магнит, ускоритель
+        if (s.stunUntil > tick) (m.st || (m.st = [])).push(s.id);
+        if (s.invisUntil > tick) (m.iv || (m.iv = [])).push(s.id);
+        if (s.magnetUntil > tick) (m.mg || (m.mg = [])).push(s.id);
+        if (s.turboUntil > tick) (m.tb || (m.tb = [])).push(s.id);
+      }
+      if (itemsDirty || tick % (TICK_RATE * 2) < 3) { m.it = items.map(i => [i.id, ITEM_TYPES.indexOf(i.type), Math.round(i.x), Math.round(i.y)]); itemsDirty = false; } // предметы на карте — при изменении и раз в 2 с
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
     return;
@@ -1190,13 +1202,16 @@ const bombs = []; let bombSeq = 0;
 function throwBomb(s) {
   if (!s.bomb) return;
   s.bomb--;
+  launchBomb(s);
+}
+function launchBomb(s, fromItem) {
   const px = -Math.sin(s.a), py = Math.cos(s.a), side = s.r * 1.9;
   const x0 = s.xs[0] + px * side, y0 = s.ys[0] + py * side; // бомба едет справа от головы — оттуда и летит
   let tx = x0 + Math.cos(s.a) * BOMB_DIST, ty = y0 + Math.sin(s.a) * BOMB_DIST;
   const d = Math.hypot(tx, ty), lim = MAP_R - 60; if (d > lim) { tx *= lim / d; ty *= lim / d; }
   const b = { id: ++bombSeq, owner: s, x: tx, y: ty, boomAt: tick + BOMB_FLY + BOMB_FUSE };
   bombs.push(b);
-  const msg = JSON.stringify({ t: 'bomb', id: b.id, x0: Math.round(x0), y0: Math.round(y0), x: Math.round(tx), y: Math.round(ty), fly: BOMB_FLY * TICK_MS, fuse: BOMB_FUSE * TICK_MS, o: s.id });
+  const msg = JSON.stringify({ t: 'bomb', id: b.id, x0: Math.round(x0), y0: Math.round(y0), x: Math.round(tx), y: Math.round(ty), fly: BOMB_FLY * TICK_MS, fuse: BOMB_FUSE * TICK_MS, o: s.id, ...(fromItem ? { it: 1 } : {}) });
   for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
 }
 function stepBombs() {
@@ -1230,13 +1245,15 @@ function stepBombs() {
 // рассыпается едой, передняя часть живёт дальше), летит дальше и разрубает вторую. Попал в голову — змея погибает.
 const KNIFE_SP = 28, KNIFE_LIFE = Math.round(1.1 * TICK_RATE), KNIFE_MAX = 2;
 const knives = []; let knifeSeq = 0;
-function throwKnife(s, badge) { // badge — значок Шерифа (владелец 13.10): летит как кинжал, первую змею разрубает пополам
-  if (badge ? !s.badge : !s.knife) return;
-  if (badge) s.badge--; else s.knife--;
+function throwKnife(s, badge, fromItem) { // badge — значок Шерифа (владелец 13.10): летит как кинжал, первую змею разрубает пополам; fromItem — кинжал-предмет
+  if (!fromItem) {
+    if (badge ? !s.badge : !s.knife) return;
+    if (badge) s.badge--; else s.knife--;
+  }
   const px = -Math.sin(s.a), py = Math.cos(s.a), off = s.r * 1.4; // кинжал висит справа от головы — оттуда и летит
   const k = { id: ++knifeSeq, owner: s, x: s.xs[0] + px * off, y: s.ys[0] + py * off, vx: Math.cos(s.a) * KNIFE_SP, vy: Math.sin(s.a) * KNIFE_SP, die: tick + KNIFE_LIFE, hits: new Set(), badge: !!badge, max: badge ? 1 : KNIFE_MAX };
   knives.push(k);
-  const msg = JSON.stringify({ t: 'knife', id: k.id, x: Math.round(k.x), y: Math.round(k.y), vx: k.vx, vy: k.vy, life: KNIFE_LIFE * TICK_MS, o: s.id, ...(badge ? { kind: 'badge' } : {}) });
+  const msg = JSON.stringify({ t: 'knife', id: k.id, x: Math.round(k.x), y: Math.round(k.y), vx: k.vx, vy: k.vy, life: KNIFE_LIFE * TICK_MS, o: s.id, ...(badge ? { kind: 'badge' } : {}), ...(fromItem ? { it: 1 } : {}) });
   for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
 }
 // Разрубить змею o в точке тела idx: хвост от idx — в еду, змея короче. Слишком близко к голове — гибель.
@@ -1335,15 +1352,67 @@ function runRound() {
 // Владелец 13.10: облако чуть меньше (260 → 200); шашку кидают вперёд — дым там, где упала (как бомба)
 const SMOKE_MS = 4000, SMOKE_R = 200, SMOKE_DIST = 400, SMOKE_FLY = Math.round(0.55 * TICK_RATE), smokes = []; // { x, y, from, until }
 function inSmoke(x, y) { for (const m of smokes) if (m.from <= tick && m.until > tick && (x - m.x) ** 2 + (y - m.y) ** 2 < SMOKE_R * SMOKE_R) return true; return false; }
-function throwSmoke(s) {
-  if (!s.smoke) return;
-  s.smoke--;
+function throwSmoke(s, fromItem) {
+  if (!fromItem) {
+    if (!s.smoke) return;
+    s.smoke--;
+  }
   const x0 = s.xs[0], y0 = s.ys[0];
   let x = x0 + Math.cos(s.a) * SMOKE_DIST, y = y0 + Math.sin(s.a) * SMOKE_DIST;
   const d = Math.hypot(x, y), lim = MAP_R - 80; if (d > lim) { x *= lim / d; y *= lim / d; }
   smokes.push({ x, y, from: tick + SMOKE_FLY, until: tick + SMOKE_FLY + Math.round(SMOKE_MS / TICK_MS) });
-  const msg = JSON.stringify({ t: 'smoke', x0: Math.round(x0), y0: Math.round(y0), x: Math.round(x), y: Math.round(y), fly: SMOKE_FLY * TICK_MS, r: SMOKE_R, ms: SMOKE_MS, o: s.id });
+  const msg = JSON.stringify({ t: 'smoke', x0: Math.round(x0), y0: Math.round(y0), x: Math.round(x), y: Math.round(y), fly: SMOKE_FLY * TICK_MS, r: SMOKE_R, ms: SMOKE_MS, o: s.id, ...(fromItem ? { it: 1 } : {}) });
   for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+}
+// ===== Предметы на карте (владелец 14.10): подполз головой — подобрал в «карман» (один), кнопкой — использовал =====
+// Подбирают только люди. Подобранный предмет через 6 с появляется в другом месте карты.
+const ITEM_TYPES = ['grenade', 'dagger', 'shock', 'magnet', 'smoke', 'invis', 'turbo'];
+const ITEM_N = 14, ITEM_R = 26, ITEM_RESPAWN = 6 * TICK_RATE, STUN_T = 2 * TICK_RATE;
+const items = [], itemWait = []; let itemSeq = 0, itemsDirty = true;
+function placeItem() {
+  for (let k = 0; k < 40; k++) {
+    const a = rand(0, TAU), d = Math.sqrt(Math.random()) * 4300, x = Math.cos(a) * d, y = Math.sin(a) * d;
+    if (PORTALS.some(pr => pr.some(([px, py]) => Math.hypot(px - x, py - y) < 160))) continue; // не на норах
+    items.push({ id: ++itemSeq, type: ITEM_TYPES[Math.random() * ITEM_TYPES.length | 0], x, y }); itemsDirty = true; return;
+  }
+}
+function stepItems() {
+  if (TEAM) return;
+  for (let k = 0; k < 3 && items.length + itemWait.length < ITEM_N; k++) placeItem();
+  for (let i = itemWait.length - 1; i >= 0; i--) if (itemWait[i] <= tick) { itemWait.splice(i, 1); placeItem(); }
+  for (const s of snakes.values()) {
+    if (s.bot || !s.alive || !s.client) continue;
+    const hx = s.xs[0], hy = s.ys[0], rr = s.r + ITEM_R;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if ((it.x - hx) ** 2 + (it.y - hy) ** 2 > rr * rr) continue;
+      items.splice(i, 1); itemWait.push(tick + ITEM_RESPAWN); itemsDirty = true;
+      s.item = it.type; sendJSON(s.client, { t: 'item', type: it.type });
+    }
+  }
+}
+function useItem(s) {
+  const t = s.item; if (!t) return;
+  s.item = null; if (s.client) sendJSON(s.client, { t: 'item', type: null, used: t });
+  if (t === 'grenade') launchBomb(s, true);
+  else if (t === 'dagger') throwKnife(s, false, true);
+  else if (t === 'smoke') throwSmoke(s, true);
+  else if (t === 'magnet') s.magnetUntil = tick + 5 * TICK_RATE;
+  else if (t === 'invis') s.invisUntil = tick + 4 * TICK_RATE;
+  else if (t === 'turbo') s.turboUntil = tick + 4 * TICK_RATE;
+  else if (t === 'shock') { // ⚡ ближайшая змея впереди (до 520) 2 с почти стоит и не может повернуть
+    const hx = s.xs[0], hy = s.ys[0], ca = Math.cos(s.a), sa = Math.sin(s.a);
+    let best = null, bd = 520 * 520;
+    for (const o of snakes.values()) {
+      if (o === s || !o.alive) continue;
+      const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = dx * dx + dy * dy;
+      if (d < bd && (dx * ca + dy * sa) > Math.sqrt(d) * 0.25) { bd = d; best = o; }
+    }
+    const x = best ? best.xs[0] : hx + ca * 300, y = best ? best.ys[0] : hy + sa * 300;
+    if (best) { best.stunUntil = tick + STUN_T; if (best.client) sendJSON(best.client, { t: 'tmsgMe', text: '⚡ Вас ударили шокером! 2 секунды не повернуть' }); }
+    const msg = JSON.stringify({ t: 'shock', x0: Math.round(hx), y0: Math.round(hy), x: Math.round(x), y: Math.round(y), hit: best ? best.id : 0 });
+    for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+  }
 }
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
 // Владелец 11.10 («глюк, особенно когда большой червяк лазит»): нора узкая — пролезают только змеи потоньше (длина примерно до 1000).
@@ -1383,6 +1452,7 @@ function step() {
   buildGrid();
   collisions();
   for (const s of snakes.values()) if (s.alive) eat(s);
+  stepItems();
   maintainFood();
   maintainBots();
   if (tick % 15 === 0) updateRoles(); // 2 раза в секунду
@@ -1615,4 +1685,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { useItem: (s, t) => { s.item = t; useItem(s); }, snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки
