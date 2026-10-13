@@ -721,14 +721,16 @@ function findIdx(arr, v) {
 }
 function interpolated(renderTick) {
   if (!snaps.length) return null;
-  let A = snaps[0], B = snaps[0];
-  if (renderTick >= snaps[snaps.length - 1].tick) { A = B = snaps[snaps.length - 1]; }
+  let A = snaps[0], B = snaps[0], extra = 0;
+  // Аудит 13.10 («игра виснет» — паузы интернета 200–500 мс): свежих данных нет — змеи не замирают, а ещё до 0,3 с ползут дальше
+  // с той же скоростью (по двум последним снимкам); пришли данные — плавно продолжаем по ним
+  if (renderTick >= snaps[snaps.length - 1].tick) { B = snaps[snaps.length - 1]; A = snaps.length > 1 ? snaps[snaps.length - 2] : B; extra = A !== B ? 9 : 0; }
   else {
     for (let i = snaps.length - 1; i > 0; i--) {
       if (snaps[i - 1].tick <= renderTick) { A = snaps[i - 1]; B = snaps[i]; break; }
     }
   }
-  const t = B.tick > A.tick ? clamp((renderTick - A.tick) / (B.tick - A.tick), 0, 1) : 1;
+  const t = B.tick > A.tick ? clamp((renderTick - A.tick) / (B.tick - A.tick), 0, 1 + extra / (B.tick - A.tick)) : 1, t1 = Math.min(t, 1);
   const out = [];
   for (const b of B.sn.values()) {
     const a = A.sn.get(b.id);
@@ -743,8 +745,8 @@ function interpolated(renderTick) {
     } else { for (let j = 0; j < n; j++) { xs[j] = b.xs[j]; ys[j] = b.ys[j]; } }
     out.push({
       id: b.id, boost: b.boost, mass: b.mass, len: b.len, idx: b.idx, gap: b.gap, xs, ys,
-      r: a ? a.r + (b.r - a.r) * t : b.r,
-      a: a ? a.a + angDiff(a.a, b.a) * t : b.a,
+      r: a ? a.r + (b.r - a.r) * t1 : b.r,
+      a: a ? a.a + angDiff(a.a, b.a) * t1 : b.a,
     });
   }
   return { list: out, vx: A.vx + (B.vx - A.vx) * t, vy: A.vy + (B.vy - A.vy) * t };

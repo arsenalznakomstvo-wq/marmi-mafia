@@ -1554,6 +1554,12 @@ wss.on('connection', (ws, req) => {
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: recView() });
   sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  if (process.env.TEST_STALL) { // только для проверок: каждые 3 с данные «застревают» на TEST_STALL мс, потом приходят пачкой — как плохой интернет
+    const ST = Number(process.env.TEST_STALL), send0 = ws.send.bind(ws), q = []; let holdUntil = 0;
+    const iv = setInterval(() => { holdUntil = Date.now() + ST; setTimeout(() => { while (q.length) { const [d, o] = q.shift(); if (ws.readyState === 1) send0(d, o); } }, ST); }, Number(process.env.TEST_STALL_EVERY) || 3000);
+    ws.on('close', () => clearInterval(iv));
+    ws.send = (d, o) => { if (Date.now() < holdUntil || q.length) q.push([d, o]); else send0(d, o); };
+  }
   if (process.env.TEST_LAG) { // только для проверок: искусственная задержка связи в каждую сторону (мс), как у далёкого игрока
     const LAG = Number(process.env.TEST_LAG), send0 = ws.send.bind(ws), on0 = ws.on.bind(ws);
     ws.send = (d, o) => setTimeout(() => { if (ws.readyState === 1) send0(d, o); }, LAG);
