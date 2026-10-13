@@ -896,3 +896,40 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 
 #iosGuide.ig-br .ig-arrow { left: auto; right: 22px; transform: none; animation: igBobR 1s ease-in-out infinite; } /* iOS 26: стрелка на «•••» внизу справа */
 @keyframes igBobR { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+
+/* ===== Окно установки на iPhone: шаги с картинками «как на iPhone» (владелец 13.10: «Поделиться → На экран Домой» мало кто знает) ===== */
+#iosGuide .ig { position: relative; text-align: center; }
+#igX { position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,0.08); color: #aab3c0; font-size: 15px; }
+#igNum { color: #9aa3b2; font-size: 12px; min-height: 15px; margin: -4px 0 8px; }
+.ig-pic { display: flex; justify-content: center; margin-bottom: 12px; }
+.ig-txt { font-size: 17px; line-height: 1.4; min-height: 48px; }
+.ig-dots { display: flex; justify-content: center; gap: 6px; margin: 10px 0 2px; }
+.ig-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.2); } .ig-dots i.on { background: #ffd24a; }
+.ig-nav { display: flex; gap: 10px; margin-top: 10px; } .ig-nav #igOk { flex: 1; margin-top: 0; }
+#igBack { border: 0; background: none; color: #aab3c0; font: 600 15px Arial, sans-serif; padding: 0 6px; }
+/* картинка — кусочек экрана iPhone */
+.ip { position: relative; width: 230px; height: 150px; border-radius: 16px; overflow: hidden; background: #f2f2f7; color: #111; border: 3px solid #2b2f36; font: 13px -apple-system, Arial, sans-serif; display: flex; flex-direction: column; justify-content: flex-end; }
+.ip-page { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: #10141b; color: #7de38a; font: 700 12px Comfortaa, Arial, sans-serif; }
+.ip-page img { width: 40px; height: 40px; border-radius: 10px; }
+.ip-bar { display: flex; align-items: center; justify-content: space-around; height: 42px; background: #f7f7f9; border-top: 1px solid #ddd; color: #007aff; font-size: 18px; }
+.ip-bar.ip-top { border-top: 0; border-bottom: 1px solid #ddd; }
+.ip-url { flex: 1; margin: 0 8px; padding: 5px 8px; border-radius: 9px; background: #e4e4ea; color: #555; font-size: 12px; text-align: left; }
+.ip-dim { background: #3a3d44; justify-content: center; align-items: center; }
+.ip-menu, .ip-sheet { background: #fff; border-radius: 12px; width: 190px; text-align: left; overflow: hidden; }
+.ip-menu > *, .ip-sheet > * { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #eee; }
+.ip-sheet { align-self: flex-end; width: 100%; border-radius: 12px 12px 0 0; margin-top: auto; }
+.ip-g { color: #8a8a90; font-size: 11px; justify-content: center; }
+.ip-hdr { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding: 10px 8px; background: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.ip-c { color: #007aff; font-weight: 400; }
+.ip-app { flex: 1; display: flex; align-items: center; gap: 10px; padding: 14px; background: #fff; margin: 8px; border-radius: 10px; font-size: 14px; }
+.ip-app img { width: 46px; height: 46px; border-radius: 11px; }
+.ip-home { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; background: linear-gradient(160deg, #3c2a6b, #b5506d); align-content: center; }
+.ip-home i { width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.25); justify-self: center; }
+.ip-icon img { width: 38px; height: 38px; border-radius: 10px; display: block; }
+/* подсвеченная кнопка — жёлтая рамка мигает */
+.ig-hl { position: relative; display: inline-flex; align-items: center; gap: 6px; color: #007aff; font-weight: 700; border-radius: 9px; box-shadow: 0 0 0 3px #ffcc00; animation: igHl 1s ease-in-out infinite; padding: 2px 5px; }
+.ip-sheet .ig-hl, .ip-menu .ig-hl { border-radius: 0; color: #111; background: #fff7cc; box-shadow: inset 0 0 0 3px #ffcc00; padding: 9px 10px; }
+.ip-icon.ig-hl { padding: 0; justify-self: center; }
+@keyframes igHl { 50% { box-shadow: 0 0 0 6px rgba(255,204,0,0.35); } }
+.ip-sheet .ig-hl, .ip-menu .ig-hl { animation: none; }
+#iosGuide.ig-bc .ig-arrow, #iosGuide.ig-top .ig-arrow, #iosGuide.ig-br .ig-arrow { display: block; } #iosGuide .ig-arrow { display: none; }
