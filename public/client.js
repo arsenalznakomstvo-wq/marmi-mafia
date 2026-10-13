@@ -2908,7 +2908,10 @@ window.addEventListener('appinstalled', reportInstall);
     const o = $('instOffer');
     setTimeout(() => o.classList.remove('hide'), 900);
     $('ioYes').addEventListener('click', () => { o.classList.add('hide'); btn.click(); });
-    $('ioNo').addEventListener('click', () => { o.classList.add('hide'); Sound.click(); });
+    // Владелец 13.10: «у племянника „Не сейчас“ не закрывает окно» — закрываем и по отрыву пальца, и касанием мимо карточки
+    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); } };
+    for (const ev of ['click', 'pointerup', 'touchend']) $('ioNo').addEventListener(ev, close);
+    o.addEventListener('pointerup', e => { if (!e.target.closest('.io-card')) close(e); });
   }
   btn.addEventListener('click', async () => {
     Sound.click();
