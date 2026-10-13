@@ -967,3 +967,11 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 /* Владелец 13.10: подсказка «микрофон запрещён» — с кнопкой «Проверить снова» */
 #vcHint { pointer-events: auto; max-width: min(92vw, 520px); text-align: center; line-height: 1.35; }
 #vcHint .vc-retry { display: block; margin: 8px auto 2px; border: 0; border-radius: 16px; padding: 6px 14px; background: #2fb34a; color: #fff; font: 700 13px Arial, sans-serif; }
+
+/* Владелец 13.10: окно «Откройте в Chrome — там проще»: иконка игры → значок Chrome */
+.ip-two { flex-direction: row !important; gap: 14px; } .ip-two img { width: 54px !important; height: 54px !important; border-radius: 13px; } .ip-arrow { color: #ffd24a; font-size: 26px; }
+@media (max-height: 500px) { /* телефон боком: окно установки влезает по высоте */
+  #iosGuide .ig { max-height: calc(100vh - 16px); overflow-y: auto; padding: 10px 16px; }
+  #iosGuide .ip { height: 96px; } #iosGuide .ip-two img { width: 42px !important; height: 42px !important; } #iosGuide .ip-two .ip-chrome { width: 42px; height: 42px; } #iosGuide .ip-two .ip-chrome::after { inset: 11px; }
+  #iosGuide .ig-t { margin-bottom: 4px; font-size: 15px; } #iosGuide .ig-txt { font-size: 14px; min-height: 0; } #iosGuide .ig-go { margin-top: 6px; padding: 8px 16px; } #igOk { padding: 8px; }
+}

@@ -2868,7 +2868,8 @@ window.addEventListener('appinstalled', reportInstall);
       $('igDots').innerHTML = steps.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('');
       $('igBack').style.visibility = k ? 'visible' : 'hidden';
       $('igOk').textContent = k < steps.length - 1 ? 'Дальше ›' : 'Понятно';
-      $('igNote').textContent = k === 0 ? 'Сначала прочитайте все шаги — потом сделайте их' : k === steps.length - 1 ? lastNote || '' : '';
+      $('igNote').textContent = steps.length === 1 ? lastNote || '' : k === 0 ? 'Сначала прочитайте все шаги — потом сделайте их' : k === steps.length - 1 ? lastNote || '' : '';
+      $('igDots').style.display = steps.length === 1 ? 'none' : '';
       g.classList.remove('ig-top', 'ig-br', 'ig-bc'); if (k === 0) g.classList.add(arrowCls); // стрелка на настоящую кнопку — только на первом шаге
     };
     if (!g.dataset.wired) {
@@ -2921,10 +2922,11 @@ window.addEventListener('appinstalled', reportInstall);
       // Владелец 13.10: без окон «Далее» — одна короткая подсказка
       if (samsung) { tip('Нажмите <b>≡</b> внизу → <b>«Добавить страницу на»</b> → <b>«Главный экран»</b>'); return; }
       if (chrome) { tip('Телефон ещё не готов к установке — подождите пару секунд и нажмите кнопку ещё раз.<br>Или: <b>⋮</b> вверху справа → <b>«Установить приложение»</b>', 12000); return; }
-      // другие браузеры (Яндекс, Xiaomi и др.) — проще всего открыть в Chrome
-      tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b><br><button id="tipChrome">Открыть в Chrome — там проще</button>');
-      const tc = $('tipChrome');
-      if (tc) tc.addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
+      // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «писало „откройте Chrome — там проще“ и была картинка» — одно окно, без «Далее»
+      const toChrome = '<button id="igChrome" class="ig-go">🌐 Открыть в Chrome</button>';
+      openGuide('📲 Установка на телефон', [[`<div class="ip ip-page ip-two"><img src="icon-192.png?v=2" alt=""><span class="ip-arrow">➜</span><div class="ip-chrome"></div></div>`,
+        'В этом браузере установить сложно.<br><b>Откройте игру в Chrome — там проще</b>' + toChrome]], 'ig-none', 'Или: меню браузера (≡ или ⋮) → «Добавить на главный экран»');
+      $('igChrome').addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
     }
   });
 })();
