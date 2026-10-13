@@ -376,9 +376,14 @@ function collisions() {
       // Голова s впереди головы o по ходу o и не лоб в лоб — значит, o сама въехала в s: погибает o.
       // Людям запас 25: чужие змеи у них на экране чуть отстают от сервера, человек видит себя чуть дальше впереди.
       const o = killer;
-      if (s.hitIdx * SEG_D <= o.r * 2.5 + (s.bot ? 0 : 25)) {
+      // Владелец 14.10 («я впереди, подрезаю — а погибаю сам»): человек видит соперника с опозданием (пинг + запас плавности,
+      // до 0,4 с). Решаем по тому, где голова соперника была у него НА ЭКРАНЕ: берём её положение lagMs назад
+      const L = s.bot || !s.client ? 0 : Math.min(15, Math.round((s.client.lagMs || 0) / TICK_MS)), oh = o.hh || [];
+      const pk = oh.length - 2 - L * 2, px = L && pk >= 0 ? oh[pk] : o.xs[0], py = L && pk >= 0 ? oh[pk + 1] : o.ys[0];
+      const lagGap = Math.hypot(o.xs[0] - px, o.ys[0] - py); // на сколько соперник на самом деле уже уполз вперёд
+      if (s.hitIdx * SEG_D <= o.r * 2.5 + (s.bot ? 0 : 25 + lagGap)) {
         const ca = Math.cos(o.a), sa = Math.sin(o.a);
-        const ahead = (hx - o.xs[0]) * ca + (hy - o.ys[0]) * sa, sameWay = Math.cos(s.a) * ca + Math.sin(s.a) * sa;
+        const ahead = (hx - px) * ca + (hy - py) * sa, sameWay = Math.cos(s.a) * ca + Math.sin(s.a) * sa;
         if (ahead > (s.bot ? 0 : -25) && sameWay > -0.3) { if (!(o.ghostUntil > tick)) { o.hitIdx = 0; dead.push(o, s); } continue; } // Доктор-призрак не гибнет — тогда обе живы
       }
       dead.push(s, killer);
@@ -851,6 +856,7 @@ function handleJSON(c, m) {
   } else if (m.t === 'fire') {
     if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
+    c.lagMs = clamp(Number(m.l) || 0, 0, 400); // владелец 14.10: насколько игрок видит чужих змей «в прошлом» (не больше 0,4 с)
     sendJSON(c, { t: 'pong', c: m.c });
   }
 }
@@ -1448,6 +1454,7 @@ function step() {
   runRound();
   for (const s of snakes.values()) if (s.bot && !s.botThinkOff) botThink(s); // каждый шаг — быстрее реагируют на опасность
   for (const s of snakes.values()) moveSnake(s);
+  for (const s of snakes.values()) { const h = s.hh || (s.hh = []); h.push(s.xs[0], s.ys[0]); if (h.length > 32) h.splice(0, 2); } // где была голова последние 0,5 с (честная подрезка)
   stepPortals();
   if (smokes.length) for (let i = smokes.length; i--;) if (smokes[i].until <= tick) smokes.splice(i, 1);
   buildGrid();

@@ -626,7 +626,7 @@ function onJSON(m) {
     case 'pong': pingMs = Math.round(performance.now() - m.c); break;
   }
 }
-setInterval(() => sendJSON({ t: 'ping', c: performance.now() }), 2000);
+setInterval(() => sendJSON({ t: 'ping', c: performance.now(), l: Math.round(pingMs / 2 + interpTicks * 1000 / TICK_RATE) }), 2000); // l — на сколько мс чужие змеи у меня на экране отстают (для честной подрезки)
 
 function onState(buf) {
   const dv = new DataView(buf);
