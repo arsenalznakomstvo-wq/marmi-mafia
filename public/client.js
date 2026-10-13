@@ -520,6 +520,9 @@ let havanaIds = new Set(); // кто довёз знамя — с сигарой
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
 let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1' ? 1 : 'auto', teamTm = null, rejoinAfterRound = false;
 
+// Владелец 13.10: «игру выбивает» — при каждом обновлении сайта сервер перезапускается. Теперь: предупреждение «игра обновляется»,
+// а кто был в игре — после переподключения сам снова заходит в игру, без выхода в меню.
+let autoRejoin = false, serverUpdating = false;
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws${TEAM_MODE ? '-team' : ''}`);
@@ -530,9 +533,9 @@ function connect() {
   };
   ws.onclose = () => {
     connected = false; $('play').disabled = true;
-    if (alive) { alive = false; myId = 0; showMenu(null); }
+    if (alive) { alive = false; myId = 0; autoRejoin = true; showMenu(null); }
     snaps.length = 0; foods.clear(); foodQueue.length = 0; metas.clear(); tickOffset = null;
-    setStatus('Связь потеряна, переподключаюсь…');
+    setStatus(serverUpdating || autoRejoin ? '🔄 Игра обновляется — сейчас вернёмся в игру…' : 'Связь потеряна, переподключаюсь…');
     setTimeout(connect, 1500);
   };
   ws.onerror = () => {};
@@ -558,6 +561,7 @@ function onJSON(m) {
         // Ссылка вида ?name=Вася сразу пускает в игру
         const q = new URLSearchParams(location.search).get('name');
         if (q && !autoJoined) { autoJoined = true; $('nick').value = q.slice(0, 16); play(); }
+        else if (autoRejoin) { autoRejoin = false; serverUpdating = false; play(); } // связь вернулась — снова в игру
       }
       if (!protoOk) { $('play').disabled = true; setStatus('⚠ Сервер устарел — закройте чёрное окно сервера и запустите start заново'); $('status').style.color = '#ff7070'; }
       break;
@@ -581,6 +585,7 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
+    case 'restart': serverUpdating = true; bigToast('🔄 Игра обновляется — через несколько секунд вернёмся сами'); break; // сервер перезапускается (новая версия)
     case 'smoke': { const now = performance.now(); smokeClouds.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, r: m.r, ms: m.ms, fly: m.fly || 0, t0: now + (m.fly || 0), thrown: now, popped: false, seed: Math.random() * 6 }); smokeIds.delete(m.o); if (m.o === myId) { mySmoke = false; renderFireBtn(); } Sound.click(); break; } // Ниндзя бросил шашку: летит, потом дым
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;

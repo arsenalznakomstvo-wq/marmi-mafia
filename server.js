@@ -1532,7 +1532,12 @@ if (teamWss) teamWss.on('connection', (ws, req) => {
 if (process.env.TEST_EXIT_SEC) setTimeout(() => process.exit(0), Number(process.env.TEST_EXIT_SEC) * 1000); // только для замеров (--cpu-prof пишет файл при выходе)
 // Последняя страховка: случайная ошибка пишется в журнал, а игра продолжается — раньше любая ошибка выкидывала всех игроков
 process.on('uncaughtException', e => console.error('непойманная ошибка (сервер продолжает работу):', e));
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (teamProc) teamProc.kill(); process.exit(0); });
+// Владелец 13.10: перед перезапуском (новая версия на Render) предупреждаем игроков — их игра сама вернётся, когда сервер поднимется
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {
+  if (teamProc) teamProc.kill();
+  try { const msg = JSON.stringify({ t: 'restart' }); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg); } catch {}
+  setTimeout(() => process.exit(0), 700);
+});
 process.on('exit', () => { if (teamProc) teamProc.kill(); });
 if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // основной процесс закрылся — арена тоже
 wss.on('connection', (ws, req) => {
