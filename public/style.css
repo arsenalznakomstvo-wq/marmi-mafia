@@ -958,3 +958,8 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 #ioNo { flex: 1; border: 1px solid rgba(255,255,255,0.22); background: transparent; color: #e8ecf1; border-radius: 22px; padding: 11px; font: 700 14px Arial, sans-serif; }
 #ioYes { flex: 1.4; border: 0; border-radius: 22px; padding: 11px; background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00; font: 700 16px Arial, sans-serif; }
 @media (max-height: 500px) { #instOffer img { width: 48px; height: 48px; margin-bottom: 6px; } #instOffer .io-s { margin: 4px 0 10px; } }
+/* Владелец 13.10: телефон боком — карточка справа на одном уровне с окном слева (верх и низ совпадают) */
+@media (pointer: coarse) and (orientation: landscape) {
+  body.mvid #winCards { top: var(--wcTop, 40px) !important; --ih: calc(100vh - 58px - 92px - var(--wcExtra, 43px)) !important; }
+  body.mvid #wpBtn { top: calc(100vh - 92px + 8px) !important; bottom: auto !important; }
+}
