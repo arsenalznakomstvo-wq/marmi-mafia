@@ -933,3 +933,8 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 @keyframes igHl { 50% { box-shadow: 0 0 0 6px rgba(255,204,0,0.35); } }
 .ip-sheet .ig-hl, .ip-menu .ig-hl { animation: none; }
 #iosGuide.ig-bc .ig-arrow, #iosGuide.ig-top .ig-arrow, #iosGuide.ig-br .ig-arrow { display: block; } #iosGuide .ig-arrow { display: none; }
+
+/* Android (владелец 13.10): окно «Установить?» и меню Chrome справа сверху */
+.ip-dlg { background: #fff; border-radius: 14px; width: 200px; overflow: hidden; }
+.ip-dlg .ip-app { margin: 0; padding: 12px; font-size: 12px; } .ip-dlg .ip-app img { width: 34px; height: 34px; }
+.ip-tr { align-items: flex-start; justify-content: flex-start; padding: 6px; } .ip-tr .ip-menu { margin-left: auto; width: 180px; }

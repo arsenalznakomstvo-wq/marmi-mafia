@@ -2722,6 +2722,33 @@ window.addEventListener('appinstalled', reportInstall);
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
   window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('✅ Готово! Иконка игры — на экране телефона'); });
   if (!inApp) btn.classList.remove('hide');
+  // Окно «шаг за шагом с картинками» (владелец 13.10) — общее для iPhone и Android
+  const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
+  const page = '<div class="ip-page"><img src="icon-192.png" alt=""><b>марми мафия</b></div>';
+  const homePic = `<div class="ip ip-home"><i></i><i></i><i></i><span class="ig-hl ip-icon"><img src="icon-192.png" alt=""></span><i></i><i></i><i></i><i></i></div>`;
+  const DONE = '<b>Готово!</b> Игра на экране телефона — открывайте с иконки';
+  function openGuide(title, steps, arrowCls, lastNote) {
+    const g = $('iosGuide'); let k = 0;
+    $('igTitle').textContent = title;
+    const show = () => {
+      $('igNum').textContent = k < steps.length - 1 ? `Шаг ${k + 1} из ${steps.length - 1}` : '';
+      $('igPic').innerHTML = steps[k][0]; $('igTxt').innerHTML = steps[k][1];
+      $('igDots').innerHTML = steps.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('');
+      $('igBack').style.visibility = k ? 'visible' : 'hidden';
+      $('igOk').textContent = k < steps.length - 1 ? 'Дальше ›' : 'Понятно';
+      $('igNote').textContent = k === 0 ? 'Сначала прочитайте все шаги — потом сделайте их' : k === steps.length - 1 ? lastNote || '' : '';
+      g.classList.remove('ig-top', 'ig-br', 'ig-bc'); if (k === 0) g.classList.add(arrowCls); // стрелка на настоящую кнопку — только на первом шаге
+    };
+    if (!g.dataset.wired) {
+      g.dataset.wired = 1;
+      $('igOk').addEventListener('click', () => { if (g._k < g._n - 1) g._next(); else g.classList.add('hide'); });
+      $('igBack').addEventListener('click', () => g._prev());
+      $('igX').addEventListener('click', () => g.classList.add('hide'));
+    }
+    g._n = steps.length; g._k = 0;
+    g._next = () => { k = ++g._k; show(); }; g._prev = () => { if (g._k) { k = --g._k; show(); } };
+    show(); g.classList.remove('hide');
+  }
   btn.addEventListener('click', async () => {
     Sound.click();
     if (isIOS) { // iPhone (владелец 13.10): сайт не может установить себя сам. «Поделиться → На экран Домой» мало кто знает —
@@ -2730,8 +2757,6 @@ window.addEventListener('appinstalled', reportInstall);
       const ver = +((ua.match(/Version\/(\d+)/) || ua.match(/OS (\d+)_/) || [])[1] || 0), newSafari = !chromeIOS && ver >= 26; // iOS 26: «Поделиться» спрятано в «•••»
       const SH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M7 11H5.5v9.5h13V11H17"/></svg>';
       const PL = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
-      const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
-      const page = '<div class="ip-page"><img src="icon-192.png" alt=""><b>марми мафия</b></div>';
       const pics = {
         barOld: `<div class="ip">${page}<div class="ip-bar"><span>‹</span><span>›</span>${HL(SH)}<span>▭</span><span>⧉</span></div></div>`,
         barTop: `<div class="ip"><div class="ip-bar ip-top"><span class="ip-url">marmi-mafia…</span>${HL(SH)}</div>${page}</div>`,
@@ -2739,46 +2764,45 @@ window.addEventListener('appinstalled', reportInstall);
         menu26: `<div class="ip ip-dim"><div class="ip-menu">${HL(SH + ' Поделиться')}<div>☆ В избранное</div><div>⌕ Найти на странице</div></div></div>`,
         sheet: `<div class="ip ip-dim"><div class="ip-sheet"><div class="ip-g">прокрутите вниз ↓</div><div>⧉ Скопировать</div><div>☆ Добавить в избранное</div>${HL(PL + ' На экран «Домой»')}</div></div>`,
         add: `<div class="ip"><div class="ip-hdr"><span class="ip-c">Отменить</span><span>На экран «Домой»</span>${HL('Добавить')}</div><div class="ip-app"><img src="icon-192.png" alt=""><span>Марми Мафия</span></div></div>`,
-        home: `<div class="ip ip-home"><i></i><i></i><i></i><span class="ig-hl ip-icon"><img src="icon-192.png" alt=""></span><i></i><i></i><i></i><i></i></div>`,
+        home: homePic,
       };
       const steps = chromeIOS
         ? [[pics.barTop, 'Нажмите кнопку <b>«Поделиться»</b> вверху справа'], [pics.sheet, 'Нажмите <b>«На экран „Домой“»</b>'], [pics.add, 'Нажмите <b>«Добавить»</b>'], [pics.home, '<b>Готово!</b> Игра на экране телефона — открывайте с иконки']]
         : newSafari
         ? [[pics.bar26, 'Нажмите <b>три точки •••</b> внизу справа'], [pics.menu26, 'Нажмите <b>«Поделиться»</b>'], [pics.sheet, 'Прокрутите вниз и нажмите <b>«На экран „Домой“»</b>'], [pics.add, 'Нажмите <b>«Добавить»</b>'], [pics.home, '<b>Готово!</b> Игра на экране телефона — открывайте с иконки']]
         : [[land ? pics.barTop : pics.barOld, `Нажмите кнопку <b>«Поделиться»</b> ${land ? 'вверху справа' : 'внизу экрана'}`], [pics.sheet, 'Прокрутите вниз и нажмите <b>«На экран „Домой“»</b>'], [pics.add, 'Нажмите <b>«Добавить»</b>'], [pics.home, '<b>Готово!</b> Игра на экране телефона — открывайте с иконки']];
-      const g = $('iosGuide'), arrowCls = chromeIOS || (land && !newSafari) ? 'ig-top' : newSafari ? 'ig-br' : 'ig-bc';
-      let k = 0;
-      const show = () => {
-        $('igNum').textContent = k < steps.length - 1 ? `Шаг ${k + 1} из ${steps.length - 1}` : '';
-        $('igPic').innerHTML = steps[k][0]; $('igTxt').innerHTML = steps[k][1];
-        $('igDots').innerHTML = steps.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('');
-        $('igBack').style.visibility = k ? 'visible' : 'hidden';
-        $('igOk').textContent = k < steps.length - 1 ? 'Дальше ›' : 'Понятно';
-        $('igNote').textContent = k === 0 ? 'Сначала прочитайте все шаги — потом сделайте их' : chromeIOS && k === steps.length - 1 ? 'Не получилось? Откройте игру в Safari — там проще' : '';
-        g.classList.remove('ig-top', 'ig-br', 'ig-bc'); if (k === 0) g.classList.add(arrowCls); // стрелка на настоящую кнопку — только на первом шаге
-      };
-      if (!g.dataset.wired) {
-        g.dataset.wired = 1;
-        $('igOk').addEventListener('click', () => { if (g._k < g._n - 1) g._next(); else g.classList.add('hide'); });
-        $('igBack').addEventListener('click', () => g._prev());
-        $('igX').addEventListener('click', () => g.classList.add('hide'));
-      }
-      g._n = steps.length; g._k = 0;
-      g._next = () => { k = ++g._k; show(); }; g._prev = () => { if (g._k) { k = --g._k; show(); } };
-      show(); g.classList.remove('hide');
+      openGuide('📲 Установка на iPhone', steps, chromeIOS || (land && !newSafari) ? 'ig-top' : newSafari ? 'ig-br' : 'ig-bc', chromeIOS ? 'Не получилось? Откройте игру в Safari — там проще' : '');
     }
-    else if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; }
     else {
-      // Владелец 11.10: Samsung Internet / Яндекс и др. не сообщают сайту «можно установить» — раньше кнопка ошибочно писала
-      // «уже установлена». Теперь: «уже установлена» — только если Chrome это подтвердил; иначе — где установка в меню этого браузера + «Открыть в Chrome»
       const samsung = /SamsungBrowser/i.test(ua), chrome = /Chrome\//.test(ua) && !/SamsungBrowser|YaBrowser|OPR\/|Edg|MiuiBrowser|HeyTap|UCBrowser/i.test(ua);
+      // Владелец 13.10 («даже на Android не могу установить»): Chrome сообщает «можно установить» через несколько секунд
+      // после открытия — нажали раньше, и вместо окна установки была непонятная подсказка. Теперь ждём сигнал до 3,5 с.
+      if (!deferred && chrome) {
+        const t0 = btn.textContent; btn.textContent = '⏳ Готовим установку…'; btn.disabled = true;
+        await new Promise(ok => { const t = setTimeout(ok, 3500); window.addEventListener('beforeinstallprompt', () => { clearTimeout(t); setTimeout(ok, 50); }, { once: true }); });
+        btn.textContent = t0; btn.disabled = false;
+      }
+      if (deferred) { const d = deferred; deferred = null; try { d.prompt(); await d.userChoice; } catch (e) {} return; } // одно нажатие → окно «Установить?»
       let installed = false;
       if (chrome && navigator.getInstalledRelatedApps) try { installed = (await navigator.getInstalledRelatedApps()).length > 0; } catch (e) {}
-      const toChrome = chrome ? '' : '<br><button id="tipChrome">Открыть в Chrome</button>';
-      if (installed) tip('📲 Игра уже установлена — откройте её с иконки на экране.<br>Иконка не открывается? Удалите её в «Настройки → Приложения» и нажмите эту кнопку ещё раз');
-      else if (samsung) tip('Нажмите <b>≡</b> внизу → <b>«Добавить страницу на»</b> → <b>«Главный экран»</b>' + toChrome);
-      else if (chrome) tip('Нажмите <b>⋮</b> вверху справа → <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>');
-      else tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b>' + toChrome);
+      if (installed) { tip('📲 Игра уже стоит на телефоне — найдите иконку <b>«Марми Мафия»</b> на экране.<br>Нет иконки? Удалите игру в «Настройки → Приложения» и нажмите эту кнопку ещё раз'); return; }
+      if (samsung) {
+        const bar = `<div class="ip">${page}<div class="ip-bar"><span>‹</span><span>›</span><span>⌂</span><span>▭</span>${HL('≡')}</div></div>`;
+        const menu = `<div class="ip ip-dim"><div class="ip-menu"><div>☆ Закладки</div><div>⬇ Загрузки</div>${HL('➕ Добавить страницу на')}</div></div>`;
+        const where = `<div class="ip ip-dim"><div class="ip-menu"><div>☆ Закладки</div>${HL('📱 Главный экран')}<div>⧉ Быстрый доступ</div></div></div>`;
+        const add = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png" alt=""><span>Марми Мафия</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Добавить')}</div></div></div>`;
+        openGuide('📲 Установка на телефон', [[bar, 'Нажмите <b>≡</b> внизу справа'], [menu, 'Нажмите <b>«Добавить страницу на»</b>'], [where, 'Выберите <b>«Главный экран»</b>'], [add, 'Нажмите <b>«Добавить»</b>'], [homePic, DONE]], 'ig-br', '');
+        return;
+      }
+      if (chrome) {
+        const bar = `<div class="ip"><div class="ip-bar ip-top"><span>⌂</span><span class="ip-url">marmi-mafia…</span>${HL('⋮')}</div>${page}</div>`;
+        const menu = `<div class="ip ip-dim ip-tr"><div class="ip-menu"><div>⊕ Новая вкладка</div><div>☆ Закладки</div>${HL('📲 Установить приложение')}</div></div>`;
+        const dlg = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png" alt=""><span>Установить «Марми Мафия»?</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Установить')}</div></div></div>`;
+        openGuide('📲 Установка на телефон', [[bar, 'Нажмите <b>⋮</b> (три точки) вверху справа'], [menu, 'Нажмите <b>«Установить приложение»</b><br>или <b>«Добавить на главный экран»</b>'], [dlg, 'Нажмите <b>«Установить»</b>'], [homePic, DONE]], 'ig-top', '');
+        return;
+      }
+      // другие браузеры (Яндекс, Xiaomi и др.) — проще всего открыть в Chrome
+      tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b><br><button id="tipChrome">Открыть в Chrome — там проще</button>');
       const tc = $('tipChrome');
       if (tc) tc.addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
     }
