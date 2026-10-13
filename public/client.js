@@ -1026,7 +1026,7 @@ function drawBackPlate(id, ri, x, y, heading, r, boost, time, bodyCol, nick, tea
   st.ang = clamp(st.ang + st.vel * dt, -1.1, 1.1);
   const L = r * 0.85, s = Math.max(0.55, r / 14);                   // длина ниточки и масштаб таблички (владелец: средний размер)
   const hang = st.ang;                                                // качание вокруг точки крепления
-  const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 - r * 0.3;
+  const px = x + Math.sin(hang) * L, py = y + Math.cos(hang) * L * 0.4 + r * 0.15; // владелец 14.10: висит чуть ниже (было −0,3·r)
   // ниточка
   ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = Math.max(1, 1.4 * s);
   ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo((x + px) / 2 + Math.sin(hang) * 4 * s, (y + py) / 2 - 3 * s, px, py); ctx.stroke();
@@ -1467,7 +1467,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (sn.idx[0] === 0) { // голова на экране
     const hx = sn.xs[0], hy = sn.ys[0], a = sn.a;
     if (!fade) lastHeads.set(sn.id, { x: hx, y: hy });
-    const nk = Math.min(cnt - 1, Math.round(sn.r * 2.6 / sp));
+    const nk = Math.min(cnt - 1, Math.round(sn.r * 3.2 / sp)); // владелец 14.10: оружие и украшения на шее — чуть дальше от головы (было 2,6)
     let neck = null;
     if (nk > 1) neck = [SX[nk], SY[nk], Math.atan2(SY[nk - 1] - SY[nk + 1 < cnt ? nk + 1 : nk], SX[nk - 1] - SX[nk + 1 < cnt ? nk + 1 : nk])];
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
@@ -1485,11 +1485,11 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && !lod && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
     else if (!fade && !lod && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
-      const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
+      const bk = Math.min(cnt - 1, Math.round(sn.r * 5.0 / sp)); // владелец 14.10: табличка чуть ниже по телу (было 4,2)
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
       if (bk > 2) drawBackPlate(sn.id, 0, SX[bk], SY[bk], a, sn.r, sn.boost, time, '', meta.bot ? (TEAM_MODE ? '' : meta.name) : (talkingP ? '🔊 ' : '') + meta.name, meta.team);
     } else if (meta && !fade && (meta.role || 0) >= BACK_PLATE_MIN) { // табличка роли на спине у старших ролей
-      const bk = Math.min(cnt - 1, Math.round(sn.r * 4.2 / sp));
+      const bk = Math.min(cnt - 1, Math.round(sn.r * 5.0 / sp)); // владелец 14.10: табличка чуть ниже по телу (было 4,2)
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
       if (bk > 2) drawBackPlate(sn.id, meta.role, SX[bk], SY[bk], a, sn.r, sn.boost, time, bandColor(sk.cols, 0), (talkingP ? '🔊 ' : '') + meta.name); // у ботов тоже ник (владелец 11.10)
     }
@@ -1797,7 +1797,7 @@ function drawMinimap(me) {
 
 // ===== Рейтинг: топ-10, как в slither.io — у каждой строки свой цвет =====
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const LB_COLORS = ['#ff9d9d', '#ffc09d', '#ffe39d', '#d4ff9d', '#9dffb4', '#9dffe8', '#9de2ff', '#9db8ff', '#c49dff', '#ff9de6'];
+const LB_COLORS = ['#ffd24a', '#d6dbe2', '#e0a067', '#c9ced6', '#c9ced6', '#c9ced6', '#c9ced6', '#c9ced6', '#c9ced6', '#c9ced6']; // владелец 14.10: «солидно» — золото, серебро, бронза, дальше спокойный светло-серый (было радужное)
 // Аудит 12.10: рейтинг больше не пересобирается заново 2 раза в секунду — 11 строк созданы один раз,
 // в них меняются только изменившиеся тексты (пересборка давала пересчёт раскладки страницы 15–20 мс на телефоне)
 let rankHtml = '', lbRows = null;
@@ -1938,7 +1938,7 @@ function launcherSprite(r) {
 function drawBazooka(x, y, a, r, n) { // гранатомёты по бокам головы: сколько ракет осталось, столько и видно (владелец 13.10); первая ракета — из левого
   const S = launcherSprite(r), sc = r / Math.max(6, Math.round(r / 2) * 2), c = Math.cos(a), s = Math.sin(a), px = -s, py = c, off = r * 1.3;
   for (const side of (n === 1 ? [1] : [-1, 1])) {
-    const bx = x + px * off * side - c * r * 1.6, by = y + py * off * side - s * r * 1.6;
+    const bx = x + px * off * side - c * r * 2.1, by = y + py * off * side - s * r * 2.1; // владелец 14.10: чуть дальше от головы (было 1,6)
     drawRotated(S.img, bx, by, a, S.w * sc, S.h * sc, 0, S.h * sc / 2);
   }
   resetWorldT();
@@ -2402,7 +2402,7 @@ function fuseSparks(x, y, sz, time, hot) {
 }
 function drawCarriedBomb(hx, hy, a, r, time, sideSgn) {
   const px = -Math.sin(a) * (sideSgn || 1), py = Math.cos(a) * (sideSgn || 1), side = r * 1.9, sz = Math.max(26, r * 2.4);
-  const bx = hx + px * side - Math.cos(a) * r * 0.4, by = hy + py * side - Math.sin(a) * r * 0.4 + Math.sin(time * 0.006) * r * 0.08; // слегка подпрыгивает
+  const bx = hx + px * side - Math.cos(a) * r * 0.9, by = hy + py * side - Math.sin(a) * r * 0.9 + Math.sin(time * 0.006) * r * 0.08; // владелец 14.10: чуть дальше от головы // слегка подпрыгивает
   ctx.strokeStyle = 'rgba(60, 45, 25, 0.8)'; ctx.lineWidth = Math.max(1, r * 0.08); // верёвочка к шее
   ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * r * 0.9 + px * r * 0.6, hy - Math.sin(a) * r * 0.9 + py * r * 0.6); ctx.quadraticCurveTo(bx - Math.cos(a) * r, by - Math.sin(a) * r + r * 0.3, bx, by - sz * 0.2); ctx.stroke();
   ctx.drawImage(bombSprite(), bx - sz / 2, by - sz / 2 - sz * 0.06, sz, sz);
