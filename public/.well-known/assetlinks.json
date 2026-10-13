@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.marmimafia.game",
+    "sha256_cert_fingerprints": ["F3:BE:B3:90:B5:D4:57:F7:C6:52:6B:D4:46:7D:C6:F5:C8:E2:91:F5:FF:22:F7:15:B9:F4:57:6D:5B:48:D4:6A"]
+  }
+}]

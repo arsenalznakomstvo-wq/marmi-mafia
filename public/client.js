@@ -2499,7 +2499,9 @@ $('qualityBtn').addEventListener('click', () => { hiQ = !hiQ; store('mm_hq', hiQ
 // Телефон: полный экран и горизонтальный поворот. Вопрос «Разрешить микрофон?» на Android выбивает из полного экрана —
 // поэтому при первом касании в игре включаем его снова (браузер разрешает это только по касанию).
 // Запущено с иконки на главном экране — браузерных панелей нет, полный экран не нужен (и нет сообщения Android)
-const isApp = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+const isApp = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true
+  || /^android-app:\/\/com\.marmimafia\.game/.test(document.referrer) || (() => { try { return sessionStorage.getItem('mm_app') === '1'; } catch (e) { return false; } })(); // владелец 13.10: приложение-APK (открывает сайт в Chrome без строки адреса)
+if (isApp) try { sessionStorage.setItem('mm_app', '1'); } catch (e) {}
 // Владелец 11.10: каждое включение полного экрана браузер сопровождает надписью «чтобы выйти… проведите сверху вниз»,
 // убрать её сайт не может. Раньше полный экран включался заново на каждое касание — надпись выскакивала снова и снова.
 // Теперь не больше двух раз за заход: «Играть» и один раз после вопроса про микрофон; вышел сам (провёл сверху вниз) — не возвращаем.
