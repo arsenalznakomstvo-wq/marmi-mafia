@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
-const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM } = require('./public/skins.js');
+const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, TEETH_ID, TEETH_MAX } = require('./public/skins.js');
 const stats = require('./stats.js');
 const voice = require('./voice.js');
 const records = require('./records.js');
@@ -345,7 +345,7 @@ function buildGrid() {
 function collisions() {
   const dead = [];
   for (const s of snakes.values()) {
-    if (!s.alive || s.ghostUntil > tick) continue; // Доктор после спасения 2 с проходит сквозь всё
+    if (!s.alive || s.ghostUntil > tick || s.latch) continue; // Доктор после спасения 2 с проходит сквозь всё; Зубастик на хвосте — приклеен, не разбивается
     const hx = s.xs[0], hy = s.ys[0], rs = s.r;
     const lim = MAP_R - rs * 0.3;
     if (hx * hx + hy * hy > lim * lim) { dead.push(s, null); continue; }
@@ -358,11 +358,12 @@ function collisions() {
       const c = grid.get(gkey(cx, cy)); if (!c) continue;
       for (let j = 0; j < c.length; j++) {
         const p = c[j], o = PS[p];
-        if (o === s || (TEAM && o.team === s.team)) continue; // в себя и в своих (командный режим) врезаться нельзя
+        if (o === s || (TEAM && o.team === s.team) || o === s.rider) continue; // в себя и в своих (командный режим) врезаться нельзя; хозяин — в своего Зубастика тоже
         const dx = PX[p] - hx, dy = PY[p] - hy, rr = o.r + rs * 0.6;
         if (dx * dx + dy * dy < rr * rr) { killer = o; s.hitIdx = PIdx[p]; break outer; }
       }
     }
+    if (killer && canLatch(s, killer, s.hitIdx)) { latchOn(s, killer); continue; } // Зубастик укусил кончик хвоста — не разбился, а вцепился
     if (killer) {
       // Подрезка (владелец 11.10): змея обогнала и резко повернула поперёк — её голова задевает голову или шею соперника.
       // Раньше погибала она («чья голова коснулась — тот и разбился»), а должна та, что сзади въехала в подрезавшую.
@@ -425,6 +426,8 @@ function killSnake(s, killer) {
   if (!s.bot) records.report(s.name, s.mass);
   if (!s.bot) deathStats.player++; else if (killer) deathStats.botBody++; else deathStats.botWall++;
   s.alive = false;
+  if (s.rider && s.rider.latch) unlatch(s.rider); // хозяин погиб — Зубастик отцепляется
+  if (s.latch) { if (s.latch.host.rider === s) s.latch.host.rider = null; s.latch = null; }
   snakes.delete(s.id);
   diedThisTick.push(s.id);  // браузеры покажут, как тело тает
   // Труп рассыпается крупной светящейся едой — за неё и дерутся
@@ -513,7 +516,7 @@ function randomSkin() {
   // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
   let id;
   if (Math.random() < 0.95) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0]; // почти всегда спокойные
-  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || BOT_NO_COLORS.test(SKINS[id].name)); // шахматный, розовые, синие — убраны (владелец 11.10)
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'teeth' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
@@ -812,13 +815,16 @@ function handleJSON(c, m) {
     s.client = c; c.snake = s; c.inA = s.a;
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
+    if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
     if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = +(process.env.TEST_WEAPONS === 'knife'); if (s.knife) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
+    if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦷 Вы Зубастик! Коснитесь головой кончика хвоста змеи длиннее вас — вцепитесь и покатаетесь (пока ваша длина меньше ' + TEETH_MAX + ')' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
+    if (c.snake && c.snake.alive && c.snake.latch) { unlatch(c.snake); return; } // Зубастик: кнопка — отцепиться
     if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); }
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
@@ -1302,6 +1308,45 @@ function runRound() {
 
 // ===== Потайные ходы (владелец 11.10): голова в норе — вся змея переносится к другой норе и ползёт дальше в ту же сторону.
 // После прохода 2 с ход не срабатывает (иначе сразу обратно), на выходе 0,4 с неуязвимости — вдруг там кто-то ползёт.
+// ===== Зубастик (владелец 13.10) =====
+// Особый скин: пока длина меньше 300, укус за кончик хвоста змеи длиннее себя — не смерть, а «вцепился»: едет за хвостом
+// 10 с, ничего не ест, сам не разбивается; отцепиться — кнопкой 🦷. Хозяин хвоста ничего не теряет и стряхнуть не может.
+const LATCH_TICKS = 10 * TICK_RATE, LATCH_CD = 10 * TICK_RATE, LATCH_FREE = Math.round(0.7 * TICK_RATE);
+function canLatch(s, o, idx) {
+  if (TEAM || s.bot || s.skin.id !== TEETH_ID || s.latch || s.mass >= TEETH_MAX || s.latchCd > tick || s.tun) return false;
+  if (!o.alive || o.tun || o.rider || o.latch || o.mass <= s.mass) return false; // на одном хвосте — один; на другом Зубастике не катаются
+  const n = o.xs.length;
+  return idx >= n - Math.max(4, Math.round(n * 0.15)); // кончик хвоста — последние 15% тела
+}
+function latchOn(s, o) {
+  s.latch = { host: o, until: tick + LATCH_TICKS }; o.rider = s; s.boost = false;
+  if (s.client) sendJSON(s.client, { t: 'latch', on: 1, sec: LATCH_TICKS / TICK_RATE, host: o.name });
+  if (o.client) sendJSON(o.client, { t: 'tmsgMe', text: '🦷 ' + s.name + ' катается на вашем хвосте' });
+}
+function unlatch(s) {
+  const o = s.latch && s.latch.host;
+  if (o && o.rider === s) o.rider = null;
+  s.latch = null; s.latchCd = tick + LATCH_CD; s.ta = s.a;
+  s.ghostUntil = Math.max(s.ghostUntil || 0, tick + LATCH_FREE); // 0,7 с, чтобы отъехать от хвоста и не разбиться о него сразу
+  if (s.client) sendJSON(s.client, { t: 'latch', on: 0, cd: LATCH_CD / TICK_RATE });
+}
+function rideSnake(s) {
+  const o = s.latch.host;
+  if (!o.alive || o.tun || tick > s.latch.until) { unlatch(s); return; }
+  const oxs = o.xs, oys = o.ys, n = oxs.length, tx = oxs[n - 1], ty = oys[n - 1];
+  let j = n - 2; while (j > 0 && Math.abs(oxs[j] - tx) + Math.abs(oys[j] - ty) < 1) j--; // у растущей змеи последние точки совпадают
+  let dx = tx - oxs[j], dy = ty - oys[j]; const d = Math.hypot(dx, dy);
+  if (d < 0.5) { dx = -Math.cos(o.a); dy = -Math.sin(o.a); } else { dx /= d; dy /= d; } // направление «назад» вдоль хвоста
+  const gap = s.r * 0.8;
+  const xs = s.xs, ys = s.ys;
+  xs[0] = tx + dx * gap; ys[0] = ty + dy * gap;
+  s.a = s.ta = Math.atan2(-dy, -dx); s.boosting = false; // смотрит на хвост, который держит зубами
+  for (let i = 1; i < xs.length; i++) {
+    const ex = xs[i] - xs[i - 1], ey = ys[i] - ys[i - 1], e = Math.sqrt(ex * ex + ey * ey);
+    if (e > SEG_D) { const k = SEG_D / e; xs[i] = xs[i - 1] + ex * k; ys[i] = ys[i - 1] + ey * k; }
+  }
+  s.bbox();
+}
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
 // Владелец 11.10 («глюк, особенно когда большой червяк лазит»): нора узкая — пролезают только змеи потоньше (длина примерно до 1000).
 // Длинное тело долго тянулось через нору, делало петли и «кольца»; большие теперь просто проползают мимо.
@@ -1309,7 +1354,7 @@ const PORTAL_MAX_R = 12; // владелец 11.10: только очень ма
 function stepPortals() {
   if (TEAM) return;
   for (const s of snakes.values()) {
-    if (!s.alive || s.portalCd > tick || s.tun) continue; // пока хвост ещё в тоннеле — в другую нору нельзя
+    if (!s.alive || s.portalCd > tick || s.tun || s.latch) continue; // пока хвост ещё в тоннеле — в другую нору нельзя; Зубастик на хвосте — тоже
     const hx = s.xs[0], hy = s.ys[0];
     if (s.r > PORTAL_MAX_R) { // толстая — не пролезает; человеку подсказка (не чаще раза в 10 с)
       if (s.client && !(s.portalHint > tick)) for (const pair of PORTALS) for (const [px, py] of pair)
@@ -1333,12 +1378,13 @@ function stepPortals() {
 function step() {
   tick++;
   runRound();
-  for (const s of snakes.values()) if (s.bot) botThink(s); // каждый шаг — быстрее реагируют на опасность
-  for (const s of snakes.values()) moveSnake(s);
+  for (const s of snakes.values()) if (s.bot && !s.botThinkOff) botThink(s); // каждый шаг — быстрее реагируют на опасность
+  for (const s of snakes.values()) if (!s.latch) moveSnake(s);
+  for (const s of snakes.values()) if (s.latch) rideSnake(s); // Зубастик едет за хвостом — после того, как хозяин сдвинулся
   stepPortals();
   buildGrid();
   collisions();
-  for (const s of snakes.values()) if (s.alive) eat(s);
+  for (const s of snakes.values()) if (s.alive && !s.latch) eat(s); // Зубастик на хвосте ничего не ест — просто катается
   maintainFood();
   maintainBots();
   if (tick % 15 === 0) updateRoles(); // 2 раза в секунду

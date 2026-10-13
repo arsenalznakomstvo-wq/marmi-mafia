@@ -212,7 +212,25 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
   if (sk.bag && neck) drawShoulderBag(g, hx, hy, a, r, neck);
-  if (sk.eyes === 'lady') { // женское лицо (владелец 11.10): миндалевидные глаза с длинными ресницами, румянец, губки
+  if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10): пасть с клыками впереди, злые глаза с бровями
+    g.save(); g.translate(hx, hy); g.rotate(a);
+    const mx = r * 0.5, rx = r * 0.46, ry = r * 0.7;
+    g.fillStyle = '#2a0508'; g.beginPath(); g.ellipse(mx, 0, rx, ry, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill(); // пасть
+    g.fillStyle = '#c23a4a'; g.beginPath(); g.ellipse(mx + rx * 0.15, 0, rx * 0.45, ry * 0.4, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill(); // язык
+    g.fillStyle = '#fffaf0'; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = Math.max(0.6, r * 0.03);
+    for (const sgn of [-1, 1]) for (let k = 0; k < 3; k++) { // по три зуба сверху и снизу, передние — клыки
+      const t = (k + 0.5) / 3, ang = -Math.PI / 2 + t * Math.PI / 2, ex = mx + Math.cos(ang) * rx, ey = sgn * Math.abs(Math.sin(ang)) * ry;
+      const big = k === 2, w = r * (big ? 0.17 : 0.12), len = r * (big ? 0.42 : 0.28);
+      g.beginPath(); g.moveTo(ex - w, ey); g.lineTo(ex + w, ey); g.lineTo(ex + w * 0.2, ey - sgn * len); g.closePath(); g.fill(); g.stroke();
+    }
+    g.restore();
+    for (const sgn of [-1, 1]) {
+      const ex = hx - ca * r * 0.12 + px * sgn * r * 0.5, ey = hy - sa * r * 0.12 + py * sgn * r * 0.5;
+      eye(ex, ey, r * 0.3, '#ff3b30');
+      g.strokeStyle = '#1a0306'; g.lineWidth = Math.max(1, r * 0.11); g.lineCap = 'round'; g.beginPath(); // злая бровь: к носу ниже
+      g.moveTo(ex - ca * r * 0.3 + px * sgn * r * 0.34, ey - sa * r * 0.3 + py * sgn * r * 0.34); g.lineTo(ex + ca * r * 0.32 + px * sgn * r * 0.12, ey + sa * r * 0.32 + py * sgn * r * 0.12); g.stroke();
+    }
+  } else if (sk.eyes === 'lady') { // женское лицо (владелец 11.10): миндалевидные глаза с длинными ресницами, румянец, губки
     for (const sgn of [-1, 1]) {
       const ex = hx + ca * r * 0.3 + px * sgn * r * 0.46, ey = hy + sa * r * 0.3 + py * sgn * r * 0.46, er = r * 0.38;
       g.save(); g.translate(ex, ey); g.rotate(a);
@@ -422,7 +440,7 @@ const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
 const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0;
 let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id → сколько бомб едет рядом;
-let knifeIds = new Set(), myKnife = false; const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
+let knifeIds = new Set(), myKnife = false, myLatched = false; const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
@@ -489,14 +507,16 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
+    case 'latch': myLatched = !!m.on; predStop(); renderFireBtn(); // Зубастик (владелец 13.10)
+      bigToast(m.on ? '🦷 Вцепились в ' + m.host + '! Катаетесь ' + m.sec + ' с. Отцепиться — кнопка 🦷' + (isTouch ? '' : ', F или правая кнопка мыши') : '🦷 Отцепились. Снова вцепиться можно через ' + m.cd + ' с'); Sound.click(); break;
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; myBomb = 0; myKnife = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = 0; myKnife = false; myLatched = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
-    case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
+    case 'dead': alive = false; myId = 0; myLatched = false; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
       const prevEv = evNow ? evNow[0] : null;
@@ -685,7 +705,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb || myKnife)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb || myKnife || myLatched)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } // первый палец — джойстик под ним
     else if (boostId === null) boostOn(e.pointerId); // второй палец — ускорение
@@ -1446,7 +1466,8 @@ function frame(time) {
   let me = null;
   // Своя змейка — по предсказанию (мгновенный отклик), остальные — по снимкам сервера
   const latestMe = alive && snaps.length ? snaps[snaps.length - 1].sn.get(myId) : null;
-  if (world && alive && latestMe && latestMe.idx[0] === 0) me = predStep(latestMe);
+  if (world && alive && myLatched) { if (pred.on) predStop(); me = world.list.find(s => s.id === myId) || null; } // Зубастик на хвосте: едет не сам — рисуем по серверу, без предсказания
+  else if (world && alive && latestMe && latestMe.idx[0] === 0) me = predStep(latestMe);
   else if (pred.on && !alive) predStop();
   if (me && world) world.list = world.list.filter(s => s.id !== myId);
   Sound.boost(!!(me && me.boost));
@@ -2142,8 +2163,8 @@ function drawRockets(time) {
 let shakeUntil = 0;
 const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
-function fire() { if ((myRockets > 0 || myBomb || myKnife) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb || myKnife) && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡'; }
+function fire() { if ((myRockets > 0 || myBomb || myKnife || myLatched) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb || myKnife || myLatched) && alive)); if (myLatched && alive) { b.innerHTML = '🦷'; return; } /* Зубастик на хвосте — кнопка «отцепиться» */ /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡'; }
 {
   const b = $('fireBtn');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
