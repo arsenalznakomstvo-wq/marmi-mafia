@@ -2823,28 +2823,13 @@ if (window.VoiceChat) VoiceChat.init();
   const ua = navigator.userAgent, isIOS = /iPhone|iPad|iPod/i.test(ua);
   const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone);
   let seen = false; try { seen = sessionStorage.getItem('mm_here') === '1'; } catch (e) {}
-  // Владелец 13.10: «открывать через любой браузер, не только Chrome» — экран только во встроенных браузерах (Telegram, Instagram…);
-  // кнопка открывает основной браузер телефона (Chrome, Samsung, Яндекс — какой стоит). В обычном браузере — сразу игра.
-  const android = /Android/i.test(ua);
   if (!inApp || seen) return;
   $('landing').classList.remove('hide');
-  if (isIOS) { $('lOpen').textContent = '🧭 Открыть в Safari'; $('lHint').textContent = 'В Safari игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: «на iPhone так же, как на Android»
-  if (android) { $('lOpen').textContent = '🌐 Открыть в браузере'; $('lHint').textContent = 'В браузере игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: на Android только «Открыть в Chrome», без «Играть здесь» — чтобы не путались (на iPhone Safari одним нажатием не открыть — там «Играть здесь» остаётся)
   const url = location.origin + '/';
   $('lOpen').addEventListener('click', () => {
-    if (!isIOS) { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=' + encodeURIComponent(url + '?install=1&noc=1') + ';end'; return; } // без package — основной браузер телефона // noc=1 — Chrome нет, открылось здесь же: экран больше не показываем
-    // iPhone: iOS 17+ открывает Safari прямо из Telegram/Instagram по адресу x-safari-https://. Ссылку копируем сразу
-    // (пока палец на кнопке — иначе iPhone не даст копировать); если Safari не открылся за 1,5 с — подсказка «вставьте в Safari»
-    const go = url + '?install=1';
-    let copied = false;
-    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(go).then(() => { copied = true; }, () => {}); } catch (e) {}
-    location.href = 'x-safari-' + go;
-    setTimeout(() => {
-      if (document.hidden) return; // Safari открылся
-      $('lOpen').textContent = copied ? '✅ Ссылка скопирована' : '📋 Скопировать ссылку';
-      $('lHint').innerHTML = 'Откройте <b>Safari</b>, нажмите на адресную строку и вставьте ссылку';
-      $('lHere').classList.remove('hide');
-    }, 1500);
+    if (!isIOS) { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end'; return; }
+    const ok = () => { $('lOpen').textContent = '✅ Ссылка скопирована'; $('lHint').innerHTML = 'Откройте <b>Safari</b> и вставьте ссылку в адресную строку'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, () => prompt('Скопируйте ссылку и откройте в Safari:', url)); else prompt('Скопируйте ссылку и откройте в Safari:', url);
   });
   $('lHere').addEventListener('click', () => { try { sessionStorage.setItem('mm_here', '1'); } catch (e) {} $('landing').classList.add('hide'); });
 })();
@@ -2896,31 +2881,6 @@ window.addEventListener('appinstalled', reportInstall);
     g._next = () => { k = ++g._k; show(); }; g._prev = () => { if (g._k) { k = --g._k; show(); } };
     show(); g.classList.remove('hide');
   }
-  const toChrome = () => { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/?install=1&noc=1') + ';end'; };
-  $('iosGuide').addEventListener('click', e => { if (e.target.closest('#igChrome')) toChrome(); });
-  // Пришли в Chrome кнопкой «Открыть в Chrome» (владелец 13.10): сразу вопрос «Хотите установить игру на телефон?»
-  if (/[?&]install=1/.test(location.search) && !inApp) {
-    try { history.replaceState(null, '', location.pathname); } catch (e) {} // обновили страницу — второй раз не спрашиваем
-    btn.classList.add('pulse');
-    btn.addEventListener('click', () => btn.classList.remove('pulse'), { once: true });
-    const o = $('instOffer');
-    setTimeout(() => o.classList.remove('hide'), 900);
-    $('ioYes').addEventListener('click', () => { o.classList.add('hide'); btn.click(); });
-    // Владелец 13.10: «у племянника „Не сейчас“ не закрывает окно» — закрываем и по отрыву пальца, и касанием мимо карточки
-    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); introEndAt = performance.now(); offerReport(); } }; // introEndAt: это же касание не должно ставить видео на паузу (владелец 13.10: «после „Не сейчас“ всё зависло» — видео вставало на паузу)
-    // Владелец 13.10: «у некоторых после „Не сейчас“ экран зависает» — через 2,5 с шлём, что на экране (видно на /errs)
-    const offerReport = () => {
-      let frames = 0; const t0 = performance.now(); const f = () => { frames++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); }; requestAnimationFrame(f);
-      setTimeout(() => {
-        const vis = id => { const el = $(id); if (!el) return '-'; const cs = getComputedStyle(el); return el.classList.contains('hide') || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.1 ? 0 : 1; };
-        const v = $('menuVid'), msg = 'offer-no | кадров за 2с:' + frames + ' intro:' + document.body.classList.contains('intro') + ' menu:' + vis('menu') + ' play:' + vis('play') + ' offer:' + vis('instOffer') + ' landing:' + vis('landing') + ' guide:' + vis('iosGuide')
-          + ' video:' + (v ? (v.paused ? 'пауза' : 'идёт') + '@' + v.currentTime.toFixed(1) : '-') + ' связь:' + (typeof connected !== 'undefined' ? connected : '-') + ' fs:' + !!document.fullscreenElement;
-        try { navigator.sendBeacon('/clienterr', JSON.stringify({ msg, where: 'offer', w: innerWidth, h: innerHeight })); } catch (e) {}
-      }, 2500);
-    };
-    for (const ev of ['click', 'pointerup', 'touchend']) $('ioNo').addEventListener(ev, close);
-    o.addEventListener('pointerup', e => { if (!e.target.closest('.io-card')) close(e); });
-  }
   btn.addEventListener('click', async () => {
     Sound.click();
     if (isIOS) { // iPhone (владелец 13.10): сайт не может установить себя сам. «Поделиться → На экран Домой» мало кто знает —
@@ -2958,33 +2918,13 @@ window.addEventListener('appinstalled', reportInstall);
       let installed = false;
       if (chrome && navigator.getInstalledRelatedApps) try { installed = (await navigator.getInstalledRelatedApps()).length > 0; } catch (e) {}
       if (installed) { tip('📲 Игра уже стоит на телефоне — найдите иконку <b>«Марми Мафия»</b> на экране.<br>Нет иконки? Удалите игру в «Настройки → Приложения» и нажмите эту кнопку ещё раз'); return; }
-      if (samsung) {
-        const bar = `<div class="ip">${page}<div class="ip-bar"><span>‹</span><span>›</span><span>⌂</span><span>▭</span>${HL('≡')}</div></div>`;
-        const menu = `<div class="ip ip-dim"><div class="ip-menu"><div>☆ Закладки</div><div>⬇ Загрузки</div>${HL('➕ Добавить страницу на')}</div></div>`;
-        const where = `<div class="ip ip-dim"><div class="ip-menu"><div>☆ Закладки</div>${HL('📱 Главный экран')}<div>⧉ Быстрый доступ</div></div></div>`;
-        const add = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png?v=2" alt=""><span>Марми Мафия</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Добавить')}</div></div></div>`;
-        openGuide('📲 Установка на телефон', [[bar, 'Нажмите <b>≡</b> внизу справа'], [menu, 'Нажмите <b>«Добавить страницу на»</b>'], [where, 'Выберите <b>«Главный экран»</b>'], [add, 'Нажмите <b>«Добавить»</b>'], [homePic, DONE]], 'ig-br', '');
-        return;
-      }
-      if (chrome) {
-        const bar = `<div class="ip"><div class="ip-bar ip-top"><span>⌂</span><span class="ip-url">marmi-mafia…</span>${HL('⋮')}</div>${page}</div>`;
-        const menu = `<div class="ip ip-dim ip-tr"><div class="ip-menu"><div>⊕ Новая вкладка</div><div>☆ Закладки</div>${HL('📲 Установить приложение')}</div></div>`;
-        const dlg = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png?v=2" alt=""><span>Установить «Марми Мафия»?</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Установить')}</div></div></div>`;
-        openGuide('📲 Установка на телефон', [[bar, 'Нажмите <b>⋮</b> (три точки) вверху справа'], [menu, 'Нажмите <b>«Установить приложение»</b><br>или <b>«Добавить на главный экран»</b>'], [dlg, 'Нажмите <b>«Установить»</b>'], [homePic, DONE]], 'ig-top', '');
-        return;
-      }
-      // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «укажи, что игра откроется ещё раз в Chrome, с таким же меню,
-      // и там снова нажать «Установить на телефон»» — пошаговое окно; в Chrome кнопка установки будет мигать (?install=1)
-      const menuPic = hl => `<div class="ip"><div class="ip-page ip-menu2"><img src="icon-192.png?v=2" alt=""><b>марми мафия</b>${hl}</div></div>`;
-      const chromePic = `<div class="ip ip-page"><div class="ip-chrome"></div><b>Chrome</b></div>`;
-      const dlg = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png?v=2" alt=""><span>Установить «Марми Мафия»?</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Установить')}</div></div></div>`;
-      openGuide('📲 Установка на телефон', [
-        [menuPic(HL('🌐 Открыть в Chrome')), 'В этом браузере установить нельзя.<br>Нажмите кнопку — игра откроется в <b>Chrome</b><br><button id="igChrome" class="ig-go">🌐 Открыть в Chrome</button>'],
-        [chromePic, 'Игра откроется <b>ещё раз</b> — уже в Chrome.<br>Меню будет <b>такое же</b>, как здесь'],
-        [menuPic(HL('📲 Установить на телефон')), 'В Chrome снова нажмите<br><b>«📲 Установить на телефон»</b> — она будет мигать'],
-        [dlg, 'Нажмите <b>«Установить»</b>'],
-        [homePic, DONE]], 'ig-none', 'Нет Chrome? Скачайте его в Play Маркете');
-      return;
+      // Владелец 13.10: без окон «Далее» — одна короткая подсказка
+      if (samsung) { tip('Нажмите <b>≡</b> внизу → <b>«Добавить страницу на»</b> → <b>«Главный экран»</b>'); return; }
+      if (chrome) { tip('Телефон ещё не готов к установке — подождите пару секунд и нажмите кнопку ещё раз.<br>Или: <b>⋮</b> вверху справа → <b>«Установить приложение»</b>', 12000); return; }
+      // другие браузеры (Яндекс, Xiaomi и др.) — проще всего открыть в Chrome
+      tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b><br><button id="tipChrome">Открыть в Chrome — там проще</button>');
+      const tc = $('tipChrome');
+      if (tc) tc.addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
     }
   });
 })();
