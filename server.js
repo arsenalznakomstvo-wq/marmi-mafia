@@ -65,6 +65,11 @@ function updateRoles() {
       s.knifeGiven = true; s.knife = 2; // владелец 13.10: два кинжала
       sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
     }
+    // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
+    if (!s.bot && s.client && r === SHERIFF_ROLE && !s.badgeGiven) {
+      s.badgeGiven = true; s.badge = 2;
+      sendJSON(s.client, { t: 'tmsgMe', text: '⭐ Вы Шериф! 2 броска значка — разрубает змею пополам: кнопка ⭐' + (isTouchUA(s.client) ? '' : ' или F') });
+    }
     // Владелец 11.10: человек стал Бомбой — рядом с ним едет настоящая бомба, бросить её можно один раз за жизнь
     if (!s.bot && s.client && r === BOMB_ROLE && !s.bombGiven) {
       s.bombGiven = true; s.bomb = 2; // владелец 11.10: две бомбы
@@ -83,7 +88,7 @@ function updateRoles() {
   }
 }
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
-const BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба'), KILLER_ROLE = ROLES.findIndex(r => r.name === 'Киллер');
+const BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба'), KILLER_ROLE = ROLES.findIndex(r => r.name === 'Киллер'), SHERIFF_ROLE = ROLES.findIndex(r => r.name === 'Шериф');
 const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
 const displayName = s => TEAM ? s.name : s.name + ' ' + roleShort(s.role || 0);
 // Живые ники ботов (владелец 11.10: «рейтинг и карта скучные — Киллер, Киллер, Мафия»). На карте ники не повторяются.
@@ -830,7 +835,7 @@ function handleJSON(c, m) {
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
-    if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = process.env.TEST_WEAPONS === 'knife' ? 2 : 0; if (s.knife) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
+    if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = process.env.TEST_WEAPONS === 'knife' ? 2 : 0; s.badge = process.env.TEST_WEAPONS === 'badge' ? 2 : 0; if (s.knife || s.badge) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
@@ -839,7 +844,7 @@ function handleJSON(c, m) {
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.smoke) throwSmoke(c.snake); }
+    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -1058,6 +1063,7 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
       for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push([s.id, s.bomb]); // у кого бомбы едут рядом и сколько
       for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push([s.id, s.knife]); // у кого сколько кинжалов
+      for (const s of snakes.values()) if (s.alive && s.badge) (m.bd || (m.bd = [])).push([s.id, s.badge]); // у какого Шерифа сколько бросков значка
       for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push([s.id, s.smoke]); // у какого Ниндзя сколько шашек
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
@@ -1223,17 +1229,17 @@ function stepBombs() {
 // рассыпается едой, передняя часть живёт дальше), летит дальше и разрубает вторую. Попал в голову — змея погибает.
 const KNIFE_SP = 28, KNIFE_LIFE = Math.round(1.1 * TICK_RATE), KNIFE_MAX = 2;
 const knives = []; let knifeSeq = 0;
-function throwKnife(s) {
-  if (!s.knife) return;
-  s.knife--;
+function throwKnife(s, badge) { // badge — значок Шерифа (владелец 13.10): летит как кинжал, первую змею разрубает пополам
+  if (badge ? !s.badge : !s.knife) return;
+  if (badge) s.badge--; else s.knife--;
   const px = -Math.sin(s.a), py = Math.cos(s.a), off = s.r * 1.4; // кинжал висит справа от головы — оттуда и летит
-  const k = { id: ++knifeSeq, owner: s, x: s.xs[0] + px * off, y: s.ys[0] + py * off, vx: Math.cos(s.a) * KNIFE_SP, vy: Math.sin(s.a) * KNIFE_SP, die: tick + KNIFE_LIFE, hits: new Set() };
+  const k = { id: ++knifeSeq, owner: s, x: s.xs[0] + px * off, y: s.ys[0] + py * off, vx: Math.cos(s.a) * KNIFE_SP, vy: Math.sin(s.a) * KNIFE_SP, die: tick + KNIFE_LIFE, hits: new Set(), badge: !!badge, max: badge ? 1 : KNIFE_MAX };
   knives.push(k);
-  const msg = JSON.stringify({ t: 'knife', id: k.id, x: Math.round(k.x), y: Math.round(k.y), vx: k.vx, vy: k.vy, life: KNIFE_LIFE * TICK_MS, o: s.id });
+  const msg = JSON.stringify({ t: 'knife', id: k.id, x: Math.round(k.x), y: Math.round(k.y), vx: k.vx, vy: k.vy, life: KNIFE_LIFE * TICK_MS, o: s.id, ...(badge ? { kind: 'badge' } : {}) });
   for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
 }
 // Разрубить змею o в точке тела idx: хвост от idx — в еду, змея короче. Слишком близко к голове — гибель.
-function chopSnake(o, idx, killer) {
+function chopSnake(o, idx, killer, badge) {
   const xs = o.xs, ys = o.ys, len = xs.length;
   if (idx <= 4 || len - idx < 2) { if (!docSave(o)) killSnake(o, killer && killer.alive ? killer : null); return; }
   const loss = Math.min(o.mass - START_MASS, o.mass * (len - idx) / len);
@@ -1244,13 +1250,13 @@ function chopSnake(o, idx, killer) {
   }
   xs.length = idx; ys.length = idx; o.bbox(); // отрубленный хвост исчезает сразу
   if (o.tun && o.tun.k >= idx) o.tun = null;
-  if (o.client) sendJSON(o.client, { t: 'tmsgMe', text: `🗡 Кинжал разрубил вас: −${Math.round(loss)}` });
-  if (killer && killer.client) sendJSON(killer.client, { t: 'tmsgMe', text: `🗡 Разрубили ${o.name}: −${Math.round(loss)}` });
+  if (o.client) sendJSON(o.client, { t: 'tmsgMe', text: badge ? `⭐ Шериф разрубил вас пополам: −${Math.round(loss)}` : `🗡 Кинжал разрубил вас: −${Math.round(loss)}` });
+  if (killer && killer.client) sendJSON(killer.client, { t: 'tmsgMe', text: (badge ? '⭐ Пополам: ' : '🗡 Разрубили ') + `${o.name}: −${Math.round(loss)}` });
 }
 function stepKnives() {
   for (let i = knives.length - 1; i >= 0; i--) {
     const k = knives[i];
-    for (let sub = 0; sub < 4 && k.hits.size < KNIFE_MAX; sub++) {
+    for (let sub = 0; sub < 4 && k.hits.size < k.max; sub++) {
       k.x += k.vx / 4; k.y += k.vy / 4;
       const cx = Math.floor(k.x / GRID), cy = Math.floor(k.y / GRID);
       let hit = null, hitIdx = 0;
@@ -1266,10 +1272,10 @@ function stepKnives() {
         k.hits.add(hit);
         const msg = JSON.stringify({ t: 'knifeHit', id: k.id, x: Math.round(k.x), y: Math.round(k.y), o: k.owner.id });
         for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
-        chopSnake(hit, hitIdx, k.owner);
+        if (k.badge) chopSnake(hit, Math.max(5, Math.floor(hit.xs.length / 2)), k.owner, true); else chopSnake(hit, hitIdx, k.owner); // значок — ровно пополам
       }
     }
-    if (k.hits.size >= KNIFE_MAX || tick >= k.die || Math.hypot(k.x, k.y) > MAP_R) {
+    if (k.hits.size >= k.max || tick >= k.die || Math.hypot(k.x, k.y) > MAP_R) {
       knives.splice(i, 1);
       const msg = JSON.stringify({ t: 'knifeEnd', id: k.id, x: Math.round(k.x), y: Math.round(k.y) });
       for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
