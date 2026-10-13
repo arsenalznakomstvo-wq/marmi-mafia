@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1116">
+<title>Марми Мафия</title>
+<!-- Владелец 13.10: ссылку открыли в Telegram / Instagram — без видео и меню, сразу «Открыть в Chrome» (на iPhone — в Safari).
+     Страница сама пробует открыть браузер; если телефон не разрешил — остаётся одна большая кнопка. -->
+<style>
+  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 40%, #1d2530 0%, #0b0e13 75%); color: #e8ecf1; font-family: Arial, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+  .card { width: min(360px, 100%); text-align: center; }
+  img { width: 120px; height: 120px; border-radius: 28px; display: block; margin: 0 auto 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,213,46,0.5); }
+  .t { font: 700 30px/1.1 Arial, sans-serif; margin-bottom: 6px; }
+  .t .a { color: #4fe07a; } .t .b { color: #9a6bff; }
+  .s { color: #9aa3b2; font-size: 14px; margin-bottom: 24px; }
+  #go { display: block; width: 100%; border: 0; border-radius: 30px; padding: 17px; font: 700 19px Arial, sans-serif; color: #fff; background: linear-gradient(180deg, #4fd27a, #22a352); box-shadow: 0 8px 22px rgba(34,163,82,0.45); cursor: pointer; }
+  #hint { color: #9aa3b2; font-size: 13px; margin-top: 12px; line-height: 1.4; }
+  #here { display: none; margin: 14px auto 0; background: transparent; border: 1px solid rgba(255,255,255,0.22); color: #e8ecf1; border-radius: 22px; padding: 9px 22px; font: 700 14px Arial, sans-serif; }
+  @media (max-height: 460px) { img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 8px; } .t { font-size: 24px; } .s { margin-bottom: 14px; } #go { padding: 13px; } }
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="icon-512.png?v=2" alt="">
+  <div class="t"><span class="a">марми</span> <span class="b">мафия</span></div>
+  <div class="s">Змейка с друзьями и голосовым чатом</div>
+  <button id="go">🌐 Открыть в Chrome</button>
+  <div id="hint">В Chrome работает голосовой чат и можно установить игру на телефон</div>
+  <button id="here">Играть здесь</button>
+</div>
+<script>
+(function () {
+  var ua = navigator.userAgent, ios = /iPhone|iPad|iPod/i.test(ua);
+  var q = location.search.replace(/[?&]here=1/, '').replace(/^&/, '?');
+  var url = location.origin + '/' + q;
+  var go = document.getElementById('go'), hint = document.getElementById('hint'), here = document.getElementById('here');
+  here.onclick = function () { location.replace('/' + (q ? q + '&' : '?') + 'here=1'); };
+  if (ios) {
+    go.textContent = '🧭 Открыть в Safari';
+    hint.textContent = 'В Safari работает голосовой чат и можно установить игру на телефон';
+  }
+  function open(auto) {
+    if (!ios) { // Android: сразу Chrome; нет Chrome — игра откроется здесь же
+      location.href = 'intent://' + location.host + '/' + q + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/' + (q ? q + '&' : '?') + 'here=1') + ';end';
+      return;
+    }
+    // iPhone (iOS 17+): x-safari-https:// открывает Safari из Telegram/Instagram. Ссылку заодно копируем — на старых iPhone вставить в Safari
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url); } catch (e) {}
+    location.href = 'x-safari-' + url;
+    if (auto === true) return; // сама попытка — без надписей
+    setTimeout(function () {
+      if (document.hidden) return;
+      go.textContent = '📋 Ссылка скопирована';
+      hint.innerHTML = 'Откройте <b>Safari</b>, нажмите на адресную строку и вставьте ссылку';
+      here.style.display = 'block';
+    }, 1500);
+  }
+  go.onclick = function () { open(false); };
+  // Сами пробуем только там, где точно умеют передавать ссылку в браузер (Telegram, Instagram, Facebook); на iPhone — с iOS 17
+  var known = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB/i.test(ua), iosVer = +((ua.match(/OS (\d+)_/) || [])[1] || 0);
+  if (known && (!ios || iosVer >= 17)) setTimeout(function () { open(true); }, 350); // пробуем открыть сами, без нажатия; если телефон не разрешил — остаётся кнопка
+})();
+</script>
+</body>
+</html>

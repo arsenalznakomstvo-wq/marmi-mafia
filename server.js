@@ -1454,6 +1454,12 @@ const server = http.createServer((req, res) => {
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
+  // Владелец 13.10: ссылку открыли в Telegram / Instagram — сразу лёгкая страница «Открыть в Chrome» (без видео и меню, ничего лишнего не качается).
+  // Остальные случаи (iPhone без явной метки в User-Agent) ловит скрипт в начале index.html.
+  if ((url === '/' || url === '/index.html') && /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)/i.test(req.headers['user-agent'] || '')) {
+    const qs = (req.url.split('?')[1] || '');
+    if (!/(^|&)(here|app)=1/.test(qs)) { res.writeHead(302, { Location: '/gate.html' + (qs ? '?' + qs : ''), 'Cache-Control': 'no-store' }); res.end(); return; }
+  }
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
   if (file.endsWith('.mp4')) { // видео меню (владелец 11.10): отдаём кусками по запросу Range — так требует Safari на iPhone
