@@ -3,8 +3,10 @@
 window.Sound = (() => {
   let ac = null, master, sfx, music, noiseBuf = null;
   // 2 — звук и музыка, 1 — только звуки, 0 — тишина
-  let mode = 2;
-  try { const v = localStorage.getItem('mm_sound'); if (v !== null) mode = Number(v); } catch (e) {}
+  // Владелец 13.10: «играет мелодия, колонка хрипит» — фоновая мелодия по умолчанию выключена (mode 1: только звуки).
+  // Новый ключ хранения, чтобы у всех стало «без мелодии»; кто выбирал тишину — остаётся тишина. Мелодию можно включить кнопкой звука.
+  let mode = 1;
+  try { const v = localStorage.getItem('mm_sound2'); if (v !== null) mode = Number(v); else if (localStorage.getItem('mm_sound') === '0') mode = 0; } catch (e) {}
 
   function init() {
     if (ac) { if (ac.state !== 'running') ac.resume().catch(() => {}); return; } // iPhone после микрофона ставит 'interrupted', не 'suspended'
@@ -165,7 +167,7 @@ window.Sound = (() => {
     while (nextBar < ac.currentTime + 1) {
       const chord = CHORDS[bar % CHORDS.length], len = 5;
       for (const n of chord) pad(mtof(n - 12), nextBar, len);
-      pad(mtof(chord[0] - 24), nextBar, len, 0.02);
+      // низкий бас (~50 Гц) убран: динамики телефона его не тянут и хрипят (владелец 13.10)
       for (let i = 0; i < 4; i++) {
         if (Math.random() < 0.4) {
           const n = chord[(Math.random() * chord.length) | 0] + (Math.random() < 0.5 ? 12 : 0);
@@ -180,7 +182,7 @@ window.Sound = (() => {
     o.type = 'triangle'; o2.type = 'sine';
     o.frequency.value = f; o2.frequency.value = f * 1.003;
     lp.type = 'lowpass'; lp.frequency.value = 900;
-    const v = vol || 0.014;
+    const v = vol || 0.009; // тише (было 0.014)
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(v, t + 1.2);
     g.gain.setValueAtTime(v, t + len - 1);
@@ -202,7 +204,7 @@ window.Sound = (() => {
   const ICONS = ['🔇', '🔉', '🔊'];
   function cycle() {
     mode = mode === 2 ? 1 : mode === 1 ? 0 : 2;
-    try { localStorage.setItem('mm_sound', String(mode)); } catch (e) {}
+    try { localStorage.setItem('mm_sound2', String(mode)); } catch (e) {}
     init(); applyMode();
     if (mode === 0) boost(false);
     return ICONS[mode];
