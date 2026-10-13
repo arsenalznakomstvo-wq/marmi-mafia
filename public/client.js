@@ -367,6 +367,9 @@ function photoLoad(i) {
   const im = new Image(); im.src = url;
   return im.decode().then(() => { photoBmp[i] = brighten(im); }).catch(() => {});
 }
+// Аудит 13.10 (замеры игроков: первые 10–20 с после «Играть» — рывки): пока человек в меню, по одному и в свободное время
+// распаковываем все фото карты заранее — к началу игры они готовы, и старт плавный
+function warmPosters() { if (warmPosters.done) return; warmPosters.done = true; let k = 0; const step = () => { if (k >= POSTERS.length) return; photo(POSTERS[k++].i); setTimeout(step, 400); }; setTimeout(step, 2500); }
 // Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
 const POSTERS = (() => {
   const list = [{ i: PHOTO_CENTER, x: 0, y: 0, h: 1300 }];
@@ -2492,6 +2495,7 @@ function showMenu(m) {
   $('menu').classList.remove('hide'); $('hud').classList.add('hide');
   document.body.classList.add('in-menu');
   menuVideo(true);
+  warmPosters();
 }
 // ===== Фото на карточку победителя (владелец 11.10): топ-5 рекордов всех времён ставят своё фото =====
 // Фото сжимается прямо в телефоне до квадрата 320×320 (~25 КБ) и уходит на сервер с одноразовым пропуском из 'dead'.
@@ -2722,4 +2726,5 @@ if (location.hash.startsWith('#skins')) { const n = Number(location.hash.split('
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawSkinIcon);
 connect();
 requestAnimationFrame(frame);
+warmPosters(); // сразу при открытии, пока смотрят заставку
 })();
