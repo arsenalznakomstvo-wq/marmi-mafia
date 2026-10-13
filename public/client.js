@@ -515,6 +515,9 @@ function onState(buf) {
   const dv = new DataView(buf);
   let o = 1;
   const tick = dv.getUint32(o, true); o += 4;
+  { const now = performance.now(); // владелец 13.10: «где подвисает интернет» — паузы между пакетами и пропущенные кадры сервера
+    if (pf.netLast && alive) { const g = now - pf.netLast; if (g > 150) pf.ng150++; if (g > pf.ngMax && g < 5000) pf.ngMax = g; if (pf.netTick && tick > pf.netTick + 1 && tick - pf.netTick < 300) pf.lost += tick - pf.netTick - 1; }
+    pf.netLast = now; pf.netTick = tick; }
   const vx = dv.getFloat32(o, true); o += 4;
   const vy = dv.getFloat32(o, true); o += 4;
   const ns = dv.getUint16(o, true); o += 2;
@@ -1419,13 +1422,13 @@ function showVisits() {
 }
 $('visBtn').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = 0; $('pnList').classList.add('hide'); visShowUntil = Date.now() + 5000; showVisits(); });
 // «Чёрный ящик скорости» (12.10): в игре считаем кадры, рывки (>50 / >100 мс) и самый долгий кадр, раз в 20 с шлём на сервер
-const pf = { n: 0, j50: 0, j100: 0, worst: 0, last: 0, t0: performance.now(), dpr: 0 };
+const pf = { n: 0, j50: 0, j100: 0, worst: 0, last: 0, t0: performance.now(), dpr: 0, netLast: 0, netTick: 0, ng150: 0, ngMax: 0, lost: 0 };
 setInterval(() => {
-  if (!alive || pf.n < 30) { pf.n = pf.j50 = pf.j100 = pf.worst = 0; pf.t0 = performance.now(); return; }
+  if (!alive || pf.n < 30) { pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now(); return; }
   const secs = (performance.now() - pf.t0) / 1000;
-  try { navigator.sendBeacon('/perfc', JSON.stringify({ fps: Math.round(pf.n / secs), j50: pf.j50, j100: pf.j100, worst: Math.round(pf.worst), ping: pingMs, interp: +interpTicks.toFixed(1), autoLow,
+  try { navigator.sendBeacon('/perfc', JSON.stringify({ fps: Math.round(pf.n / secs), j50: pf.j50, j100: pf.j100, worst: Math.round(pf.worst), ping: pingMs, net150: pf.ng150, netMax: Math.round(pf.ngMax), lost: pf.lost, interp: +interpTicks.toFixed(1), autoLow,
     snakes: lastDrawn.size, foods: foods.size, mass: myMass, w: innerWidth, h: innerHeight, dpr: DPR, cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, app: isApp, name: myName() })); } catch (e) {}
-  pf.n = pf.j50 = pf.j100 = pf.worst = 0; pf.t0 = performance.now();
+  pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now();
 }, 20000);
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
 function frame(time) {
