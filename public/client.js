@@ -2597,6 +2597,7 @@ function camSnap() {
   $('wppSnap').classList.add('hide'); $('wppAgain').classList.remove('hide'); $('wppOk').classList.remove('hide');
 }
 $('wpBtn').addEventListener('click', () => { Sound.click(); wpPanelOpen(); });
+$('igOk').addEventListener('click', () => { Sound.click(); $('iosGuide').classList.add('hide'); });
 $('wppGallery').addEventListener('click', () => { Sound.click(); wpPanelClose(); $('wpFile').click(); });
 $('wpFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) uploadPhoto(f); });
 $('wppSnap').addEventListener('click', () => { Sound.click(); camSnap(); });
@@ -2687,8 +2688,20 @@ window.addEventListener('appinstalled', reportInstall);
   if (!inApp) btn.classList.remove('hide');
   btn.addEventListener('click', async () => {
     Sound.click();
-    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; }
-    else if (isIOS) tip('Нажмите <b>Поделиться ⬆</b> внизу экрана → <b>«На экран Домой»</b>');
+    if (isIOS) { // iPhone (владелец 13.10): сайт не может установить себя сам — большое окно с шагами под ЭТОТ iPhone, не исчезает само
+      const chromeIOS = /CriOS|FxiOS|EdgiOS/.test(ua), land = innerWidth > innerHeight;
+      const ver = +((ua.match(/Version\/(\d+)/) || ua.match(/OS (\d+)_/) || [])[1] || 0), newSafari = !chromeIOS && ver >= 26; // iOS 26: «Поделиться» спрятано в «•••»
+      const K = t => `<span class="ig-k">${t}</span>`;
+      const steps = chromeIOS
+        ? [`Нажмите ${K('⬆')} <b>«Поделиться»</b> вверху справа, в адресной строке`, `Выберите ${K('➕')} <b>«На экран „Домой“»</b>`, 'Нажмите <b>«Добавить»</b>']
+        : newSafari
+        ? [`Нажмите ${K('•••')} <b>три точки</b> внизу справа`, `Нажмите ${K('⬆')} <b>«Поделиться»</b>`, `Прокрутите вниз → ${K('➕')} <b>«На экран „Домой“»</b>`, 'Нажмите <b>«Добавить»</b>']
+        : [`Нажмите ${K('⬆')} <b>«Поделиться»</b> ${land ? 'вверху справа' : 'внизу экрана, по центру'}`, `Прокрутите вниз → ${K('➕')} <b>«На экран „Домой“»</b>`, 'Нажмите <b>«Добавить»</b>'];
+      $('igSteps').innerHTML = steps.map(x => `<li>${x}</li>`).join('');
+      $('igNote').textContent = chromeIOS ? 'Не получается? Откройте игру в Safari — там проще' : 'Иконка игры появится на экране телефона';
+      const g = $('iosGuide'); g.classList.remove('ig-top', 'ig-br'); g.classList.add(chromeIOS || (land && !newSafari) ? 'ig-top' : newSafari ? 'ig-br' : 'ig-bc'); g.classList.remove('hide');
+    }
+    else if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; }
     else {
       // Владелец 11.10: Samsung Internet / Яндекс и др. не сообщают сайту «можно установить» — раньше кнопка ошибочно писала
       // «уже установлена». Теперь: «уже установлена» — только если Chrome это подтвердил; иначе — где установка в меню этого браузера + «Открыть в Chrome»
