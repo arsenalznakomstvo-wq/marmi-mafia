@@ -72,7 +72,8 @@ function handle(req, res, url, isTop) {
   const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   if (url === '/wp-del') {
     const key = q.get('key') || '';
-    if (!OWNER_KEY || key.length !== OWNER_KEY.length || !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(OWNER_KEY))) { send(404, { error: 'not-found' }); return true; }
+    const kb = Buffer.from(key), ob = Buffer.from(OWNER_KEY); // длина в байтах (аудит 14.10): иначе «хитрые» символы роняли запрос
+    if (!OWNER_KEY || kb.length !== ob.length || !crypto.timingSafeEqual(kb, ob)) { send(404, { error: 'not-found' }); return true; }
     const name = q.get('n') || '';
     const had = photos.has(name); remove(name);
     send(200, { ok: true, removed: had ? name : null });

@@ -1625,8 +1625,14 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {
 });
 process.on('exit', () => { if (teamProc) teamProc.kill(); });
 if (TEAM && process.send) process.on('disconnect', () => process.exit(0)); // основной процесс закрылся — арена тоже
+// Аудит 14.10: не больше 10 подключений с одного адреса — иначе один человек мог занять все 150 мест сервера
+const perIp = new Map(), MAX_PER_IP = 10; // 10 — несколько человек в одной Wi-Fi
+const ipOf = req => String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress || '');
 wss.on('connection', (ws, req) => {
   if (clients.size >= MAX_CLIENTS) { ws.close(1013, 'full'); return; }
+  const ip = ipOf(req), nIp = (perIp.get(ip) || 0) + 1;
+  if (nIp > MAX_PER_IP) { ws.close(1013, 'too-many'); return; }
+  perIp.set(ip, nIp); ws.on('close', () => { const k = (perIp.get(ip) || 1) - 1; if (k > 0) perIp.set(ip, k); else perIp.delete(ip); });
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c); c.ua = String(req.headers['user-agent'] || '');
   stats.onConnect(c, req);

@@ -88,7 +88,7 @@ function handle(req, res, url, live) {
   }
   if (url !== '/stats') return false;
   const q = new URL(req.url, 'http://x').searchParams.get('key') || '';
-  const ok = KEY && q.length === KEY.length && crypto.timingSafeEqual(Buffer.from(q), Buffer.from(KEY));
+  const qb = Buffer.from(q), kb = Buffer.from(KEY), ok = KEY && qb.length === kb.length && crypto.timingSafeEqual(qb, kb); // длина в байтах (аудит 14.10)
   if (!ok) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('not found'); return true; }
   roll();
   const now = Date.now(), h = hourOf(now);
