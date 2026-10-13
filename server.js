@@ -351,6 +351,7 @@ function collisions() {
   const dead = [];
   for (const s of snakes.values()) {
     if (!s.alive || s.ghostUntil > tick) continue; // Доктор после спасения 2 с проходит сквозь всё
+    if (process.env.TEST_GOD && !s.bot) continue; // только для проверок: игрок неуязвим (замеры скорости)
     const hx = s.xs[0], hy = s.ys[0], rs = s.r;
     const lim = MAP_R - rs * 0.3;
     if (hx * hx + hy * hy > lim * lim) { dead.push(s, null); continue; }

@@ -456,7 +456,7 @@ function photoLoad(i) {
   // Аудит 12.10: распаковка из файла в фоновом потоке (fetch → createImageBitmap) — раньше Image.decode занимал главный поток на ~45 мс
   const base = (isTouch ? 'photos/m/p' : 'photos/p') + i, url = base + (WEBP ? '.webp' : '.jpg'), H = isTouch ? (i >= 29 ? 480 : 640) : 1100; // p29–p36 на телефоне — 480 px (владелец 12.10) // на телефоне — лёгкая копия (640 px)
   if (window.createImageBitmap) return fetch(url).then(r => r.ok ? r : fetch(base + '.jpg')).then(r => r.blob()) // нет WebP-файла — берём JPG
-    .then(b => createImageBitmap(b, { resizeHeight: H, resizeQuality: 'medium' }).catch(() => createImageBitmap(b)))
+    .then(b => createImageBitmap(b)).then(bmp => { if (bmp.height <= H) return bmp; return createImageBitmap(bmp, { resizeHeight: H, resizeQuality: 'medium' }).then(r => { bmp.close(); return r; }, () => bmp); }) // аудит 14.10: маленькие фото не растягиваем (лишняя память видеокарты)
     // Аудит 12.10: после «запекания» яркости — снова ImageBitmap (лежит в видеочипе). Холст-картинка перекачивалась в видеочип
     // каждый кадр: с отдалённой камерой (несколько постеров на экране) это давало 24 к/с вместо 51
     .then(bmp => { const c = brighten(bmp); return c === bmp ? bmp : createImageBitmap(c); })
@@ -487,7 +487,11 @@ function drawPosters(view) {
   for (const p of POSTERS) {
     // фото грузим, только когда постер рядом (чтобы телефон не качал сразу все)
     const near = 1500, hh = p.h;
-    if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) continue;
+    if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) {
+      // аудит 14.10: далёкие фото выгружаем из памяти видеокарты (37 фото держались всегда — 120–150 МБ, долгие кадры на ноутбуках); подъедем — загрузится снова
+      if (!isTouch && photoBmp[p.i] && Math.abs(p.x - (view.x0 + view.x1) / 2) + Math.abs(p.y - (view.y0 + view.y1) / 2) > 6000) { try { photoBmp[p.i].close && photoBmp[p.i].close(); } catch (e) {} photoBmp[p.i] = undefined; }
+      continue;
+    }
     const im = photo(p.i); if (!im) continue;
     const h = p.h, w = h * im.width / im.height, x0 = p.x - w / 2, y0 = p.y - h / 2;
     if (x0 > view.x1 || x0 + w < view.x0 || y0 > view.y1 || y0 + h < view.y0) continue;
@@ -727,7 +731,7 @@ function interpolated(renderTick) {
   let A = snaps[0], B = snaps[0], extra = 0;
   // Аудит 13.10 («игра виснет» — паузы интернета 200–500 мс): свежих данных нет — змеи не замирают, а ещё до 0,3 с ползут дальше
   // с той же скоростью (по двум последним снимкам); пришли данные — плавно продолжаем по ним
-  if (renderTick >= snaps[snaps.length - 1].tick) { B = snaps[snaps.length - 1]; A = snaps.length > 1 ? snaps[snaps.length - 2] : B; extra = A !== B ? 9 : 0; }
+  if (renderTick >= snaps[snaps.length - 1].tick) { B = snaps[snaps.length - 1]; A = snaps.length > 1 ? snaps[snaps.length - 2] : B; extra = A !== B ? 3 : 0; } // аудит 14.10: 0,1 с (было 0,3) — при длинных паузах сети змеи не «уезжают» вперёд и не откатываются назад
   else {
     for (let i = snaps.length - 1; i > 0; i--) {
       if (snaps[i - 1].tick <= renderTick) { A = snaps[i - 1]; B = snaps[i]; break; }
