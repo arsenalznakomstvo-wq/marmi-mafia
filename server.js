@@ -1433,7 +1433,7 @@ setInterval(() => {
 
 // ===== HTTP + WebSocket =====
 const PUBLIC = path.join(__dirname, 'public');
-const TYPES = { '.json': 'application/json', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
+const TYPES = { '.webp': 'image/webp', '.json': 'application/json', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json; charset=utf-8' };
 
 const clientErrs = [], clientPerf = [];
 const server = http.createServer((req, res) => {
