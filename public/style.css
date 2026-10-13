@@ -963,3 +963,7 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
   body.mvid #winCards { top: var(--wcTop, 40px) !important; --ih: calc(100vh - 58px - 92px - var(--wcExtra, 43px)) !important; }
   body.mvid #wpBtn { top: calc(100vh - 92px + 8px) !important; bottom: auto !important; }
 }
+
+/* Владелец 13.10: подсказка «микрофон запрещён» — с кнопкой «Проверить снова» */
+#vcHint { pointer-events: auto; max-width: min(92vw, 520px); text-align: center; line-height: 1.35; }
+#vcHint .vc-retry { display: block; margin: 8px auto 2px; border: 0; border-radius: 16px; padding: 6px 14px; background: #2fb34a; color: #fff; font: 700 13px Arial, sans-serif; }

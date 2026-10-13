@@ -48,7 +48,8 @@ window.VoiceChat = (() => {
         if (track.kind !== 'audio') return;
         const el = track.attach(); el.style.display = 'none'; el.muted = mutedAll; document.body.appendChild(el); applyMute(); render();
       });
-      rm.on(L.RoomEvent.TrackPublished, applyMute);
+      rm.on(L.RoomEvent.TrackPublished, () => { applyMute(); render(); });
+      for (const ev of ['TrackUnpublished', 'TrackMuted', 'TrackUnmuted']) if (L.RoomEvent[ev]) rm.on(L.RoomEvent[ev], render); // у кого включён микрофон — на панели
       rm.on(L.RoomEvent.TrackUnsubscribed, track => { track.detach().forEach(e => e.remove()); render(); });
       rm.on(L.RoomEvent.ActiveSpeakersChanged, sp => { speaking.clear(); for (const p of sp) speaking.add(p.name || ''); });
       rm.on(L.RoomEvent.ParticipantConnected, render);
@@ -95,7 +96,7 @@ window.VoiceChat = (() => {
   }
   // Владелец 06.10: сами по себе предупреждения не всплывают — подсказка появляется, только когда человек нажал 🎤, а микрофон не включился
   function toastMic(e) { micErr = (e && e.name) || 'nosupport'; }
-  let tipT = 0;
+  let tipT = 0, flip = () => {};
   function showTip() {
     // Владелец 13.10: «исправь надпись — чтобы включить микрофон, перейдите в браузер или установите игру на телефон»
     const t = (inTelegram || micErr === 'nosupport') ? '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон'
@@ -103,8 +104,12 @@ window.VoiceChat = (() => {
       : micErr === 'NotReadableError' || micErr === 'AbortError' ? 'Микрофон занят другим приложением (звонок?) — закройте его и нажмите 🎤 ещё раз'
       : micErr === 'NotFoundError' ? 'На устройстве не найден микрофон'
       : 'Микрофон не включился — нажмите 🎤 ещё раз';
-    const el = $('vcHint'); el.textContent = t; el.classList.remove('hide');
-    clearTimeout(tipT); tipT = setTimeout(() => el.classList.add('hide'), 6000);
+    const el = $('vcHint'), denied = micErr === 'NotAllowedError' && !inTelegram;
+    // Владелец 13.10 («исправь всё»): запрет микрофона — подсказка висит 20 с, касание закрывает, кнопка «Проверить снова»
+    el.innerHTML = ''; el.appendChild(document.createTextNode(t));
+    if (denied) { const b = document.createElement('button'); b.className = 'vc-retry'; b.textContent = '🎤 Проверить снова'; b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); el.classList.add('hide'); flip(); }); el.appendChild(b); }
+    el.classList.remove('hide');
+    clearTimeout(tipT); tipT = setTimeout(() => el.classList.add('hide'), denied ? 20000 : 6000);
   }
   // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
   async function askMic() {
@@ -183,13 +188,17 @@ window.VoiceChat = (() => {
     $('vcMicBtn').textContent = micOn ? (isTouch ? '🎤 Вкл' : '🎤 Вкл (V)') : (isTouch ? '🔇 Выкл' : '🔇 Выкл (V)');
     $('vcMicBtn').classList.toggle('on', micOn);
     $('vcMuteBtn').textContent = mutedAll ? '🔇' : '🔊';
-    $('vcCount').textContent = '🎧 ' + n;
+    // Владелец 13.10: видно, сколько человек в голосе и у скольких включён микрофон — «не слышно» сразу понятно почему
+    let mics = micOn ? 1 : 0;
+    for (const p of room.remoteParticipants.values()) try { if (p.isMicrophoneEnabled) mics++; } catch (e) {}
+    $('vcCount').textContent = '🎧 ' + n + ' · 🎤 ' + mics;
+    $('vcCount').title = 'В голосовом чате: ' + n + ', говорить могут (микрофон включён): ' + mics;
   }
 
   function init() {
     // V (компьютер) и кнопка 🎤 — выключить/включить свой микрофон
     // Раньше при включении askMic и setMic спрашивали микрофон одновременно и мешали друг другу — теперь один запрос
-    const flip = async () => {
+    flip = async () => {
       wantMic = !micOn;
       if (wantMic && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) { micErr = 'nosupport'; showTip(); return; }
       await setMic(wantMic);
@@ -200,6 +209,7 @@ window.VoiceChat = (() => {
       flip();
     });
     $('micOpen').addEventListener('click', openInBrowser);
+    $('vcHint').addEventListener('pointerdown', e => { e.stopPropagation(); if (!e.target.closest('.vc-retry')) $('vcHint').classList.add('hide'); }); // касание подсказки — закрыть
     $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
