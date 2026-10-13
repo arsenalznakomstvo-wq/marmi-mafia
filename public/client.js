@@ -2924,11 +2924,12 @@ window.addEventListener('appinstalled', reportInstall);
       // Владелец 13.10: без окон «Далее» — одна короткая подсказка
       if (samsung) { tip('Нажмите <b>≡</b> внизу → <b>«Добавить страницу на»</b> → <b>«Главный экран»</b>'); return; }
       if (chrome) { tip('Телефон ещё не готов к установке — подождите пару секунд и нажмите кнопку ещё раз.<br>Или: <b>⋮</b> вверху справа → <b>«Установить приложение»</b>', 12000); return; }
-      // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «писало „откройте Chrome — там проще“ и была картинка» — одно окно, без «Далее»
-      const toChrome = '<button id="igChrome" class="ig-go">🌐 Открыть в Chrome</button>';
-      openGuide('📲 Установка на телефон', [[`<div class="ip ip-page ip-two"><img src="icon-192.png?v=2" alt=""><span class="ip-arrow">➜</span><div class="ip-chrome"></div></div>`,
-        'В этом браузере установить сложно.<br><b>Откройте игру в Chrome — там проще</b>' + toChrome]], 'ig-none', 'Или: меню браузера (≡ или ⋮) → «Добавить на главный экран»');
-      $('igChrome').addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
+      // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «как было раньше — картинка змеи и „Открыть в Chrome“» — тот же экран, что при открытии ссылки в Telegram
+      $('lOpen').textContent = '🌐 Открыть в Chrome'; $('lHint').textContent = 'В Chrome игру можно установить на телефон одним нажатием';
+      $('lHere').textContent = 'Играть здесь'; $('lHere').classList.remove('hide');
+      $('lOpen').onclick = () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; };
+      $('lHere').onclick = () => $('landing').classList.add('hide');
+      $('landing').classList.remove('hide');
     }
   });
 })();
