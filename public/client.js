@@ -528,7 +528,7 @@ let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id 
 // Предметы на карте (владелец 14.10)
 const ITEM_TYPES = ['grenade', 'dagger', 'shock', 'magnet', 'smoke', 'invis', 'turbo'];
 const ITEM_INFO = { grenade: ['💣', 'Граната', '#ff8a1f'], dagger: ['🗡', 'Кинжал', '#dfe6ee'], shock: ['⚡', 'Шокер', '#5ac8ff'], magnet: ['🧲', 'Магнит', '#ff4f6d'], smoke: ['💨', 'Дымовая шашка', '#b8bec8'], invis: ['👻', 'Невидимость', '#c9b6ff'], turbo: ['🚀', 'Ускоритель', '#ffd24a'] };
-const mapItems = new Map(), zaps = []; let myItem = null, stunIds = new Set(), invisIds = new Set(), magnetIds = new Set(), turboIds = new Set();
+const mapItems = new Map(), zaps = [], pocketIds = new Map(); let myItem = null, stunIds = new Set(), invisIds = new Set(), magnetIds = new Set(), turboIds = new Set();
 let knifeIds = new Map(), myKnife = 0, badgeIds = new Map(), myBadge = 0, smokeIds = new Map(), mySmoke = 0; const smokeClouds = []; /* Ниндзя (владелец 13.10): у кого висит шашка; облака дыма */ const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
@@ -585,7 +585,7 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []);
+      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []); pocketIds.clear(); for (const [id, ti] of (m.pk || [])) pocketIds.set(id, ITEM_TYPES[ti]);
       if (m.it) { mapItems.clear(); for (const [id, ti, x, y] of m.it) mapItems.set(id, { t: ITEM_TYPES[ti], x, y }); } badgeIds = new Map(m.bd || []); smokeIds = new Map(m.sm || []);
       { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive ? knifeIds.get(myId) || 0 : 0, ms = alive ? smokeIds.get(myId) || 0 : 0, md = alive ? badgeIds.get(myId) || 0 : 0; if (n !== myRockets || mb !== myBomb || mk !== myKnife || ms !== mySmoke || md !== myBadge) { myRockets = n; myBomb = mb; myKnife = mk; mySmoke = ms; myBadge = md; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'knife': knivesFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); if (!m.it) { const M = m.kind === 'badge' ? badgeIds : knifeIds, left = (M.get(m.o) || 1) - 1; if (left > 0) M.set(m.o, left); else M.delete(m.o); if (m.o === myId) { if (m.kind === 'badge') myBadge = left; else myKnife = left; renderFireBtn(); } } knivesFly.get(m.id).badge = m.kind === 'badge'; Sound.knifeThrow(nearVol(m.x, m.y)); break;
@@ -1477,6 +1477,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && !lod && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r, bazooka.get(sn.id));
+    if (!fade && neck && pocketIds.has(sn.id)) drawCarriedItem(neck, r, pocketIds.get(sn.id)); // подобранный предмет висит на поясе (владелец 14.10)
     if (!fade && neck && smokeIds.has(sn.id)) { drawSmokeGrenade(neck, r, 1); if (smokeIds.get(sn.id) > 1) drawSmokeGrenade(neck, r, -1); } // Ниндзя: шашки на пузе (вторая — с другого бока)
     if (!fade && bombIds.has(sn.id)) { drawCarriedBomb(hx, hy, a, r, time, 1); if (bombIds.get(sn.id) > 1) drawCarriedBomb(hx, hy, a, r, time + 400, -1); } // вторая бомба — с другого бока
     if (meta && !fade && !lod && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
@@ -2037,20 +2038,108 @@ function drawSmokeClouds() {
 }
 // ===== Предметы на карте (владелец 14.10) =====
 const itemSprites = {};
-function itemSprite(t) { // кружок с ободком цвета предмета и значком внутри — рисуется один раз
+// Владелец 14.10: «максимально реалистичные, как настоящие» — объём, блики металла и стекла, мелкие детали.
+// Рисуются один раз в 160 px, дальше в игре — готовая картинка (на скорость не влияет)
+function itemSprite(t) {
   if (itemSprites[t]) return itemSprites[t];
-  const S = 96, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), I = ITEM_INFO[t];
-  const gr = g.createRadialGradient(S / 2, S / 2, 6, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(30,34,44,0.95)'); gr.addColorStop(0.75, 'rgba(14,16,22,0.95)'); gr.addColorStop(1, 'rgba(14,16,22,0)');
-  g.fillStyle = gr; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, TAU); g.fill();
-  g.strokeStyle = I[2]; g.lineWidth = 5; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 10, 0, TAU); g.stroke();
-  g.font = '44px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(I[0], S / 2, S / 2 + 2);
+  const S = 160, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+  g.scale(S / 128, S / 128); // рисуем в «128-единицах», картинка 160 px — чётче
+  const lin = (x0, y0, x1, y1, stops) => { const q = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, col]) => q.addColorStop(o, col)); return q; };
+  const rad = (x, y, r0, r1, stops) => { const q = g.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([o, col]) => q.addColorStop(o, col)); return q; };
+  const shadow = (cx, w, h) => { g.save(); g.translate(cx, 112); g.scale(1, h / w); g.fillStyle = rad(0, 0, 2, w, [[0, 'rgba(0,0,0,0.5)'], [1, 'rgba(0,0,0,0)']]); g.beginPath(); g.arc(0, 0, w, 0, TAU); g.fill(); g.restore(); };
+  const gloss = (x, y, rx, ry, a, al) => { g.save(); g.translate(x, y); g.rotate(a || 0); g.fillStyle = rad(0, 0, 0, Math.max(rx, ry), [[0, `rgba(255,255,255,${al || 0.8})`], [1, 'rgba(255,255,255,0)']]); g.scale(1, ry / rx); g.beginPath(); g.arc(0, 0, rx, 0, TAU); g.fill(); g.restore(); };
+  const chrome = (x0, x1) => lin(x0, 0, x1, 0, [[0, '#5d636b'], [0.25, '#e9edf2'], [0.5, '#9aa1aa'], [0.75, '#f5f7fa'], [1, '#5b6068']]);
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  if (t === 'grenade') { // Ф-1 «лимонка»: чугунный рубчатый корпус, запал, скоба с заклёпкой, кольцо чеки
+    shadow(64, 34, 8);
+    g.fillStyle = rad(52, 58, 6, 44, [[0, '#8fa063'], [0.45, '#5a6b37'], [1, '#1d2611']]); g.beginPath(); g.ellipse(64, 72, 31, 37, 0, 0, TAU); g.fill();
+    for (let row = -3; row <= 3; row++) for (let col = -2; col <= 2; col++) { // «дольки» с бликом сверху-слева и тенью снизу
+      const x = 64 + col * 11.5 * Math.cos(row * 0.28), y = 72 + row * 10.5, w = 5.2 * Math.cos(row * 0.3) * Math.cos(col * 0.45), h = 4.4;
+      if (w < 1.5) continue;
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(x + 1, y + 1.2, w, h, 0, 0, TAU); g.fill();
+      g.fillStyle = rad(x - w * 0.4, y - h * 0.4, 0.5, w * 1.4, [[0, 'rgba(210,225,170,0.85)'], [0.6, 'rgba(110,128,70,0.6)'], [1, 'rgba(60,72,36,0)']]); g.beginPath(); g.ellipse(x, y, w, h, 0, 0, TAU); g.fill();
+    }
+    gloss(50, 52, 9, 14, -0.5, 0.35);
+    g.fillStyle = chrome(52, 76); g.beginPath(); g.roundRect(52, 27, 24, 14, 2); g.fill(); // запал
+    g.fillStyle = '#3d4248'; g.fillRect(52, 38, 24, 3);
+    g.fillStyle = lin(70, 28, 100, 88, [[0, '#eef1f4'], [0.35, '#9ca3ac'], [0.7, '#d6dbe2'], [1, '#6c727a']]); // скоба
+    g.beginPath(); g.moveTo(72, 29); g.quadraticCurveTo(101, 40, 94, 88); g.lineTo(87, 87); g.quadraticCurveTo(92, 48, 70, 38); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1; g.stroke();
+    g.fillStyle = rad(74, 33, 0.5, 3.5, [[0, '#ffffff'], [1, '#6b7078']]); g.beginPath(); g.arc(74, 33, 3, 0, TAU); g.fill(); // заклёпка
+    g.strokeStyle = lin(34, 20, 54, 40, [[0, '#fff3c4'], [0.5, '#c9a43a'], [1, '#7a5f17']]); g.lineWidth = 3.5; g.beginPath(); g.arc(43, 28, 10, 0, TAU); g.stroke(); // кольцо
+    g.strokeStyle = '#a8adb4'; g.lineWidth = 2; g.beginPath(); g.moveTo(52, 31); g.lineTo(46, 34); g.stroke(); // усики чеки
+  } else if (t === 'dagger') { // кинжал — стальная картинка, как у Киллера, по диагонали
+    shadow(64, 36, 7);
+    const K = knifeSprite(24); g.save(); g.translate(64, 62); g.rotate(-Math.PI / 4); g.drawImage(K.img, -K.L / 2 * 1.2, -K.W / 2 * 1.2, K.L * 1.2, K.W * 1.2); g.restore();
+    gloss(76, 46, 10, 2.5, -Math.PI / 4, 0.7);
+  } else if (t === 'shock') { // электрошокер: матовый пластик, жёлтая вставка, рифлёная рукоять, контакты, разряд
+    shadow(60, 36, 8);
+    g.fillStyle = lin(0, 38, 0, 72, [[0, '#4a4a4a'], [0.25, '#262626'], [0.7, '#111'], [1, '#2b2b2b']]); g.beginPath(); g.roundRect(24, 38, 70, 32, 9); g.fill();
+    g.fillStyle = lin(0, 44, 0, 56, [[0, '#ffe25a'], [1, '#d9a800']]); g.beginPath(); g.roundRect(30, 44, 34, 9, 3); g.fill();
+    g.fillStyle = '#111'; g.font = 'bold 7px Arial'; g.fillText('POWER', 34, 51.5);
+    g.fillStyle = lin(28, 0, 52, 0, [[0, '#2b2b2b'], [0.5, '#0e0e0e'], [1, '#222']]); g.beginPath(); g.roundRect(30, 64, 22, 42, 7); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.08)'; g.lineWidth = 1.5; for (let y = 70; y < 102; y += 5) { g.beginPath(); g.moveTo(32, y); g.lineTo(50, y); g.stroke(); } // насечки
+    g.fillStyle = '#c62828'; g.beginPath(); g.arc(78, 54, 4, 0, TAU); g.fill(); gloss(77, 53, 2, 2, 0, 0.9); // кнопка
+    g.fillStyle = chrome(94, 104); g.fillRect(94, 44, 10, 5); g.fillRect(94, 59, 10, 5);
+    gloss(50, 41, 26, 3, 0, 0.35);
+    g.shadowColor = '#5ac8ff'; g.shadowBlur = 14; g.strokeStyle = '#d6f5ff'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(104, 47); g.lineTo(112, 51); g.lineTo(105, 54); g.lineTo(113, 57); g.lineTo(104, 61); g.stroke();
+    g.strokeStyle = '#5ac8ff'; g.lineWidth = 1.2; g.stroke(); g.shadowBlur = 0;
+  } else if (t === 'magnet') { // магнит-подкова: глянцевый красный металл, шлифованные полюса
+    shadow(64, 38, 8);
+    g.lineCap = 'butt'; g.lineWidth = 24;
+    g.strokeStyle = lin(28, 0, 100, 0, [[0, '#6e0712'], [0.2, '#d8213a'], [0.42, '#ff6d7d'], [0.6, '#c81830'], [1, '#5a0510']]);
+    g.beginPath(); g.moveTo(36, 92); g.lineTo(36, 60); g.arc(64, 60, 28, Math.PI, 0); g.lineTo(92, 92); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.45)'; g.lineWidth = 4; g.beginPath(); g.moveTo(31, 88); g.lineTo(31, 60); g.arc(64, 60, 33, Math.PI, Math.PI * 1.45); g.stroke(); // блик
+    g.fillStyle = chrome(24, 48); g.fillRect(24, 92, 24, 16); g.fillStyle = chrome(80, 104); g.fillRect(80, 92, 24, 16);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(24, 92, 24, 2); g.fillRect(80, 92, 24, 2);
+    g.fillStyle = '#fff'; g.font = 'bold 9px Arial'; g.fillText('N', 32, 104); g.fillText('S', 88, 104);
+  } else if (t === 'smoke') { // дымовая шашка: крашеный металл с потёртостями, красная полоса, надпись, крышка и кольцо
+    shadow(64, 28, 7);
+    g.fillStyle = lin(40, 0, 88, 0, [[0, '#3f444b'], [0.3, '#a9b0b9'], [0.45, '#d9dee4'], [0.7, '#7d848d'], [1, '#33373d']]); g.beginPath(); g.roundRect(40, 34, 48, 72, 9); g.fill();
+    g.fillStyle = lin(40, 0, 88, 0, [[0, '#6e1014'], [0.4, '#e0353b'], [1, '#5c0c10']]); g.fillRect(40, 60, 48, 14);
+    g.fillStyle = '#1b1d21'; g.font = 'bold 9px Arial'; g.fillText('SMOKE', 46, 90);
+    g.fillStyle = lin(46, 0, 82, 0, [[0, '#1d1f24'], [0.5, '#4a4f58'], [1, '#17191d']]); g.beginPath(); g.roundRect(46, 22, 36, 14, 3); g.fill();
+    g.strokeStyle = lin(80, 16, 100, 38, [[0, '#ffffff'], [1, '#7d838b']]); g.lineWidth = 3.5; g.beginPath(); g.arc(91, 26, 9, 0, TAU); g.stroke();
+    gloss(52, 52, 4, 18, 0, 0.45);
+  } else if (t === 'invis') { // флакон невидимости: толстое стекло, светящаяся жидкость с пузырьками, пробка
+    shadow(64, 30, 7);
+    g.fillStyle = rad(64, 84, 4, 40, [[0, 'rgba(190,140,255,0.35)'], [1, 'rgba(190,140,255,0)']]); g.beginPath(); g.arc(64, 84, 40, 0, TAU); g.fill(); // свечение
+    g.fillStyle = 'rgba(210,225,255,0.16)'; g.beginPath(); g.arc(64, 80, 30, 0, TAU); g.fill(); g.fillRect(55, 30, 18, 26);
+    g.fillStyle = rad(56, 86, 3, 30, [[0, '#fbefff'], [0.35, '#c08cff'], [0.75, '#7a3fe0'], [1, '#3f1590']]);
+    g.beginPath(); g.arc(64, 82, 26, -0.2, Math.PI + 0.2); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.55)'; for (const [x, y, r] of [[56, 92, 2.5], [70, 86, 1.8], [62, 98, 1.5], [75, 96, 2.2], [66, 76, 1.4]]) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); } // пузырьки
+    g.strokeStyle = 'rgba(235,242,255,0.85)'; g.lineWidth = 3; g.beginPath(); g.arc(64, 80, 30, -Math.PI * 0.4, Math.PI * 1.4); g.stroke();
+    g.beginPath(); g.moveTo(55, 56); g.lineTo(55, 30); g.moveTo(73, 56); g.lineTo(73, 30); g.stroke();
+    g.fillStyle = lin(54, 0, 74, 0, [[0, '#5e3a17'], [0.5, '#b07a43'], [1, '#5a3614']]); g.beginPath(); g.roundRect(53, 17, 22, 15, 3); g.fill(); // пробка
+    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1; for (let y = 20; y < 31; y += 3) { g.beginPath(); g.moveTo(55, y); g.lineTo(73, y); g.stroke(); }
+    gloss(48, 70, 4, 12, -0.4, 0.85); gloss(78, 66, 2, 6, 0.3, 0.6);
+  } else if (t === 'turbo') { // баллон закиси азота: синий металлик, хром, наклейка NOS
+    shadow(64, 28, 7);
+    g.fillStyle = lin(38, 0, 90, 0, [[0, '#06204f'], [0.25, '#2a6fe0'], [0.42, '#8fc0ff'], [0.6, '#2a6fe0'], [1, '#05183c']]); g.beginPath(); g.roundRect(38, 36, 52, 72, 18); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.roundRect(44, 58, 40, 26, 4); g.fill();
+    g.fillStyle = '#d61f26'; g.font = 'italic bold 15px Arial'; g.fillText('NOS', 48, 76);
+    g.fillStyle = '#0b3d91'; g.beginPath(); g.moveTo(66, 88); g.lineTo(58, 100); g.lineTo(64, 100); g.lineTo(60, 108); g.lineTo(70, 96); g.lineTo(64, 96); g.lineTo(68, 88); g.closePath(); g.fill();
+    g.fillStyle = chrome(54, 74); g.fillRect(54, 22, 20, 16); g.fillStyle = chrome(46, 82); g.beginPath(); g.roundRect(46, 16, 36, 7, 3); g.fill(); // вентиль
+    gloss(48, 50, 4, 20, 0, 0.6);
+  }
   return (itemSprites[t] = c);
+}
+// Предмет висит на поясе (владелец 14.10): сбоку от шеи, по ходу тела, на ремешке
+function drawCarriedItem(neck, r, t) {
+  const [nx, ny, na] = neck, spr = itemSprite(t), S = r * 2.5;
+  ctx.save(); ctx.translate(nx, ny); ctx.rotate(na);
+  ctx.strokeStyle = 'rgba(60,40,25,0.85)'; ctx.lineWidth = Math.max(1, r * 0.12); // ремешок
+  ctx.beginPath(); ctx.moveTo(0, -r * 0.5); ctx.lineTo(-r * 0.4, -r * 1.05); ctx.stroke();
+  ctx.translate(-r * 0.5, -r * 1.45); ctx.rotate(Math.PI / 2 + Math.sin(performance.now() * 0.004) * 0.12); // покачивается
+  ctx.drawImage(spr, -S / 2, -S / 2, S, S);
+  ctx.restore();
 }
 function drawMapItems(view, time) {
   for (const it of mapItems.values()) {
     if (it.x < view.x0 - 60 || it.x > view.x1 + 60 || it.y < view.y0 - 60 || it.y > view.y1 + 60) continue;
-    const bob = Math.sin(time * 0.004 + it.x) * 4, pulse = 1 + 0.08 * Math.sin(time * 0.006 + it.y), S = 58 * pulse;
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45; const hs = S * 1.9; ctx.drawImage(haloSprite(ITEM_INFO[it.t][2]), it.x - hs / 2, it.y + bob - hs / 2, hs, hs);
+    const bob = Math.sin(time * 0.004 + it.x) * 4, pulse = 1 + 0.06 * Math.sin(time * 0.006 + it.y), S = 70 * pulse;
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; const hs = S * 1.6; ctx.drawImage(haloSprite(ITEM_INFO[it.t][2]), it.x - hs / 2, it.y + bob - hs / 2, hs, hs);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(itemSprite(it.t), it.x - S / 2, it.y + bob - S / 2, S, S);
   }

@@ -1076,6 +1076,7 @@ function stepOrbs() {
         if (s.invisUntil > tick) (m.iv || (m.iv = [])).push(s.id);
         if (s.magnetUntil > tick) (m.mg || (m.mg = [])).push(s.id);
         if (s.turboUntil > tick) (m.tb || (m.tb = [])).push(s.id);
+        if (s.item) (m.pk || (m.pk = [])).push([s.id, ITEM_TYPES.indexOf(s.item)]); // предмет на поясе (владелец 14.10)
       }
       if (itemsDirty || tick % (TICK_RATE * 2) < 3) { m.it = items.map(i => [i.id, ITEM_TYPES.indexOf(i.type), Math.round(i.x), Math.round(i.y)]); itemsDirty = false; } // предметы на карте — при изменении и раз в 2 с
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
