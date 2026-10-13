@@ -62,8 +62,8 @@ function updateRoles() {
     }
     // Владелец 11.10: человек стал Киллером — у него кинжал, метнуть можно один раз за жизнь
     if (!s.bot && s.client && r === KILLER_ROLE && !s.knifeGiven) {
-      s.knifeGiven = true; s.knife = 1;
-      sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! Метните кинжал — он разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
+      s.knifeGiven = true; s.knife = 2; // владелец 13.10: два кинжала
+      sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
     }
     // Владелец 11.10: человек стал Бомбой — рядом с ним едет настоящая бомба, бросить её можно один раз за жизнь
     if (!s.bot && s.client && r === BOMB_ROLE && !s.bombGiven) {
@@ -830,7 +830,7 @@ function handleJSON(c, m) {
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
-    if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = +(process.env.TEST_WEAPONS === 'knife'); if (s.knife) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
+    if (process.env.TEST_WEAPONS) { s.bomb = 2; s.rockets = 2; s.knife = process.env.TEST_WEAPONS === 'knife' ? 2 : 0; if (s.knife) { s.rockets = 0; s.bomb = 0; } } // только для проверок: оружие сразу
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
@@ -1057,7 +1057,7 @@ function stepOrbs() {
       const m = { t: 'orbs', o: orbs.map(o => o.alive ? [o.i, Math.round(o.x), Math.round(o.y)] : [o.i]) };
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
       for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push([s.id, s.bomb]); // у кого бомбы едут рядом и сколько
-      for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push(s.id); // у кого кинжал ещё не брошен
+      for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push([s.id, s.knife]); // у кого сколько кинжалов
       for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push([s.id, s.smoke]); // у какого Ниндзя сколько шашек
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
@@ -1225,7 +1225,7 @@ const KNIFE_SP = 28, KNIFE_LIFE = Math.round(1.1 * TICK_RATE), KNIFE_MAX = 2;
 const knives = []; let knifeSeq = 0;
 function throwKnife(s) {
   if (!s.knife) return;
-  s.knife = 0;
+  s.knife--;
   const px = -Math.sin(s.a), py = Math.cos(s.a), off = s.r * 1.4; // кинжал висит справа от головы — оттуда и летит
   const k = { id: ++knifeSeq, owner: s, x: s.xs[0] + px * off, y: s.ys[0] + py * off, vx: Math.cos(s.a) * KNIFE_SP, vy: Math.sin(s.a) * KNIFE_SP, die: tick + KNIFE_LIFE, hits: new Set() };
   knives.push(k);
