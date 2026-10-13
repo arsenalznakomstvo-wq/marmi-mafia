@@ -1325,14 +1325,17 @@ function runRound() {
 // ===== Потайные ходы (владелец 11.10): голова в норе — вся змея переносится к другой норе и ползёт дальше в ту же сторону.
 // После прохода 2 с ход не срабатывает (иначе сразу обратно), на выходе 0,4 с неуязвимости — вдруг там кто-то ползёт.
 // ===== Ниндзя (владелец 13.10): одна дымовая шашка на жизнь — 4 с густого дыма вокруг; в дыму никого не видно =====
-const SMOKE_MS = 4000, SMOKE_R = 260, smokes = []; // { x, y, until }
-function inSmoke(x, y) { for (const m of smokes) if (m.until > tick && (x - m.x) ** 2 + (y - m.y) ** 2 < SMOKE_R * SMOKE_R) return true; return false; }
+// Владелец 13.10: облако чуть меньше (260 → 200); шашку кидают вперёд — дым там, где упала (как бомба)
+const SMOKE_MS = 4000, SMOKE_R = 200, SMOKE_DIST = 400, SMOKE_FLY = Math.round(0.55 * TICK_RATE), smokes = []; // { x, y, from, until }
+function inSmoke(x, y) { for (const m of smokes) if (m.from <= tick && m.until > tick && (x - m.x) ** 2 + (y - m.y) ** 2 < SMOKE_R * SMOKE_R) return true; return false; }
 function throwSmoke(s) {
   if (!s.smoke) return;
   s.smoke = 0;
-  const x = s.xs[0], y = s.ys[0];
-  smokes.push({ x, y, until: tick + Math.round(SMOKE_MS / TICK_MS) });
-  const msg = JSON.stringify({ t: 'smoke', x: Math.round(x), y: Math.round(y), r: SMOKE_R, ms: SMOKE_MS, o: s.id });
+  const x0 = s.xs[0], y0 = s.ys[0];
+  let x = x0 + Math.cos(s.a) * SMOKE_DIST, y = y0 + Math.sin(s.a) * SMOKE_DIST;
+  const d = Math.hypot(x, y), lim = MAP_R - 80; if (d > lim) { x *= lim / d; y *= lim / d; }
+  smokes.push({ x, y, from: tick + SMOKE_FLY, until: tick + SMOKE_FLY + Math.round(SMOKE_MS / TICK_MS) });
+  const msg = JSON.stringify({ t: 'smoke', x0: Math.round(x0), y0: Math.round(y0), x: Math.round(x), y: Math.round(y), fly: SMOKE_FLY * TICK_MS, r: SMOKE_R, ms: SMOKE_MS, o: s.id });
   for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
 }
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);

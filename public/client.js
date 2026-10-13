@@ -581,7 +581,7 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
-    case 'smoke': smokeClouds.push({ x: m.x, y: m.y, r: m.r, ms: m.ms, t0: performance.now(), seed: Math.random() * 6 }); smokeIds.delete(m.o); if (m.o === myId) { mySmoke = false; renderFireBtn(); } Sound.portal(nearVol(m.x, m.y)); break; // Ниндзя бросил шашку
+    case 'smoke': { const now = performance.now(); smokeClouds.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, r: m.r, ms: m.ms, fly: m.fly || 0, t0: now + (m.fly || 0), thrown: now, popped: false, seed: Math.random() * 6 }); smokeIds.delete(m.o); if (m.o === myId) { mySmoke = false; renderFireBtn(); } Sound.click(); break; } // Ниндзя бросил шашку: летит, потом дым
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
@@ -1965,21 +1965,38 @@ function puffSprite() {
   if (puffSpr) return puffSpr;
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   const gr = g.createRadialGradient(56, 54, 6, 64, 64, 64);
-  gr.addColorStop(0, 'rgba(214,218,224,1)'); gr.addColorStop(0.5, 'rgba(160,166,174,0.97)'); gr.addColorStop(0.8, 'rgba(120,126,134,0.6)'); gr.addColorStop(1, 'rgba(110,116,124,0)');
+  gr.addColorStop(0, 'rgba(196,200,206,0.95)'); gr.addColorStop(0.35, 'rgba(170,175,182,0.85)'); gr.addColorStop(0.65, 'rgba(140,146,154,0.45)'); gr.addColorStop(0.85, 'rgba(125,131,139,0.15)'); gr.addColorStop(1, 'rgba(120,126,134,0)'); // мягкие края — клубы сливаются в дым, а не шары
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   return (puffSpr = c);
+}
+function drawFlyingGrenade(x, y, ang, sz) { // шашка в полёте — кувыркается
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  const w = sz * 0.5, h = sz;
+  const gr = ctx.createLinearGradient(-w / 2, 0, w / 2, 0); gr.addColorStop(0, '#5b616b'); gr.addColorStop(0.45, '#c4cad3'); gr.addColorStop(1, '#4a4f58');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, w * 0.25); ctx.fill();
+  ctx.fillStyle = '#c0282d'; ctx.fillRect(-w / 2, -h * 0.08, w, h * 0.16);
+  ctx.fillStyle = '#2a2d33'; ctx.fillRect(-w * 0.32, -h * 0.62, w * 0.64, h * 0.14);
+  ctx.restore();
 }
 function drawSmokeClouds() {
   const now = performance.now(), spr = puffSprite();
   for (let i = smokeClouds.length; i--;) {
     const c = smokeClouds[i], dt = now - c.t0;
+    if (dt < 0) { // ещё летит: дуга к месту падения (выше в середине — как будто подброшена), тонкий дымок за ней
+      const f = Math.min(1, (now - c.thrown) / (c.fly || 1)), x = c.x0 + (c.x - c.x0) * f, y = c.y0 + (c.y - c.y0) * f, lift = Math.sin(f * Math.PI) * 70;
+      ctx.globalAlpha = 0.5; const ps = 22 + f * 10; ctx.drawImage(spr, x - ps / 2, y - lift + 10 - ps / 2, ps, ps); ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 6, 12, 6, 0, 0, TAU); ctx.fill(); // тень на земле
+      drawFlyingGrenade(x, y - lift, f * 14, 26 + Math.sin(f * Math.PI) * 10);
+      continue;
+    }
+    if (!c.popped) { c.popped = true; Sound.portal(nearVol(c.x, c.y)); } // хлопок — дым пошёл
     if (dt > c.ms + 900) { smokeClouds.splice(i, 1); continue; }
     const grow = Math.min(1, dt / 350), fade = dt > c.ms ? Math.max(0, 1 - (dt - c.ms) / 900) : 1;
     ctx.globalAlpha = fade;
-    for (let k = 0; k < 22; k++) {
-      const ring = k < 6 ? 0.22 : k < 14 ? 0.55 : 0.85, ang = k * 2.39996 + c.seed + dt / (k % 2 ? 5200 : -6100);
+    for (let k = 0; k < 30; k++) {
+      const ring = k < 6 ? 0.2 : k < 14 ? 0.5 : k < 22 ? 0.78 : 0.4, ang = k * 2.39996 + c.seed + dt / (k % 2 ? 5200 : -6100);
       const rr = c.r * ring * (0.4 + 0.6 * grow), wob = Math.sin(dt / 700 + k * 1.7) * c.r * 0.05;
-      const x = c.x + Math.cos(ang) * (rr + wob), y = c.y + Math.sin(ang) * (rr + wob), sz = c.r * (k < 6 ? 1.15 : k < 14 ? 0.95 : 0.75) * (0.5 + 0.5 * grow);
+      const x = c.x + Math.cos(ang) * (rr + wob), y = c.y + Math.sin(ang) * (rr + wob), sz = c.r * (k < 6 ? 1.3 : k < 14 ? 1.1 : 0.9) * (0.85 + 0.3 * Math.sin(k * 1.3 + c.seed) ** 2) * (0.5 + 0.5 * grow);
       ctx.drawImage(spr, x - sz / 2, y - sz / 2, sz, sz);
     }
   }
