@@ -553,7 +553,7 @@ function makePersonality(s) {
   if (roll < 0.35) aggr = rand(0.75, 1);       // охотники: режут под голову
   else if (roll < 0.75) aggr = rand(0.4, 0.75); // обычные
   else aggr = rand(0.1, 0.35);                  // собиратели еды
-  aggr *= 0.93;                                 // владелец 06.10: агрессивность −7%
+  aggr *= 0.93 * 0.92;                          // владелец 06.10: агрессивность −7%; 14.10: ещё −8%
   return {
     aggr, greed: rand(0.4, 1), boostLove: rand(0.5, 1),
     prey: null, preyT: 0, cool: 0, side: Math.random() < 0.5 ? -1 : 1,
