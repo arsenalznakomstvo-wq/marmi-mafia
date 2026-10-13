@@ -938,3 +938,23 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 .ip-dlg { background: #fff; border-radius: 14px; width: 200px; overflow: hidden; }
 .ip-dlg .ip-app { margin: 0; padding: 12px; font-size: 12px; } .ip-dlg .ip-app img { width: 34px; height: 34px; }
 .ip-tr { align-items: flex-start; justify-content: flex-start; padding: 6px; } .ip-tr .ip-menu { margin-left: auto; width: 180px; }
+
+/* Другие браузеры → Chrome (владелец 13.10) */
+.ig-go { display: block; margin: 10px auto 0; padding: 10px 18px; border: 0; border-radius: 20px; background: #1a73e8; color: #fff; font: 700 15px Arial, sans-serif; }
+.ip-menu2 { gap: 8px; } .ip-menu2 .ig-hl { color: #fff; background: rgba(255,255,255,0.08); font-size: 12px; padding: 5px 10px; }
+.ip-chrome { width: 54px; height: 54px; border-radius: 50%; background: conic-gradient(#ea4335 0 33%, #fbbc05 0 66%, #34a853 0); position: relative; }
+.ip-chrome::after { content: ''; position: absolute; inset: 15px; border-radius: 50%; background: #4285f4; box-shadow: 0 0 0 4px #fff; }
+#installBtn.pulse { animation: instPulse 1s ease-in-out infinite; box-shadow: 0 0 0 0 rgba(255, 210, 74, 0.8); }
+@keyframes instPulse { 50% { box-shadow: 0 0 0 8px rgba(255, 210, 74, 0); transform: scale(1.06); } }
+
+/* «Хотите установить игру на телефон?» (владелец 13.10) */
+#instOffer { position: fixed; inset: 0; z-index: 85; background: rgba(4, 6, 10, 0.7); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#instOffer.hide { display: none; }
+#instOffer .io-card { width: min(340px, 100%); text-align: center; background: #141821; border: 1px solid rgba(214, 170, 70, 0.55); border-radius: 20px; padding: 20px 18px 16px; color: #e8ecf1; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
+#instOffer img { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto 10px; }
+#instOffer .io-t { font: 700 18px/1.3 Comfortaa, Arial, sans-serif; color: #ffe27a; }
+#instOffer .io-s { color: #9aa3b2; font-size: 13px; margin: 8px 0 14px; }
+#instOffer .io-b { display: flex; gap: 10px; }
+#ioNo { flex: 1; border: 1px solid rgba(255,255,255,0.22); background: transparent; color: #e8ecf1; border-radius: 22px; padding: 11px; font: 700 14px Arial, sans-serif; }
+#ioYes { flex: 1.4; border: 0; border-radius: 22px; padding: 11px; background: linear-gradient(180deg, #ffe066, #f2b705); color: #2a1d00; font: 700 16px Arial, sans-serif; }
+@media (max-height: 500px) { #instOffer img { width: 48px; height: 48px; margin-bottom: 6px; } #instOffer .io-s { margin: 4px 0 10px; } }

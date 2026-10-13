@@ -2691,11 +2691,17 @@ if (window.VoiceChat) VoiceChat.init();
   const ua = navigator.userAgent, isIOS = /iPhone|iPad|iPod/i.test(ua);
   const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone);
   let seen = false; try { seen = sessionStorage.getItem('mm_here') === '1'; } catch (e) {}
-  if (!inApp || seen) return;
+  // Владелец 13.10: «человек путается — игра открылась, потом через Chrome ещё раз». Ссылку открыли на Android не в Chrome
+  // (Яндекс, Xiaomi и др. — там установить нельзя) — тоже сначала этот экран: сразу в Chrome, а там «Установить игру?»
+  const android = /Android/i.test(ua);
+  const chromeAndroid = android && /Chrome\//.test(ua) && !/SamsungBrowser|YaBrowser|OPR\/|Edg|MiuiBrowser|HeyTap|UCBrowser|Firefox|; wv\)/.test(ua);
+  const otherBrowser = android && !inApp && !chromeAndroid && !/SamsungBrowser/i.test(ua) && !isApp && !/[?&]noc=1/.test(location.search);
+  if ((!inApp && !otherBrowser) || seen) return;
   $('landing').classList.remove('hide');
+  if (android) { $('lOpen').textContent = '🌐 Открыть в Chrome'; $('lHint').textContent = 'В Chrome игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: на Android только «Открыть в Chrome», без «Играть здесь» — чтобы не путались (на iPhone Safari одним нажатием не открыть — там «Играть здесь» остаётся)
   const url = location.origin + '/';
   $('lOpen').addEventListener('click', () => {
-    if (!isIOS) { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end'; return; }
+    if (!isIOS) { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url + '?install=1&noc=1') + ';end'; return; } // noc=1 — Chrome нет, открылось здесь же: экран больше не показываем
     const ok = () => { $('lOpen').textContent = '✅ Ссылка скопирована'; $('lHint').innerHTML = 'Откройте <b>Safari</b> и вставьте ссылку в адресную строку'; };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, () => prompt('Скопируйте ссылку и откройте в Safari:', url)); else prompt('Скопируйте ссылку и откройте в Safari:', url);
   });
@@ -2749,6 +2755,18 @@ window.addEventListener('appinstalled', reportInstall);
     g._next = () => { k = ++g._k; show(); }; g._prev = () => { if (g._k) { k = --g._k; show(); } };
     show(); g.classList.remove('hide');
   }
+  const toChrome = () => { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/?install=1') + ';end'; };
+  $('iosGuide').addEventListener('click', e => { if (e.target.closest('#igChrome')) toChrome(); });
+  // Пришли в Chrome кнопкой «Открыть в Chrome» (владелец 13.10): сразу вопрос «Хотите установить игру на телефон?»
+  if (/[?&]install=1/.test(location.search) && !inApp && !isIOS) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {} // обновили страницу — второй раз не спрашиваем
+    btn.classList.add('pulse');
+    btn.addEventListener('click', () => btn.classList.remove('pulse'), { once: true });
+    const o = $('instOffer');
+    setTimeout(() => o.classList.remove('hide'), 900);
+    $('ioYes').addEventListener('click', () => { o.classList.add('hide'); btn.click(); });
+    $('ioNo').addEventListener('click', () => { o.classList.add('hide'); Sound.click(); });
+  }
   btn.addEventListener('click', async () => {
     Sound.click();
     if (isIOS) { // iPhone (владелец 13.10): сайт не может установить себя сам. «Поделиться → На экран Домой» мало кто знает —
@@ -2801,10 +2819,18 @@ window.addEventListener('appinstalled', reportInstall);
         openGuide('📲 Установка на телефон', [[bar, 'Нажмите <b>⋮</b> (три точки) вверху справа'], [menu, 'Нажмите <b>«Установить приложение»</b><br>или <b>«Добавить на главный экран»</b>'], [dlg, 'Нажмите <b>«Установить»</b>'], [homePic, DONE]], 'ig-top', '');
         return;
       }
-      // другие браузеры (Яндекс, Xiaomi и др.) — проще всего открыть в Chrome
-      tip('Откройте меню браузера (<b>≡</b> или <b>⋮</b>) → <b>«Добавить на главный экран»</b><br><button id="tipChrome">Открыть в Chrome — там проще</button>');
-      const tc = $('tipChrome');
-      if (tc) tc.addEventListener('click', () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; });
+      // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «укажи, что игра откроется ещё раз в Chrome, с таким же меню,
+      // и там снова нажать «Установить на телефон»» — пошаговое окно; в Chrome кнопка установки будет мигать (?install=1)
+      const menuPic = hl => `<div class="ip"><div class="ip-page ip-menu2"><img src="icon-192.png" alt=""><b>марми мафия</b>${hl}</div></div>`;
+      const chromePic = `<div class="ip ip-page"><div class="ip-chrome"></div><b>Chrome</b></div>`;
+      const dlg = `<div class="ip ip-dim"><div class="ip-dlg"><div class="ip-app"><img src="icon-192.png" alt=""><span>Установить «Марми Мафия»?</span></div><div class="ip-hdr"><span class="ip-c">Отмена</span>${HL('Установить')}</div></div></div>`;
+      openGuide('📲 Установка на телефон', [
+        [menuPic(HL('🌐 Открыть в Chrome')), 'В этом браузере установить нельзя.<br>Нажмите кнопку — игра откроется в <b>Chrome</b><br><button id="igChrome" class="ig-go">🌐 Открыть в Chrome</button>'],
+        [chromePic, 'Игра откроется <b>ещё раз</b> — уже в Chrome.<br>Меню будет <b>такое же</b>, как здесь'],
+        [menuPic(HL('📲 Установить на телефон')), 'В Chrome снова нажмите<br><b>«📲 Установить на телефон»</b> — она будет мигать'],
+        [dlg, 'Нажмите <b>«Установить»</b>'],
+        [homePic, DONE]], 'ig-none', 'Нет Chrome? Скачайте его в Play Маркете');
+      return;
     }
   });
 })();
