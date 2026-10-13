@@ -2907,7 +2907,7 @@ window.addEventListener('appinstalled', reportInstall);
     setTimeout(() => o.classList.remove('hide'), 900);
     $('ioYes').addEventListener('click', () => { o.classList.add('hide'); btn.click(); });
     // Владелец 13.10: «у племянника „Не сейчас“ не закрывает окно» — закрываем и по отрыву пальца, и касанием мимо карточки
-    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); offerReport(); } };
+    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); introEndAt = performance.now(); offerReport(); } }; // introEndAt: это же касание не должно ставить видео на паузу (владелец 13.10: «после „Не сейчас“ всё зависло» — видео вставало на паузу)
     // Владелец 13.10: «у некоторых после „Не сейчас“ экран зависает» — через 2,5 с шлём, что на экране (видно на /errs)
     const offerReport = () => {
       let frames = 0; const t0 = performance.now(); const f = () => { frames++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); }; requestAnimationFrame(f);

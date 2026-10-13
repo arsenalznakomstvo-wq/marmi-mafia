@@ -19,6 +19,11 @@ window.VoiceChat = (() => {
   // Встроенный браузер Telegram/Instagram/Facebook: микрофон там обычно не работает. Android — WebView («; wv)» в UA),
   // iPhone — встроенный просмотр без слова Safari в UA
   const ua = navigator.userAgent;
+  // Владелец 13.10 («на Android динамик не включить»): по отчёту — Яндекс Браузер запретил микрофон. В браузере «откройте в браузере» не помогает —
+  // пишем, где разрешить именно в этом браузере
+  const browserName = /YaBrowser/.test(ua) ? 'Яндекс Браузер' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /MiuiBrowser/.test(ua) ? 'Mi Браузер' : /OPR\//.test(ua) ? 'Opera' : /Edg/.test(ua) ? 'Edge' : /Firefox/.test(ua) ? 'Firefox' : 'Chrome';
+  const deniedText = () => isIOS ? '🎤 Микрофон запрещён. Разрешите: Настройки iPhone → Safari → Микрофон → Разрешить, потом обновите страницу'
+    : '🎤 Микрофон запрещён. Разрешите: Настройки телефона → Приложения → ' + browserName + ' → Разрешения → Микрофон → Разрешить. Потом закройте и снова откройте игру';
   const inTelegram = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone); // иконка на экране «Домой» — не встроенный браузер
 
   function loadSdk() {
@@ -94,7 +99,7 @@ window.VoiceChat = (() => {
   function showTip() {
     // Владелец 13.10: «исправь надпись — чтобы включить микрофон, перейдите в браузер или установите игру на телефон»
     const t = (inTelegram || micErr === 'nosupport') ? '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон'
-      : micErr === 'NotAllowedError' ? '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон — и нажмите «Разрешить», когда спросят'
+      : micErr === 'NotAllowedError' ? deniedText()
       : micErr === 'NotReadableError' || micErr === 'AbortError' ? 'Микрофон занят другим приложением (звонок?) — закройте его и нажмите 🎤 ещё раз'
       : micErr === 'NotFoundError' ? 'На устройстве не найден микрофон'
       : 'Микрофон не включился — нажмите 🎤 ещё раз';
@@ -157,7 +162,7 @@ window.VoiceChat = (() => {
       $('micHelpText').textContent = '🎤 Голосовой чат и установка — в браузере';
       const b = $('micOpen'); b.classList.remove('hide');
       if (!b.dataset.done) b.textContent = /Android/i.test(ua) ? 'Открыть в браузере' : 'Скопировать ссылку';
-    } else if (denied) { $('micHelpText').textContent = '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон'; $('micOpen').classList.add('hide'); }
+    } else if (denied) { $('micHelpText').textContent = deniedText(); $('micOpen').classList.add('hide'); }
   }
   function openInBrowser() {
     const url = location.origin + location.pathname, b = $('micOpen');
