@@ -2782,7 +2782,7 @@ window.addEventListener('appinstalled', reportInstall);
         await new Promise(ok => { const t = setTimeout(ok, 3500); window.addEventListener('beforeinstallprompt', () => { clearTimeout(t); setTimeout(ok, 50); }, { once: true }); });
         btn.textContent = t0; btn.disabled = false;
       }
-      if (deferred) { const d = deferred; deferred = null; try { d.prompt(); await d.userChoice; } catch (e) {} return; } // одно нажатие → окно «Установить?»
+      if (deferred) { const d = deferred; deferred = null; try { d.prompt(); const ch = await d.userChoice; if (ch && ch.outcome === 'accepted') tip('⏳ Установка игры «Марми Мафия» началась'); } catch (e) {} return; } // одно нажатие → окно «Установить?»; владелец 13.10: «напиши — установка началась»
       let installed = false;
       if (chrome && navigator.getInstalledRelatedApps) try { installed = (await navigator.getInstalledRelatedApps()).length > 0; } catch (e) {}
       if (installed) { tip('📲 Игра уже стоит на телефоне — найдите иконку <b>«Марми Мафия»</b> на экране.<br>Нет иконки? Удалите игру в «Настройки → Приложения» и нажмите эту кнопку ещё раз'); return; }

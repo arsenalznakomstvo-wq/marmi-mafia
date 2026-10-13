@@ -92,9 +92,9 @@ window.VoiceChat = (() => {
   function toastMic(e) { micErr = (e && e.name) || 'nosupport'; }
   let tipT = 0;
   function showTip() {
-    const t = (inTelegram || micErr === 'nosupport') ? 'Микрофон работает только в браузере — откройте игру в Chrome или Safari'
-      : micErr === 'NotAllowedError' ? (isIOS ? 'Микрофон запрещён: Настройки → Safari → Микрофон → Разрешить, затем обновите страницу'
-        : 'Микрофон запрещён: нажмите 🔒 слева от адреса сайта → Разрешения → Микрофон')
+    // Владелец 13.10: «исправь надпись — чтобы включить микрофон, перейдите в браузер или установите игру на телефон»
+    const t = (inTelegram || micErr === 'nosupport') ? '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон'
+      : micErr === 'NotAllowedError' ? '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон — и нажмите «Разрешить», когда спросят'
       : micErr === 'NotReadableError' || micErr === 'AbortError' ? 'Микрофон занят другим приложением (звонок?) — закройте его и нажмите 🎤 ещё раз'
       : micErr === 'NotFoundError' ? 'На устройстве не найден микрофон'
       : 'Микрофон не включился — нажмите 🎤 ещё раз';
@@ -157,7 +157,7 @@ window.VoiceChat = (() => {
       $('micHelpText').textContent = '🎤 Голосовой чат и установка — в браузере';
       const b = $('micOpen'); b.classList.remove('hide');
       if (!b.dataset.done) b.textContent = /Android/i.test(ua) ? 'Открыть в браузере' : 'Скопировать ссылку';
-    } else if (denied) { $('micHelpText').textContent = '🎤 Микрофон запрещён — разрешите его в настройках сайта'; $('micOpen').classList.add('hide'); }
+    } else if (denied) { $('micHelpText').textContent = '🎤 Чтобы включить микрофон, откройте игру в браузере или установите её на телефон'; $('micOpen').classList.add('hide'); }
   }
   function openInBrowser() {
     const url = location.origin + location.pathname, b = $('micOpen');
