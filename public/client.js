@@ -2823,18 +2823,16 @@ if (window.VoiceChat) VoiceChat.init();
   const ua = navigator.userAgent, isIOS = /iPhone|iPad|iPod/i.test(ua);
   const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (isIOS && !/Safari\//.test(ua) && !navigator.standalone);
   let seen = false; try { seen = sessionStorage.getItem('mm_here') === '1'; } catch (e) {}
-  // Владелец 13.10: «человек путается — игра открылась, потом через Chrome ещё раз». Ссылку открыли на Android не в Chrome
-  // (Яндекс, Xiaomi и др. — там установить нельзя) — тоже сначала этот экран: сразу в Chrome, а там «Установить игру?»
+  // Владелец 13.10: «открывать через любой браузер, не только Chrome» — экран только во встроенных браузерах (Telegram, Instagram…);
+  // кнопка открывает основной браузер телефона (Chrome, Samsung, Яндекс — какой стоит). В обычном браузере — сразу игра.
   const android = /Android/i.test(ua);
-  const chromeAndroid = android && /Chrome\//.test(ua) && !/SamsungBrowser|YaBrowser|OPR\/|Edg|MiuiBrowser|HeyTap|UCBrowser|Firefox|; wv\)/.test(ua);
-  const otherBrowser = android && !inApp && !chromeAndroid && !/SamsungBrowser/i.test(ua) && !isApp && !/[?&]noc=1/.test(location.search);
-  if ((!inApp && !otherBrowser) || seen) return;
+  if (!inApp || seen) return;
   $('landing').classList.remove('hide');
   if (isIOS) { $('lOpen').textContent = '🧭 Открыть в Safari'; $('lHint').textContent = 'В Safari игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: «на iPhone так же, как на Android»
-  if (android) { $('lOpen').textContent = '🌐 Открыть в Chrome'; $('lHint').textContent = 'В Chrome игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: на Android только «Открыть в Chrome», без «Играть здесь» — чтобы не путались (на iPhone Safari одним нажатием не открыть — там «Играть здесь» остаётся)
+  if (android) { $('lOpen').textContent = '🌐 Открыть в браузере'; $('lHint').textContent = 'В браузере игру можно установить на телефон, и работает голосовой чат'; $('lHere').classList.add('hide'); } // владелец 13.10: на Android только «Открыть в Chrome», без «Играть здесь» — чтобы не путались (на iPhone Safari одним нажатием не открыть — там «Играть здесь» остаётся)
   const url = location.origin + '/';
   $('lOpen').addEventListener('click', () => {
-    if (!isIOS) { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url + '?install=1&noc=1') + ';end'; return; } // noc=1 — Chrome нет, открылось здесь же: экран больше не показываем
+    if (!isIOS) { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=' + encodeURIComponent(url + '?install=1&noc=1') + ';end'; return; } // без package — основной браузер телефона // noc=1 — Chrome нет, открылось здесь же: экран больше не показываем
     // iPhone: iOS 17+ открывает Safari прямо из Telegram/Instagram по адресу x-safari-https://. Ссылку копируем сразу
     // (пока палец на кнопке — иначе iPhone не даст копировать); если Safari не открылся за 1,5 с — подсказка «вставьте в Safari»
     const go = url + '?install=1';
@@ -2909,7 +2907,17 @@ window.addEventListener('appinstalled', reportInstall);
     setTimeout(() => o.classList.remove('hide'), 900);
     $('ioYes').addEventListener('click', () => { o.classList.add('hide'); btn.click(); });
     // Владелец 13.10: «у племянника „Не сейчас“ не закрывает окно» — закрываем и по отрыву пальца, и касанием мимо карточки
-    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); } };
+    const close = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!o.classList.contains('hide')) { o.classList.add('hide'); Sound.click(); offerReport(); } };
+    // Владелец 13.10: «у некоторых после „Не сейчас“ экран зависает» — через 2,5 с шлём, что на экране (видно на /errs)
+    const offerReport = () => {
+      let frames = 0; const t0 = performance.now(); const f = () => { frames++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); }; requestAnimationFrame(f);
+      setTimeout(() => {
+        const vis = id => { const el = $(id); if (!el) return '-'; const cs = getComputedStyle(el); return el.classList.contains('hide') || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.1 ? 0 : 1; };
+        const v = $('menuVid'), msg = 'offer-no | кадров за 2с:' + frames + ' intro:' + document.body.classList.contains('intro') + ' menu:' + vis('menu') + ' play:' + vis('play') + ' offer:' + vis('instOffer') + ' landing:' + vis('landing') + ' guide:' + vis('iosGuide')
+          + ' video:' + (v ? (v.paused ? 'пауза' : 'идёт') + '@' + v.currentTime.toFixed(1) : '-') + ' связь:' + (typeof connected !== 'undefined' ? connected : '-') + ' fs:' + !!document.fullscreenElement;
+        try { navigator.sendBeacon('/clienterr', JSON.stringify({ msg, where: 'offer', w: innerWidth, h: innerHeight })); } catch (e) {}
+      }, 2500);
+    };
     for (const ev of ['click', 'pointerup', 'touchend']) $('ioNo').addEventListener(ev, close);
     o.addEventListener('pointerup', e => { if (!e.target.closest('.io-card')) close(e); });
   }
