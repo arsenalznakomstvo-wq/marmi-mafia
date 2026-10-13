@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
-const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, TEETH_ID, TEETH_MAX } = require('./public/skins.js');
+const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, TEETH_ID, TEETH_MAX, NINJA_ID } = require('./public/skins.js');
 const stats = require('./stats.js');
 const voice = require('./voice.js');
 const records = require('./records.js');
@@ -529,7 +529,7 @@ function randomSkin() {
   // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
   let id;
   if (Math.random() < 0.95) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0]; // почти всегда спокойные
-  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'teeth' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'teeth' || SKINS[id].eyes === 'ninja' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
@@ -684,6 +684,7 @@ function findPrey(b, hx, hy) {
   let best = null, bs = 0;
   for (const o of snakes.values()) {
     if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
+    if (smokes.length && inSmoke(o.xs[0], o.ys[0])) continue; // в дыму Ниндзя — не видно
     const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = Math.hypot(dx, dy);
     if (d > 550 + b.r * 4) continue;
     const ahead = -(Math.cos(o.a) * dx + Math.sin(o.a) * dy); // я впереди него (+) или сзади (−)
@@ -833,11 +834,12 @@ function handleJSON(c, m) {
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
+    if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 1; sendJSON(c, { t: 'tmsgMe', text: '🥷 Вы Ниндзя! Одна дымовая шашка — кнопка 💨' + (isTouchUA(c) ? '' : ', F или правая кнопка мыши') + ': 4 секунды вокруг густой дым, в нём никого не видно' }); }
     if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); }
+    if (c.snake && c.snake.alive) { if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
     sendJSON(c, { t: 'pong', c: m.c });
   }
@@ -966,6 +968,7 @@ function sendLeaderboard() {
     mm = [];
     const q = v => Math.max(0, Math.min(255, Math.round((v / MAP_R + 1) * 127.5)));
     for (const s of arr) {
+      if (smokes.length && inSmoke(s.xs[0], s.ys[0])) continue; // в дыму Ниндзя — на миникарте не видно
       const len = s.xs.length, step = Math.max(Math.round(150 / SEG_D), Math.ceil(len / 30));
       const line = [(s.bot ? 0 : 1) | (s.team == null ? 0 : (s.team + 1) << 1)];
       for (let i = 0; i < len; i += step) line.push(q(s.xs[i]), q(s.ys[i]));
@@ -1055,6 +1058,7 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
       for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push([s.id, s.bomb]); // у кого бомбы едут рядом и сколько
       for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push(s.id); // у кого кинжал ещё не брошен
+      for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push(s.id); // у какого Ниндзя ещё висит дымовая шашка
       const msg = JSON.stringify(m); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
     }
     return;
@@ -1320,6 +1324,17 @@ function runRound() {
 
 // ===== Потайные ходы (владелец 11.10): голова в норе — вся змея переносится к другой норе и ползёт дальше в ту же сторону.
 // После прохода 2 с ход не срабатывает (иначе сразу обратно), на выходе 0,4 с неуязвимости — вдруг там кто-то ползёт.
+// ===== Ниндзя (владелец 13.10): одна дымовая шашка на жизнь — 4 с густого дыма вокруг; в дыму никого не видно =====
+const SMOKE_MS = 4000, SMOKE_R = 260, smokes = []; // { x, y, until }
+function inSmoke(x, y) { for (const m of smokes) if (m.until > tick && (x - m.x) ** 2 + (y - m.y) ** 2 < SMOKE_R * SMOKE_R) return true; return false; }
+function throwSmoke(s) {
+  if (!s.smoke) return;
+  s.smoke = 0;
+  const x = s.xs[0], y = s.ys[0];
+  smokes.push({ x, y, until: tick + Math.round(SMOKE_MS / TICK_MS) });
+  const msg = JSON.stringify({ t: 'smoke', x: Math.round(x), y: Math.round(y), r: SMOKE_R, ms: SMOKE_MS, o: s.id });
+  for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
+}
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
 // Владелец 11.10 («глюк, особенно когда большой червяк лазит»): нора узкая — пролезают только змеи потоньше (длина примерно до 1000).
 // Длинное тело долго тянулось через нору, делало петли и «кольца»; большие теперь просто проползают мимо.
@@ -1354,6 +1369,7 @@ function step() {
   for (const s of snakes.values()) if (s.bot && !s.botThinkOff) botThink(s); // каждый шаг — быстрее реагируют на опасность
   for (const s of snakes.values()) moveSnake(s);
   stepPortals();
+  if (smokes.length) for (let i = smokes.length; i--;) if (smokes[i].until <= tick) smokes.splice(i, 1);
   buildGrid();
   collisions();
   for (const s of snakes.values()) if (s.alive) eat(s);

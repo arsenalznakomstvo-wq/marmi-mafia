@@ -212,7 +212,34 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
   if (sk.bag && neck) drawShoulderBag(g, hx, hy, a, r, neck);
-  if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10: «пасть интересней, реальной, живой»): челюсти щёлкают, дёсны, клыки, змеиный язык, глаза с вертикальным зрачком моргают
+  if (sk.eyes === 'ninja') { // Ниндзя (владелец 13.10): красная повязка через лоб, концы ленты развеваются сзади; узкие злые глаза
+    const T = performance.now(), ph = (hx * 0.011 + hy * 0.013) % 10;
+    g.save(); g.translate(hx, hy); g.rotate(a);
+    // концы ленты — назад и вбок, волной
+    for (const sg of [-1, 1]) {
+      g.fillStyle = sg < 0 ? '#b0141c' : '#d21f2a';
+      g.beginPath();
+      const bx = -r * 0.55, by = sg * r * 0.25; g.moveTo(bx, by);
+      const pts = []; for (let k = 1; k <= 6; k++) { const f = k / 6, x = bx - f * r * (sg < 0 ? 2.1 : 1.7), y = by + sg * f * r * 0.55 + Math.sin(T / 120 - f * 4 + ph + sg) * r * 0.22 * f; pts.push([x, y]); g.lineTo(x, y - r * 0.12 * (1 - f * 0.6)); }
+      for (let k = pts.length - 1; k >= 0; k--) { const f = (k + 1) / 6; g.lineTo(pts[k][0], pts[k][1] + r * 0.12 * (1 - f * 0.6)); }
+      g.closePath(); g.fill();
+    }
+    // повязка поперёк головы (через лоб) + узел
+    const bg = g.createLinearGradient(0, -r, 0, r); bg.addColorStop(0, '#8e0f16'); bg.addColorStop(0.5, '#e02a34'); bg.addColorStop(1, '#8e0f16');
+    g.fillStyle = bg; g.beginPath(); g.ellipse(-r * 0.12, 0, r * 0.24, r * 1.02, 0, 0, TAU); g.fill();
+    g.fillStyle = '#7a0d13'; g.beginPath(); g.ellipse(-r * 0.55, 0, r * 0.2, r * 0.26, 0, 0, TAU); g.fill(); // узел на затылке
+    g.restore();
+    // узкие глаза-щёлки
+    for (const sgn of [-1, 1]) {
+      const ex = hx + ca * r * 0.32 + px * sgn * r * 0.42, ey = hy + sa * r * 0.32 + py * sgn * r * 0.42;
+      g.save(); g.translate(ex, ey); g.rotate(a);
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(0, 0, r * 0.3, r * 0.15, sgn * 0.35, 0, TAU); g.fill();
+      const lk = look - a; g.fillStyle = '#111'; g.beginPath(); g.arc(Math.cos(lk) * r * 0.1, Math.sin(lk) * r * 0.05, r * 0.1, 0, TAU); g.fill();
+      g.strokeStyle = '#000'; g.lineWidth = Math.max(1, r * 0.09); g.lineCap = 'round'; // злая бровь
+      g.beginPath(); g.moveTo(-r * 0.32, -sgn * r * 0.2); g.lineTo(r * 0.3, -sgn * r * 0.02); g.stroke();
+      g.restore();
+    }
+  } else if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10: «пасть интересней, реальной, живой»): челюсти щёлкают, дёсны, клыки, змеиный язык, глаза с вертикальным зрачком моргают
     const T = performance.now(), ph = (hx * 0.013 + hy * 0.017) % 10; // у каждого Зубастика свой ритм
     const chomp = Math.pow(0.5 + 0.5 * Math.sin(T / 210 + ph), 1.6);   // резко захлопывает, медленнее открывает
     const open = 0.16 + 0.44 * chomp, L = r * 1.14, hgx = -r * 0.12;  // полуугол раскрытия, длина челюсти, шарнир
@@ -487,7 +514,7 @@ const TEAM_PLATE = [['#f4f5f7', '#1a1d24', 'rgba(30,40,60,0.45)'], ['#1c1c1e', '
 const orbs = new Map(); // светящиеся шары командного режима: id -> {x, y, px, py, t}
 const rocketsFly = new Map(), booms = []; let bazooka = new Map(), myRockets = 0;
 let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id → сколько бомб едет рядом;
-let knifeIds = new Set(), myKnife = false; const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
+let knifeIds = new Set(), myKnife = false, smokeIds = new Set(), mySmoke = false; const smokeClouds = []; /* Ниндзя (владелец 13.10): у кого висит шашка; облака дыма */ const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
 let BASES = null, BASE_R = 300, teamFlags = [], hotIds = new Set(), teamAlarms = [], finalMinute = false, lastBeat = -1;
@@ -539,8 +566,8 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      bombIds = new Map(m.b || []); knifeIds = new Set(m.kn || []);
-      { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive && knifeIds.has(myId); if (n !== myRockets || mb !== myBomb || mk !== myKnife) { myRockets = n; myBomb = mb; myKnife = mk; renderFireBtn(); } } teamAlarms = m.a || []; break; }
+      bombIds = new Map(m.b || []); knifeIds = new Set(m.kn || []); smokeIds = new Set(m.sm || []);
+      { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive && knifeIds.has(myId), ms = alive && smokeIds.has(myId); if (n !== myRockets || mb !== myBomb || mk !== myKnife || ms !== mySmoke) { myRockets = n; myBomb = mb; myKnife = mk; mySmoke = ms; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'knife': knivesFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); knifeIds.delete(m.o); if (m.o === myId) { myKnife = false; renderFireBtn(); } Sound.knifeThrow(nearVol(m.x, m.y)); break;
     case 'knifeHit': { const now = performance.now(); for (let i = 0; i < 18; i++) { const an = Math.random() * TAU, sp = 0.15 + Math.random() * 0.45; knifeSparks.push({ x: m.x, y: m.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, t0: now }); } Sound.knifeHit(nearVol(m.x, m.y)); if (m.o === myId) shakeUntil = now + 250; break; }
     case 'knifeEnd': knivesFly.delete(m.id); break;
@@ -554,12 +581,13 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
+    case 'smoke': smokeClouds.push({ x: m.x, y: m.y, r: m.r, ms: m.ms, t0: performance.now(), seed: Math.random() * 6 }); smokeIds.delete(m.o); if (m.o === myId) { mySmoke = false; renderFireBtn(); } Sound.portal(nearVol(m.x, m.y)); break; // Ниндзя бросил шашку
     case 'baseFire': baseFireUntil[m.team] = performance.now() + 25000; break;
     case 'orbEat': toast('✨ Поймали светящийся шар! +' + m.v); Sound.kill(); break;
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; myBomb = 0; myKnife = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = 0; myKnife = false; mySmoke = false; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -750,7 +778,7 @@ const boostOn = id => { boostId = id; btnBoost = true; bb.classList.add('on'); }
 const bbOff = () => { boostId = null; btnBoost = false; bb.classList.remove('on'); };
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' && alive && !document.fullscreenElement) goFullscreen();
-  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb || myKnife)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
+  if (e.pointerType === 'mouse') { setAngleFrom(e.clientX, e.clientY); if (e.button === 2 && (myRockets > 0 || myBomb || myKnife || mySmoke)) { fire(); return; } if (e.button === 0 || e.button === 2) mouseBoost = true; return; } // правая кнопка: есть ракеты — выстрел
   if (ctrlMode === 'joy') {
     if (!joy) { joy = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; showJoy(e.clientX, e.clientY); } // первый палец — джойстик под ним
     else if (boostId === null) boostOn(e.pointerId); // второй палец — ускорение
@@ -1423,6 +1451,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && !lod && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r);
+    if (!fade && neck && smokeIds.has(sn.id)) drawSmokeGrenade(neck, r); // Ниндзя: дымовая шашка на пузе
     if (!fade && bombIds.has(sn.id)) { drawCarriedBomb(hx, hy, a, r, time, 1); if (bombIds.get(sn.id) > 1) drawCarriedBomb(hx, hy, a, r, time + 400, -1); } // вторая бомба — с другого бока
     if (meta && !fade && !lod && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
@@ -1602,6 +1631,7 @@ function frame(time) {
   if (bombsFly.size) drawFlyingBombs(time);
   if (knivesFly.size || knifeSparks.length) drawFlyingKnives(time);
   if (rocketsFly.size || booms.length || smoke.length) drawRockets(time);
+  if (smokeClouds.length) drawSmokeClouds(); // дым Ниндзя — поверх всего на поле
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (evNow && evNow[0] === 'night') drawNight(me);
@@ -1914,6 +1944,47 @@ function knifeSprite(r) {
 }
 // Владелец 11.10: кинжал не болтается — висит на ремне. Ремень опоясывает шею змеи (кожа, строчка, золотая пряжка),
 // справа на ремне ножны вдоль тела, из них вперёд торчит рукоять. Метнул — на ремне остаются пустые ножны.
+// ===== Ниндзя (владелец 13.10) =====
+// Дымовая шашка на пузе: серый цилиндр с красной полосой и кольцом чеки, висит сбоку на шее
+function drawSmokeGrenade(neck, r) {
+  const [nx, ny, na] = neck;
+  ctx.save(); ctx.translate(nx, ny); ctx.rotate(na);
+  const w = r * 0.62, h = r * 1.0, y0 = r * 0.55; // сбоку, у «пуза»
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(r * 0.08, y0 + h * 0.5 + r * 0.08, w * 0.6, h * 0.55, 0, 0, TAU); ctx.fill();
+  const gr = ctx.createLinearGradient(-w / 2, 0, w / 2, 0); gr.addColorStop(0, '#5b616b'); gr.addColorStop(0.45, '#b8bec8'); gr.addColorStop(1, '#4a4f58');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.roundRect(-w / 2, y0, w, h, w * 0.25); ctx.fill();
+  ctx.fillStyle = '#c0282d'; ctx.fillRect(-w / 2, y0 + h * 0.38, w, h * 0.16);                // красная полоса
+  ctx.fillStyle = '#2a2d33'; ctx.fillRect(-w * 0.32, y0 - h * 0.12, w * 0.64, h * 0.16);     // крышка
+  ctx.strokeStyle = '#d6dbe2'; ctx.lineWidth = Math.max(1, r * 0.07);                        // кольцо чеки
+  ctx.beginPath(); ctx.arc(w * 0.45, y0 - h * 0.12, r * 0.16, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+// Облако дыма: плотные клубы из готовой картинки — закрывают всё, что под ними; расползается 0,35 с, тает 0,9 с
+let puffSpr = null;
+function puffSprite() {
+  if (puffSpr) return puffSpr;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(56, 54, 6, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(214,218,224,1)'); gr.addColorStop(0.5, 'rgba(160,166,174,0.97)'); gr.addColorStop(0.8, 'rgba(120,126,134,0.6)'); gr.addColorStop(1, 'rgba(110,116,124,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return (puffSpr = c);
+}
+function drawSmokeClouds() {
+  const now = performance.now(), spr = puffSprite();
+  for (let i = smokeClouds.length; i--;) {
+    const c = smokeClouds[i], dt = now - c.t0;
+    if (dt > c.ms + 900) { smokeClouds.splice(i, 1); continue; }
+    const grow = Math.min(1, dt / 350), fade = dt > c.ms ? Math.max(0, 1 - (dt - c.ms) / 900) : 1;
+    ctx.globalAlpha = fade;
+    for (let k = 0; k < 22; k++) {
+      const ring = k < 6 ? 0.22 : k < 14 ? 0.55 : 0.85, ang = k * 2.39996 + c.seed + dt / (k % 2 ? 5200 : -6100);
+      const rr = c.r * ring * (0.4 + 0.6 * grow), wob = Math.sin(dt / 700 + k * 1.7) * c.r * 0.05;
+      const x = c.x + Math.cos(ang) * (rr + wob), y = c.y + Math.sin(ang) * (rr + wob), sz = c.r * (k < 6 ? 1.15 : k < 14 ? 0.95 : 0.75) * (0.5 + 0.5 * grow);
+      ctx.drawImage(spr, x - sz / 2, y - sz / 2, sz, sz);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
 function drawKillerBelt(neck, r, hasKnife) {
   const [nx, ny, na] = neck, c = Math.cos(na), s = Math.sin(na), px = -s, py = c;
   ctx.save(); ctx.translate(nx, ny); ctx.rotate(na); // x — вперёд по ходу, y — поперёк (вправо)
@@ -2207,8 +2278,8 @@ function drawRockets(time) {
 let shakeUntil = 0;
 const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
-function fire() { if ((myRockets > 0 || myBomb || myKnife) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb || myKnife) && alive)); /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡'; }
+function fire() { if ((myRockets > 0 || myBomb || myKnife || mySmoke) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
+function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myRockets > 0 || myBomb || myKnife || mySmoke) && alive)); if (alive && mySmoke && !(myRockets > 0 || myBomb || myKnife)) { b.innerHTML = '💨'; return; } /* Ниндзя — дымовая шашка */ /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡'; }
 {
   const b = $('fireBtn');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
