@@ -2867,7 +2867,8 @@ function loadNsfw() {
 // выгружаем, когда начинается игра, чтобы не занимать память телефона (владелец 11.10: «фото чтобы сразу быстро»)
 let nsfwModelP = null;
 function warmNsfw() { if (!nsfwModelP) nsfwModelP = loadNsfw().then(() => window.nsfwjs.load('MobileNetV2')).catch(e => { nsfwModelP = null; throw e; }); return nsfwModelP; }
-function dropNsfw() { const p = nsfwModelP; nsfwModelP = null; if (p) p.then(m => { try { m.model.dispose(); } catch (e) {} }).catch(() => {}); }
+function dropNsfw() { for (const k in photoWorkers) { try { photoWorkers[k].terminate(); } catch (e) {} delete photoWorkers[k]; } const p = nsfwModelP; nsfwModelP = null; // фоновые проверки фото закрываем — освобождаем память
+  if (p) p.then(m => { try { m.model.dispose(); } catch (e) {} }).catch(() => {}); }
 // «На фото есть лицо» (владелец 11.10: «всякий мусор не пропускай» — значки, машины, картинки). Лёгкая нейросеть (1,5 МБ),
 // грузится только при открытии окошка фото. Смотрит исходное фото целиком, до обрезки.
 let faceP = null;
@@ -2876,7 +2877,7 @@ function loadFace() {
     .then(() => faceapi.nets.tinyFaceDetector.loadFromUri('vendor/face')).catch(e => { faceP = null; throw e; });
   return faceP;
 }
-async function photoHasFace(file) {
+async function photoHasFaceMain(file) {
   await loadFace();
   const img = await createImageBitmap(file).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(file); }));
   // Владелец 12.10 («смягчи — фото, где сижу боком, не проходит»): ищем лицо мягче — 3 масштаба, обычное и зеркальное фото,
@@ -2893,7 +2894,7 @@ async function photoHasFace(file) {
   }
   return false;
 }
-async function photoIsClean(blob) {
+async function photoIsCleanMain(blob) {
   const model = await warmNsfw();
   {
     const img = await createImageBitmap(blob).catch(() => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(blob); }));
@@ -2902,18 +2903,40 @@ async function photoIsClean(blob) {
     return !Object.keys(NSFW_REJECT).some(k => (p[k] || 0) >= NSFW_REJECT[k]);
   }
 }
+// Владелец 14.10 («загружаю фото — всё повисло»): обе проверки — в фоновых потоках (photocheck-worker.js), игра и экран не замирают.
+// Нет фоновых потоков с рисованием (старые браузеры) или поток сломался — прежняя проверка (photo…Main).
+const PHOTO_WORKER = typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && !!window.createImageBitmap;
+const photoWorkers = {}, photoWait = new Map(); let photoSeq = 0;
+function photoWorker(kind) {
+  if (photoWorkers[kind]) return photoWorkers[kind];
+  const w = new Worker('photocheck-worker.js?kind=' + kind);
+  w.onmessage = e => { const cb = photoWait.get(e.data.id); if (!cb) return; photoWait.delete(e.data.id); if (e.data.err) cb[1](new Error(e.data.err)); else cb[0](e.data.ok); };
+  w.onerror = () => { for (const [id, cb] of photoWait) { photoWait.delete(id); cb[1](new Error('worker')); } try { w.terminate(); } catch (e) {} delete photoWorkers[kind]; };
+  return (photoWorkers[kind] = w);
+}
+function photoWarm() { if (PHOTO_WORKER) for (const k of ['face', 'nsfw']) try { photoWorker(k).postMessage({ warm: true }); } catch (e) {} }
+async function askPhotoWorker(kind, file) {
+  const bmp = await createImageBitmap(file);
+  return new Promise((ok, no) => {
+    const id = ++photoSeq; photoWait.set(id, [ok, no]);
+    photoWorker(kind).postMessage({ id, bmp }, [bmp]);
+    setTimeout(() => { if (photoWait.has(id)) { photoWait.delete(id); no(new Error('timeout')); } }, 90000);
+  });
+}
+async function photoHasFace(file) { if (PHOTO_WORKER) try { return await askPhotoWorker('face', file); } catch (e) {} return photoHasFaceMain(file); }
+async function photoIsClean(blob) { if (PHOTO_WORKER) try { return await askPhotoWorker('nsfw', blob); } catch (e) {} return photoIsCleanMain(blob); }
 // ===== Окошко фото (владелец 11.10: системная галерея открывалась на пол-экрана — «нельзя ли компактно и удобно») =====
 // «Сделать селфи» — камера прямо в игре небольшим квадратом; «Из галереи» — системный выбор, как раньше.
 let camStream = null;
 function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
 function wpPanelClose() { camStop(); $('wpPanel').classList.add('hide'); }
 function wpPanelOpen() {
-  warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку, пока он выбирает снимок
+  if (PHOTO_WORKER) photoWarm(); else warmNsfw().catch(() => {}); // человек сам решил загрузить фото — готовим проверку (в фоне), пока он выбирает снимок
   $('wppPick').classList.remove('hide'); $('wppCam').classList.add('hide'); $('wppErr').textContent = '';
   // владелец 11.10: снова фото из галереи (главное) или селфи; мусор отсекает проверка «на фото есть лицо» (photoHasFace)
   // владелец 12.10: селфи убрано — только фото из галереи
   $('wpPanel').classList.remove('hide');
-  loadFace().catch(() => {});
+  if (!PHOTO_WORKER) loadFace().catch(() => {});
 }
 async function camStart() {
   $('wppPick').classList.add('hide'); $('wppCam').classList.remove('hide');
