@@ -2755,7 +2755,7 @@ window.addEventListener('appinstalled', reportInstall);
     g._next = () => { k = ++g._k; show(); }; g._prev = () => { if (g._k) { k = --g._k; show(); } };
     show(); g.classList.remove('hide');
   }
-  const toChrome = () => { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/?install=1') + ';end'; };
+  const toChrome = () => { location.href = 'intent://' + location.host + '/?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/?install=1&noc=1') + ';end'; };
   $('iosGuide').addEventListener('click', e => { if (e.target.closest('#igChrome')) toChrome(); });
   // Пришли в Chrome кнопкой «Открыть в Chrome» (владелец 13.10): сразу вопрос «Хотите установить игру на телефон?»
   if (/[?&]install=1/.test(location.search) && !inApp && !isIOS) {
