@@ -60,11 +60,13 @@ const SPR = 64, SR = 26;            // в спрайте 64×64 шар ради�
 const sprites = new Map();
 // Владелец 11.10 («игра подвисает»): на телефоне яркость раньше давал CSS-фильтр на весь экран (#game) — телефон
 // перекрашивал каждый кадр целиком ещё раз. Теперь яркость «запекается» один раз в каждую заготовку (шарики, еда, фон).
-const BRIGHT = isTouch && 'filter' in CanvasRenderingContext2D.prototype ? 'brightness(1.15) saturate(1.05)' : '';
+const BRIGHT = isTouch; // яркость +15% на телефоне (раньше — ctx.filter 'brightness(1.15)', он медленный)
 function brighten(c) {
   if (!BRIGHT) return c;
   const t = document.createElement('canvas'); t.width = c.width; t.height = c.height;
-  const g = t.getContext('2d'); g.filter = BRIGHT; g.drawImage(c, 0, 0); return t;
+  // Аудит 13.10 («игра виснет»): ctx.filter считался на главном потоке — до 400 мс на одно фото-постер на телефоне.
+  // Та же яркость ×1,15 без фильтра: рисуем фото и поверх него — его же в режиме «сложения» с прозрачностью 0,15 (видеочип, доли мс)
+  const g = t.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.15; g.drawImage(c, 0, 0); return t;
 }
 function sprite(key, paint) {
   let s = sprites.get(key);
