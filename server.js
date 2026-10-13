@@ -402,7 +402,7 @@ function collisions() {
   const done = new Set(); // после подрезки одна змея может попасть в список дважды — Доктор не должен «спастись» и тут же погибнуть
   for (let i = 0; i < dead.length; i += 2) {
     const v = dead[i]; if (done.has(v)) continue; done.add(v);
-    if (!spare.has(v) && !docSave(v)) killSnake(v, dead[i + 1]);
+    if (!spare.has(v) && !docSave(v) && !lizardSave(v, dead[i + 1])) killSnake(v, dead[i + 1]);
   }
 }
 
@@ -418,6 +418,22 @@ function docSave(s) {
   else { s.a += Math.PI; if (s.a > Math.PI) s.a -= TAU; s.ta = s.a; } // врезался в змею — разворот назад, прочь от неё
   for (const c of clients) sendJSON(c, { t: 'docSave', id: s.id, ms: 1000 });
   if (s.client) sendJSON(s.client, { t: 'tmsgMe', text: '🩺 Доктор спас вас — отскок! Второго раза не будет' });
+  return true;
+}
+// Владелец 13.10: Зубастик — «хвост ящерицы». Один раз за жизнь, врезавшись в чужую змею (не в стену), не погибает:
+// отбрасывает половину хвоста (он рассыпается едой), разворачивается и 0,7 с неуязвим, чтобы уползти
+const LIZ_GHOST = Math.round(0.7 * TICK_RATE);
+function lizardSave(s, killer) {
+  if (TEAM || !killer || s.lizUsed || s.skin.id !== TEETH_ID || !s.alive || s.tun) return false;
+  s.lizUsed = true; s.ghostUntil = tick + LIZ_GHOST;
+  const xs = s.xs, ys = s.ys, n = xs.length, keep = Math.max(8, Math.ceil(n / 2)), drop = s.mass * 0.5;
+  s.mass -= drop;
+  const m = n - keep, cnt = clamp(Math.round(m / 3), 3, 200), v = drop * 0.8 / cnt; // хвост — едой (чуть меньше, чем потерял)
+  for (let j = 0; j < cnt; j++) { const i = Math.min(n - 1, keep + Math.floor(j * m / cnt)); addFood(xs[i] + rand(-4, 4), ys[i] + rand(-4, 4), v, s.dropColor(j), true); }
+  xs.length = keep; ys.length = keep; s.r = radiusForPoints(keep); s.bbox();
+  s.a += Math.PI; if (s.a > Math.PI) s.a -= TAU; s.ta = s.a; // прочь от того, во что врезался
+  for (const c of clients) sendJSON(c, { t: 'docSave', id: s.id, ms: 700 }); // мерцание «призрака», как у Доктора
+  if (s.client) sendJSON(s.client, { t: 'tmsgMe', text: '🦎 Хвост ящерицы! Вы отбросили хвост и спаслись. Второго раза не будет' });
   return true;
 }
 function killSnake(s, killer) {
@@ -817,6 +833,7 @@ function handleJSON(c, m) {
     snakes.set(s.id, s);
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
+    if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {

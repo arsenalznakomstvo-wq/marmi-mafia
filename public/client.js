@@ -212,23 +212,70 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
     g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(ox - er * 0.18, oy - er * 0.18, er * 0.16, 0, TAU); g.fill();
   };
   if (sk.bag && neck) drawShoulderBag(g, hx, hy, a, r, neck);
-  if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10): пасть с клыками впереди, злые глаза с бровями
+  if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10: «пасть интересней, реальной, живой»): челюсти щёлкают, дёсны, клыки, змеиный язык, глаза с вертикальным зрачком моргают
+    const T = performance.now(), ph = (hx * 0.013 + hy * 0.017) % 10; // у каждого Зубастика свой ритм
+    const chomp = Math.pow(0.5 + 0.5 * Math.sin(T / 210 + ph), 1.6);   // резко захлопывает, медленнее открывает
+    const open = 0.16 + 0.44 * chomp, L = r * 1.14, hgx = -r * 0.12;  // полуугол раскрытия, длина челюсти, шарнир
+    const base = sk.cols[0] || '#8b1e2d', dark = shade(base, -45), lip = shade(base, -25);
     g.save(); g.translate(hx, hy); g.rotate(a);
-    const mx = r * 0.5, rx = r * 0.46, ry = r * 0.7;
-    g.fillStyle = '#2a0508'; g.beginPath(); g.ellipse(mx, 0, rx, ry, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill(); // пасть
-    g.fillStyle = '#c23a4a'; g.beginPath(); g.ellipse(mx + rx * 0.15, 0, rx * 0.45, ry * 0.4, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill(); // язык
-    g.fillStyle = '#fffaf0'; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = Math.max(0.6, r * 0.03);
-    for (const sgn of [-1, 1]) for (let k = 0; k < 3; k++) { // по три зуба сверху и снизу, передние — клыки
-      const t = (k + 0.5) / 3, ang = -Math.PI / 2 + t * Math.PI / 2, ex = mx + Math.cos(ang) * rx, ey = sgn * Math.abs(Math.sin(ang)) * ry;
-      const big = k === 2, w = r * (big ? 0.17 : 0.12), len = r * (big ? 0.42 : 0.28);
-      g.beginPath(); g.moveTo(ex - w, ey); g.lineTo(ex + w, ey); g.lineTo(ex + w * 0.2, ey - sgn * len); g.closePath(); g.fill(); g.stroke();
+    const ux = Math.cos(-open), uy = Math.sin(-open), lx = Math.cos(open), ly = Math.sin(open);
+    // пасть: от шарнира по верхней челюсти, дугой к нижней
+    const mouth = () => { g.beginPath(); g.moveTo(hgx, 0); g.lineTo(hgx + ux * L, uy * L); g.quadraticCurveTo(hgx + L * 1.12, 0, hgx + lx * L, ly * L); g.closePath(); };
+    const mg = g.createRadialGradient(hgx + L * 0.2, 0, r * 0.05, hgx + L * 0.5, 0, L);
+    mg.addColorStop(0, '#0d0002'); mg.addColorStop(0.55, '#3a0610'); mg.addColorStop(1, '#7a1424');
+    mouth(); g.fillStyle = mg; g.fill();
+    // язык: раз в ~2,6 с высовывается раздвоенный, дрожит
+    const tp = ((T + ph * 260) % 2600) / 2600;
+    if (tp < 0.28) {
+      const out = Math.sin(tp / 0.28 * Math.PI), tx = hgx + r * 0.2 + out * r * 1.25, wob = Math.sin(T / 35) * r * 0.06;
+      g.strokeStyle = '#d42a55'; g.lineCap = 'round'; g.lineWidth = Math.max(1, r * 0.09);
+      g.beginPath(); g.moveTo(hgx + r * 0.15, 0); g.quadraticCurveTo((hgx + tx) / 2, wob, tx, wob * 0.5); g.stroke();
+      g.lineWidth = Math.max(0.8, r * 0.06);
+      for (const sg of [-1, 1]) { g.beginPath(); g.moveTo(tx, wob * 0.5); g.lineTo(tx + r * 0.2, wob * 0.5 + sg * r * 0.12); g.stroke(); }
     }
+    // дёсны вдоль обеих челюстей
+    g.strokeStyle = '#c8475e'; g.lineWidth = Math.max(1, r * 0.1); g.lineCap = 'round';
+    for (const [dx, dy] of [[ux, uy], [lx, ly]]) { g.beginPath(); g.moveTo(hgx + dx * L * 0.18, dy * L * 0.18); g.lineTo(hgx + dx * L * 0.96, dy * L * 0.96); g.stroke(); }
+    // зубы: растут вдоль челюсти к пасти; впереди — длинные изогнутые клыки
+    const tooth = (bx, by, nx, ny, len, w, curve) => {
+      const tx = bx + nx * len, ty = by + ny * len;
+      const tg = g.createLinearGradient(bx, by, tx, ty); tg.addColorStop(0, '#e9dcc0'); tg.addColorStop(0.6, '#fffaf0'); tg.addColorStop(1, '#ffffff');
+      g.fillStyle = tg; g.beginPath();
+      g.moveTo(bx - ny * w, by + nx * w);
+      g.quadraticCurveTo(bx + nx * len * 0.6 - ny * w * 0.4 + curve, by + ny * len * 0.6 + nx * w * 0.4, tx + curve * 0.6, ty);
+      g.quadraticCurveTo(bx + nx * len * 0.5 + ny * w * 0.5, by + ny * len * 0.5 - nx * w * 0.5, bx + ny * w, by - nx * w);
+      g.closePath(); g.fill(); g.strokeStyle = 'rgba(60,20,10,0.35)'; g.lineWidth = Math.max(0.5, r * 0.025); g.stroke();
+    };
+    for (const sg of [-1, 1]) {
+      const dx = sg < 0 ? ux : lx, dy = sg < 0 ? uy : ly, nx = -dy * -sg, ny = dx * -sg; // нормаль от челюсти внутрь пасти
+      for (let k = 0; k < 4; k++) {
+        const f = 0.3 + k * 0.17, bx = hgx + dx * L * f, by = dy * L * f, fang = k === 3;
+        tooth(bx, by, nx, ny, r * (fang ? 0.42 : 0.16 + k * 0.04), r * (fang ? 0.11 : 0.06), fang ? r * 0.08 : 0);
+      }
+    }
+    // губы-края челюстей (цвет головы, темнее) — пасть «врезана» в голову
+    g.strokeStyle = lip; g.lineWidth = Math.max(1, r * 0.08);
+    for (const [dx, dy] of [[ux, uy], [lx, ly]]) { g.beginPath(); g.moveTo(hgx + dx * L * 0.1, dy * L * 0.1); g.lineTo(hgx + dx * L, dy * L); g.stroke(); }
+    // ноздри
+    g.fillStyle = dark;
+    for (const sg of [-1, 1]) { g.beginPath(); g.ellipse(hgx + L * 0.86, sg * (Math.sin(open) * L * 0.86 + r * 0.14), r * 0.06, r * 0.035, 0, 0, TAU); g.fill(); }
     g.restore();
+    // глаза рептилии: жёлтые, вертикальный зрачок, надбровная складка; моргают
+    const blink = ((T + ph * 377) % 3700) < 130;
     for (const sgn of [-1, 1]) {
-      const ex = hx - ca * r * 0.12 + px * sgn * r * 0.5, ey = hy - sa * r * 0.12 + py * sgn * r * 0.5;
-      eye(ex, ey, r * 0.3, '#ff3b30');
-      g.strokeStyle = '#1a0306'; g.lineWidth = Math.max(1, r * 0.11); g.lineCap = 'round'; g.beginPath(); // злая бровь: к носу ниже
-      g.moveTo(ex - ca * r * 0.3 + px * sgn * r * 0.34, ey - sa * r * 0.3 + py * sgn * r * 0.34); g.lineTo(ex + ca * r * 0.32 + px * sgn * r * 0.12, ey + sa * r * 0.32 + py * sgn * r * 0.12); g.stroke();
+      const ex = hx - ca * r * 0.18 + px * sgn * r * 0.52, ey = hy - sa * r * 0.18 + py * sgn * r * 0.52, er = r * 0.28;
+      g.save(); g.translate(ex, ey); g.rotate(a);
+      if (blink) { g.fillStyle = dark; g.beginPath(); g.ellipse(0, 0, er, er * 0.85, 0, 0, TAU); g.fill(); g.strokeStyle = '#1a0306'; g.lineWidth = Math.max(1, r * 0.05); g.beginPath(); g.moveTo(-er, 0); g.lineTo(er, 0); g.stroke(); g.restore(); continue; }
+      const ig = g.createRadialGradient(-er * 0.25, -er * 0.25, er * 0.1, 0, 0, er);
+      ig.addColorStop(0, '#fff3a0'); ig.addColorStop(0.6, '#f2b705'); ig.addColorStop(1, '#a86a00');
+      g.fillStyle = ig; g.beginPath(); g.ellipse(0, 0, er, er * 0.85, 0, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = Math.max(1, r * 0.05); g.stroke();
+      const lk = look - a, ox = Math.cos(lk) * er * 0.25, oy = Math.sin(lk) * er * 0.25;
+      g.fillStyle = '#0a0a0a'; g.beginPath(); g.ellipse(ox, oy, er * 0.18, er * 0.72, 0, 0, TAU); g.fill(); // вертикальный зрачок (поперёк хода)
+      g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(-er * 0.35, -er * 0.3, er * 0.14, 0, TAU); g.fill();
+      g.strokeStyle = dark; g.lineWidth = Math.max(1.2, r * 0.12); g.lineCap = 'round'; // надбровная складка — злой вид
+      g.beginPath(); g.moveTo(-er * 1.0, sgn * er * 0.95); g.quadraticCurveTo(0, sgn * er * 1.25, er * 1.05, sgn * er * 0.55); g.stroke();
+      g.restore();
     }
   } else if (sk.eyes === 'lady') { // женское лицо (владелец 11.10): миндалевидные глаза с длинными ресницами, румянец, губки
     for (const sgn of [-1, 1]) {
