@@ -1456,7 +1456,8 @@ const server = http.createServer((req, res) => {
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
   // Владелец 13.10: ссылку открыли в Telegram / Instagram — сразу лёгкая страница «Открыть в Chrome» (без видео и меню, ничего лишнего не качается).
   // Остальные случаи (iPhone без явной метки в User-Agent) ловит скрипт в начале index.html.
-  if ((url === '/' || url === '/index.html') && (/Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)/i.test(req.headers['user-agent'] || '') || /^android-app:\/\/(org\.telegram|org\.thunderdog|com\.instagram|com\.facebook|com\.whatsapp)/.test(req.headers.referer || ''))) { // referer — «встроенный Chrome» Telegram (Custom Tabs)
+  const UA_ = req.headers['user-agent'] || '', otherAndroid = /Android/i.test(UA_) && !(/Chrome\/\d/.test(UA_) && !/YaBrowser|SamsungBrowser|MiuiBrowser|OPR\/|Opera|Edg|HeyTap|UCBrowser|HuaweiBrowser|VivoBrowser|OppoBrowser|Firefox/i.test(UA_)); // владелец 13.10: Android, но не Chrome — тоже сразу «Открыть в Chrome»
+  if ((url === '/' || url === '/index.html') && (otherAndroid || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)/i.test(UA_) || /^android-app:\/\/(org\.telegram|org\.thunderdog|com\.instagram|com\.facebook|com\.whatsapp)/.test(req.headers.referer || ''))) { // referer — «встроенный Chrome» Telegram (Custom Tabs)
     const qs = (req.url.split('?')[1] || '');
     if (!/(^|&)(here|app)=1/.test(qs)) { res.writeHead(302, { Location: '/gate.html' + (qs ? '?' + qs : ''), 'Cache-Control': 'no-store' }); res.end(); return; }
   }

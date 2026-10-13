@@ -3,31 +3,36 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0d1116">
+<meta name="theme-color" content="#0f1115">
 <title>Марми Мафия</title>
-<!-- Владелец 13.10: ссылку открыли в Telegram / Instagram — без видео и меню, сразу «Открыть в Chrome» (на iPhone — в Safari).
-     Страница сама пробует открыть браузер; если телефон не разрешил — остаётся одна большая кнопка. -->
+<!-- Владелец 13.10: ссылку открыли не в Chrome (Telegram, Instagram, Яндекс и др. браузеры) — без видео и меню, сразу этот экран
+     (точно как экран «Открыть в Chrome» в игре). Во встроенных браузерах Telegram/Instagram страница сама пробует открыть Chrome. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&display=swap" rel="stylesheet">
 <style>
-  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 40%, #1d2530 0%, #0b0e13 75%); color: #e8ecf1; font-family: Arial, sans-serif; }
+  html, body { margin: 0; height: 100%; color: #e8ecf1; font-family: Arial, sans-serif;
+    background: radial-gradient(ellipse at 50% 0%, #1f2a1f 0%, transparent 60%), radial-gradient(ellipse at 50% 100%, #24183a 0%, transparent 55%), #0f1115; }
   body { display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
-  .card { width: min(360px, 100%); text-align: center; }
-  img { width: 120px; height: 120px; border-radius: 28px; display: block; margin: 0 auto 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,213,46,0.5); }
-  .t { font: 700 30px/1.1 Arial, sans-serif; margin-bottom: 6px; }
-  .t .a { color: #4fe07a; } .t .b { color: #9a6bff; }
-  .s { color: #9aa3b2; font-size: 14px; margin-bottom: 24px; }
-  #go { display: block; width: 100%; border: 0; border-radius: 30px; padding: 17px; font: 700 19px Arial, sans-serif; color: #fff; background: linear-gradient(180deg, #4fd27a, #22a352); box-shadow: 0 8px 22px rgba(34,163,82,0.45); cursor: pointer; }
-  #hint { color: #9aa3b2; font-size: 13px; margin-top: 12px; line-height: 1.4; }
-  #here { display: none; margin: 14px auto 0; background: transparent; border: 1px solid rgba(255,255,255,0.22); color: #e8ecf1; border-radius: 22px; padding: 9px 22px; font: 700 14px Arial, sans-serif; }
-  @media (max-height: 460px) { img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 8px; } .t { font-size: 24px; } .s { margin-bottom: 14px; } #go { padding: 13px; } }
+  .lcard { width: min(360px, 100%); text-align: center; background: rgba(22, 26, 34, 0.86); border: 1px solid rgba(255, 213, 46, 0.25); border-radius: 22px; padding: 24px 20px 20px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55); }
+  .licon { width: 104px; height: 104px; border-radius: 24px; display: block; margin: 0 auto 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 213, 46, 0.5); }
+  .ltitle { font: 700 28px/1.1 Comfortaa, Arial, sans-serif; }
+  .ltitle .a { background: linear-gradient(180deg, #8dffaa, #1fa65a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .ltitle .b { background: linear-gradient(180deg, #b78cff, #5a28c8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lsub { color: #9aa3b2; font-size: 14px; margin: 6px 0 20px; }
+  #go { display: block; width: 100%; border: 0; border-radius: 28px; padding: 15px; font: 700 18px Arial, sans-serif; color: #fff; cursor: pointer;
+    background: linear-gradient(180deg, #5fd17a, #2f9a4f); box-shadow: 0 6px 18px rgba(47, 154, 79, 0.45); }
+  #hint { color: #9aa3b2; font-size: 12px; margin: 10px 0 4px; line-height: 1.4; }
+  #here { display: none; margin: 10px auto 0; background: transparent; border: 1px solid rgba(255, 255, 255, 0.22); color: #e8ecf1; border-radius: 22px; padding: 9px 22px; font: 700 14px Arial, sans-serif; cursor: pointer; }
+  @media (max-height: 500px) { .licon { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 8px; } .ltitle { font-size: 22px; } .lsub { margin: 4px 0 12px; } #go { padding: 11px; font-size: 16px; } }
 </style>
 </head>
 <body>
-<div class="card">
-  <img src="icon-512.png?v=2" alt="">
-  <div class="t"><span class="a">марми</span> <span class="b">мафия</span></div>
-  <div class="s">Змейка с друзьями и голосовым чатом</div>
+<div class="lcard">
+  <img class="licon" src="icon-512.png?v=2" alt="">
+  <div class="ltitle"><span class="a">марми</span> <span class="b">мафия</span></div>
+  <div class="lsub">Змейка с друзьями и голосовым чатом</div>
   <button id="go">🌐 Открыть в Chrome</button>
-  <div id="hint">В Chrome работает голосовой чат и можно установить игру на телефон</div>
+  <div id="hint">В Chrome игру можно установить на телефон одним нажатием</div>
   <button id="here">Играть здесь</button>
 </div>
 <script>
@@ -39,7 +44,7 @@
   here.onclick = function () { location.replace('/' + (q ? q + '&' : '?') + 'here=1'); };
   if (ios) {
     go.textContent = '🧭 Открыть в Safari';
-    hint.textContent = 'В Safari работает голосовой чат и можно установить игру на телефон';
+    hint.textContent = 'В Safari игру можно установить на телефон';
   }
   function open(auto) {
     if (!ios) { // Android: сразу Chrome; нет Chrome — игра откроется здесь же

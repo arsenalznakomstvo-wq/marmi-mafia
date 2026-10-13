@@ -28,6 +28,7 @@
   var ua = navigator.userAgent, ios = /iPhone|iPad|iPod/i.test(ua), q = location.search;
   var inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua) || (ios && !/Safari\//.test(ua) && !navigator.standalone)
     || /^android-app:\/\/(org\.telegram|org\.thunderdog|com\.instagram|com\.facebook|com\.whatsapp)/.test(document.referrer); // владелец 13.10: Telegram открывает ссылку во «встроенном Chrome» (Custom Tabs) — видно только по referrer
+  if (/Android/i.test(ua) && !(/Chrome\/\d/.test(ua) && !/YaBrowser|SamsungBrowser|MiuiBrowser|OPR\/|Opera|Edg|HeyTap|UCBrowser|HuaweiBrowser|VivoBrowser|OppoBrowser|Firefox/i.test(ua))) inApp = true; // Android, но не Chrome
   var here = /[?&]here=1/.test(q);
   try { if (here) sessionStorage.setItem('mm_here', '1'); else if (sessionStorage.getItem('mm_here') === '1') here = true; } catch (e) {}
   if (inApp && !here && !/[?&]app=1/.test(q)) location.replace('/gate.html' + q);
