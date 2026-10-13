@@ -2827,6 +2827,7 @@ if (window.VoiceChat) VoiceChat.init();
   let seen = false; try { seen = sessionStorage.getItem('mm_here') === '1'; } catch (e) {}
   if (!inApp || seen) return;
   $('landing').classList.remove('hide');
+  if (!isIOS) { $('lHere').classList.add('hide'); $('lOpen').textContent = '🌐 Открыть в Chrome'; $('lHint').textContent = 'В Chrome работает голосовой чат и можно установить игру на телефон'; } // владелец 13.10: на Android только «Открыть в браузере», без «Играть здесь» (на iPhone Safari кнопкой не открыть — там остаётся)
   const url = location.origin + '/';
   $('lOpen').addEventListener('click', () => {
     if (!isIOS) { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end'; return; }
@@ -2926,9 +2927,9 @@ window.addEventListener('appinstalled', reportInstall);
       if (chrome) { tip('Телефон ещё не готов к установке — подождите пару секунд и нажмите кнопку ещё раз.<br>Или: <b>⋮</b> вверху справа → <b>«Установить приложение»</b>', 12000); return; }
       // другие браузеры (Яндекс, Xiaomi и др.). Владелец 13.10: «как было раньше — картинка змеи и „Открыть в Chrome“» — тот же экран, что при открытии ссылки в Telegram
       $('lOpen').textContent = '🌐 Открыть в Chrome'; $('lHint').textContent = 'В Chrome игру можно установить на телефон одним нажатием';
-      $('lHere').textContent = 'Играть здесь'; $('lHere').classList.remove('hide');
+      $('lHere').classList.add('hide'); // владелец 13.10: без «Играть здесь» — закрыть касанием мимо карточки
       $('lOpen').onclick = () => { location.href = 'intent://' + location.host + '/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + '/') + ';end'; };
-      $('lHere').onclick = () => $('landing').classList.add('hide');
+      $('landing').onclick = e => { if (!e.target.closest('.lcard')) $('landing').classList.add('hide'); };
       $('landing').classList.remove('hide');
     }
   });
