@@ -1783,14 +1783,19 @@ function lbSet(el, k, v) { if (el['_' + k] !== v) { el['_' + k] = v; if (k === '
 function renderLb() {
   if (!lb) return;
   const box = $('lb-rows');
-  if (!lbRows) { box.textContent = ''; lbRows = []; for (let i = 0; i < 11; i++) { const r = document.createElement('div'); r.innerHTML = '<span class="p"></span><span class="n"></span><span class="s"></span>'; box.appendChild(r); lbRows.push({ r, p: r.children[0], n: r.children[1], s: r.children[2] }); } }
-  const list = lb.top.map(([name, score, id, tm], i) => ({ p: '#' + (i + 1), n: name, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] }));
+  if (!lbRows) { box.textContent = ''; lbRows = []; for (let i = 0; i < 11; i++) { const r = document.createElement('div'); r.innerHTML = '<span class="p"></span><span class="n"><b class="nm"></b><i class="rl"></i></span><span class="s"></span>'; box.appendChild(r); const n = r.children[1]; lbRows.push({ r, p: r.children[0], n, nm: n.children[0], rl: n.children[1], s: r.children[2] }); } }
+  // Владелец 13.10: ник — золотистым, роль — рядом своим цветом (раньше всё одной строкой одного цвета)
+  const list = lb.top.map(([name, score, id, tm, nick, role], i) => {
+    const split = !TEAM_MODE && typeof nick === 'string' && name.startsWith(nick), R = ROLES[role || 0] || ROLES[0];
+    return { p: '#' + (i + 1), n: split ? nick : name, rl: split ? name.slice(nick.length).trim() : '', rc: R.color, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] };
+  });
   if (alive && lb.rank > 10) list.push({ p: '#' + lb.rank, n: myName(), s: String(lb.score), me: true, sep: true, c: '' });
   lbRows.forEach((R, i) => {
     const d = list[i];
     lbSet(R.r, 'cls', d ? 'row' + (d.me ? ' me' : '') + (d.sep ? ' sep' : '') : 'row hide');
     if (!d) return;
-    lbSet(R.r, 'c', d.c); lbSet(R.p, 't', d.p); lbSet(R.n, 't', d.n); lbSet(R.s, 't', d.s);
+    lbSet(R.r, 'c', d.c); lbSet(R.p, 't', d.p); lbSet(R.nm, 't', d.n); lbSet(R.rl, 't', d.rl ? ' ' + d.rl : ''); if (d.rl) lbSet(R.rl, 'c', d.rc); lbSet(R.s, 't', d.s);
+    lbSet(R.nm, 'cls', TEAM_MODE ? 'nm' : 'nm gold');
   });
   const rk = alive && lb.rank ? `Ваше место: <b>${lb.rank}</b> из ${lb.total}` : ''; if (rk !== rankHtml) { rankHtml = rk; $('rank').innerHTML = rk; }
 }

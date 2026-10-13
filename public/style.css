@@ -975,3 +975,8 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
   #iosGuide .ip { height: 96px; } #iosGuide .ip-two img { width: 42px !important; height: 42px !important; } #iosGuide .ip-two .ip-chrome { width: 42px; height: 42px; } #iosGuide .ip-two .ip-chrome::after { inset: 11px; }
   #iosGuide .ig-t { margin-bottom: 4px; font-size: 15px; } #iosGuide .ig-txt { font-size: 14px; min-height: 0; } #iosGuide .ig-go { margin-top: 6px; padding: 8px 16px; } #igOk { padding: 8px; }
 }
+
+/* Владелец 13.10: в рейтинге ник — золотистым («шампанское», чтобы не сливался с жёлтым «Дон»), роль — своим цветом, мельче и бледнее */
+#lb .row .nm { font-weight: inherit; } #lb .row .nm.gold { color: #f0d08a; text-shadow: 0 0 6px rgba(240, 208, 138, 0.25); }
+#lb .row .rl { font-style: normal; font-size: 0.86em; opacity: 0.85; }
+#lb .row.me .nm.gold { color: #ffe9b0; }

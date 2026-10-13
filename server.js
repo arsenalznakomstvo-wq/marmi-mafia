@@ -958,7 +958,7 @@ function sendLeaderboard() {
   const arr = [];
   for (const s of snakes.values()) if (s.alive) arr.push(s);
   arr.sort((a, b) => b.mass - a.mass);
-  const top = arr.slice(0, 10).map(s => [displayName(s), Math.floor(s.mass), s.id, s.team == null ? -1 : s.team]);
+  const top = arr.slice(0, 10).map(s => [displayName(s), Math.floor(s.mass), s.id, s.team == null ? -1 : s.team, s.name, s.role || 0]); // + ник и роль отдельно — в рейтинге разными цветами (владелец 13.10)
   const rank = new Map();
   arr.forEach((s, i) => rank.set(s, i + 1));
   // Миникарта как в оригинале: тело каждой змеи — короткая ломаная (до 30 точек, координаты 0..255).
