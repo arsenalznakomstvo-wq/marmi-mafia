@@ -2383,6 +2383,7 @@ const LOOK_DEFAULT = 'classic';
 // ===== Видео на заднем фоне меню (владелец 11.10). Вернуть фото по бокам: MENU_VIDEO = false =====
 // Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
 const menuVid = $('menuVid'), mvCanvas = $('mvCanvas');
+var vidLoops = 0, vidLastT = 0, VID_SOUND_LOOPS = 2, vidEntries = 0, vidSnd = 0; // звук ролика меню: сколько кругов со звуком (см. ниже)
 const MENU_VIDEO = !!menuVid; // старая страница из кэша без видео — просто без видео (раньше игра падала: ошибка с Xiaomi / Яндекс Браузера)
 // Владелец 13.10: фото, которых не видно, не качаем — они отбирали интернет у окна с фото. Окно справа видно только на компьютере.
 { const setSrc = el => { if (el && el.dataset.src && !el.getAttribute('src')) el.src = el.dataset.src; };
@@ -2426,7 +2427,7 @@ var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызыв
 // Владелец 12.10 («звук опаздывает»): звук теперь внутри самого видео (menu.mp4 со звуком) — всегда точно в такт картинке.
 // Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
-  const want = on && userTapped && vidLoops < 1 && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
+  const want = on && userTapped && vidLoops < VID_SOUND_LOOPS && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
   if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused && !vidUserPaused) menuVid.play().catch(() => {}); } // на паузе по просьбе — не запускаем
   clearTimeout(stepT); return;
   const tick = () => {
@@ -2439,10 +2440,10 @@ function menuSteps(on) {
 }
 function menuVideo(on) {
   if (!MENU_VIDEO) return;
+  if (on && menuVid.getAttribute('src') === null) { vidLoops = 0; vidLastT = 0; VID_SOUND_LOOPS = vidEntries ? 1 : 2; vidSnd = 0; } // первый вход на сайт — звук 2 круга, вернулся в меню после игры — 1 круг (до menuSteps: он решает, включать ли звук)
   menuSteps(on);
   if (on) {
     vidUserPaused = false; document.body.classList.remove('vidpaused'); // вернулся в меню — видео снова идёт
-    if (menuVid.getAttribute('src') === null) { vidLoops = 0; vidLastT = 0; } // новый заход в меню — звук снова один раз
     // Владелец 13.10: «фото в меню грузится медленно» — видео отбирало у фото интернет. Сначала фото в окне, потом видео (ждём не дольше 1,5 с)
     const wImg = document.querySelector('#winL img');
     const startVid = () => { if (!document.body.classList.contains('in-menu')) return; if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); };
@@ -2450,7 +2451,7 @@ function menuVideo(on) {
     else { let done = false; const go = () => { if (!done) { done = true; startVid(); } }; wImg.addEventListener('load', go, { once: true }); wImg.addEventListener('error', go, { once: true }); setTimeout(go, 1500); }
     if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
   } else {
-    cancelAnimationFrame(mvRaf); mvRaf = 0;
+    cancelAnimationFrame(mvRaf); mvRaf = 0; vidEntries++; // ушёл в игру — следующий заход в меню уже «после игры»
     menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); // выгрузить — освободить память и видеочип для игры
   }
 }
@@ -2466,11 +2467,12 @@ if (MENU_VIDEO) window.addEventListener('pointerdown', () => { userTapped = true
 // Пауза видео (владелец 12.10: «нажал на пустое место — пауза, а то видео всё время повторяется»): касание пустого места меню —
 // пауза / снова играть (и звук тоже). Не срабатывает на кнопках, поле имени, карточках и в первые мгновения после заставки.
 var introEndAt = 0, vidUserPaused = false;
-// Владелец 12.10: звук — только первый проход ролика; со второго круга видео идёт без звука. Вернулся в меню — снова один раз со звуком.
-var vidLoops = 0, vidLastT = 0;
+// Владелец 13.10: звук — 2 круга ролика при первом входе на сайт, после смерти — 1 круг; дальше видео идёт без звука.
+// (vidLoops, VID_SOUND_LOOPS, vidEntries — объявлены выше, до первого запуска видео)
 if (MENU_VIDEO) menuVid.addEventListener('timeupdate', () => {
   const t = menuVid.currentTime;
-  if (t + 0.5 < vidLastT) { vidLoops++; if (!menuVid.muted) menuVid.muted = true; } // ролик начался заново
+  if (!menuVid.muted && t > vidLastT && t - vidLastT < 1) vidSnd += t - vidLastT; // сколько секунд этого круга прошло со звуком
+  if (t + 0.5 < vidLastT) { if (vidSnd > 1.5) { vidLoops++; if (vidLoops >= VID_SOUND_LOOPS) menuVid.muted = true; } vidSnd = 0; } // ролик начался заново; круг считается, если звук играл в нём хотя бы 1,5 с
   vidLastT = t;
 });
 if (MENU_VIDEO) window.addEventListener('click', e => {
