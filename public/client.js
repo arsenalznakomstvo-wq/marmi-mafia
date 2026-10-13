@@ -2860,7 +2860,7 @@ window.addEventListener('appinstalled', reportInstall);
   const tip = (html, ms) => { const t = $('iosTip'); t.innerHTML = html; t.classList.remove('hide'); clearTimeout(tip.t); tip.t = setTimeout(() => t.classList.add('hide'), ms || 8000); };
   let deferred = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
-  window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Идёт загрузка игры на телефон…<br>Иконка <b>«Марми Мафия»</b> появится на экране примерно <b>через 1–3 минуты</b> — а пока можно играть', 20000); /* владелец 13.10: «пишет „готово“, а иконки ещё нет» */ });
+  window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Игра устанавливается — иконка <b>«Марми Мафия»</b> появится через 1–3 минуты.<br>Пока играйте здесь, потом откройте игру с иконки, а браузер закройте', 20000); /* владелец 13.10: «пишет „готово“, а иконки ещё нет» */ });
   if (!inApp) btn.classList.remove('hide');
   // Окно «шаг за шагом с картинками» (владелец 13.10) — общее для iPhone и Android
   const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
@@ -2923,7 +2923,7 @@ window.addEventListener('appinstalled', reportInstall);
         await new Promise(ok => { const t = setTimeout(ok, 3500); window.addEventListener('beforeinstallprompt', () => { clearTimeout(t); setTimeout(ok, 50); }, { once: true }); });
         btn.textContent = t0; btn.disabled = false;
       }
-      if (deferred) { const d = deferred; deferred = null; try { d.prompt(); const ch = await d.userChoice; if (ch && ch.outcome === 'accepted') tip('⏳ Установка игры «Марми Мафия» началась.<br>Иконка появится на экране телефона примерно <b>через 1–3 минуты</b> — а пока можно играть', 20000); } catch (e) {} return; } // одно нажатие → окно «Установить?»; владелец 13.10: «напиши — установка началась»
+      if (deferred) { const d = deferred; deferred = null; try { d.prompt(); const ch = await d.userChoice; if (ch && ch.outcome === 'accepted') tip('⏳ Игра устанавливается — иконка <b>«Марми Мафия»</b> появится через 1–3 минуты.<br>Пока играйте здесь, потом откройте игру с иконки, а браузер закройте', 20000); } catch (e) {} return; } // одно нажатие → окно «Установить?»; владелец 13.10: «напиши — установка началась»
       let installed = false;
       if (chrome && navigator.getInstalledRelatedApps) try { installed = (await navigator.getInstalledRelatedApps()).length > 0; } catch (e) {}
       if (installed) { tip('📲 Игра уже стоит на телефоне — найдите иконку <b>«Марми Мафия»</b> на экране.<br>Нет иконки? Удалите игру в «Настройки → Приложения» и нажмите эту кнопку ещё раз'); return; }
