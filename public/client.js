@@ -2855,7 +2855,7 @@ window.addEventListener('appinstalled', reportInstall);
   const tip = (html, ms) => { const t = $('iosTip'); t.innerHTML = html; t.classList.remove('hide'); clearTimeout(tip.t); tip.t = setTimeout(() => t.classList.add('hide'), ms || 8000); };
   let deferred = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
-  window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Идёт загрузка игры на телефон…<br>Иконка <b>«Марми Мафия»</b> появится на экране примерно <b>через 1–3 минуты</b> — а пока можно играть', 20000); // владелец 13.10: «пишет „готово“, а иконки ещё нет» });
+  window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Идёт загрузка игры на телефон…<br>Иконка <b>«Марми Мафия»</b> появится на экране примерно <b>через 1–3 минуты</b> — а пока можно играть', 20000); /* владелец 13.10: «пишет „готово“, а иконки ещё нет» */ });
   if (!inApp) btn.classList.remove('hide');
   // Окно «шаг за шагом с картинками» (владелец 13.10) — общее для iPhone и Android
   const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
