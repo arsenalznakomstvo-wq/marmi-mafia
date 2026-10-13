@@ -2381,6 +2381,13 @@ const LOOK_DEFAULT = 'classic';
 // Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
 const menuVid = $('menuVid'), mvCanvas = $('mvCanvas');
 const MENU_VIDEO = !!menuVid; // старая страница из кэша без видео — просто без видео (раньше игра падала: ошибка с Xiaomi / Яндекс Браузера)
+// Владелец 13.10: фото, которых не видно, не качаем — они отбирали интернет у окна с фото. Окно справа видно только на компьютере.
+{ const setSrc = el => { if (el && el.dataset.src && !el.getAttribute('src')) el.src = el.dataset.src; };
+  if (!MENU_VIDEO) { setSrc($('mpL')); setSrc($('mpR')); }
+  const r = document.querySelector('#winR img');
+  const winR = () => { if (r && getComputedStyle($('winR')).display !== 'none') setSrc(r); };
+  if (document.readyState === 'complete') setTimeout(winR, 0); else addEventListener('load', winR, { once: true });
+  addEventListener('resize', winR, { passive: true }); }
 // Телефон: само видео спрятано (1 px), кадры рисуются на холст. Иначе Яндекс Браузер и браузеры Xiaomi/Samsung перехватывают
 // видео и открывают его в своём плеере на весь экран — «на телефоне только видео открывается» (владелец 12.10).
 const MV_CANVAS = MENU_VIDEO && isTouch && !!mvCanvas;
@@ -2433,8 +2440,11 @@ function menuVideo(on) {
   if (on) {
     vidUserPaused = false; document.body.classList.remove('vidpaused'); // вернулся в меню — видео снова идёт
     if (menuVid.getAttribute('src') === null) { vidLoops = 0; vidLastT = 0; } // новый заход в меню — звук снова один раз
-    if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4';
-    menuVid.play().catch(() => {});
+    // Владелец 13.10: «фото в меню грузится медленно» — видео отбирало у фото интернет. Сначала фото в окне, потом видео (ждём не дольше 1,5 с)
+    const wImg = document.querySelector('#winL img');
+    const startVid = () => { if (!document.body.classList.contains('in-menu')) return; if (!menuVid.getAttribute('src')) menuVid.src = 'photos/menu.mp4'; menuVid.play().catch(() => {}); };
+    if (menuVid.getAttribute('src') || !wImg || wImg.complete) startVid();
+    else { let done = false; const go = () => { if (!done) { done = true; startVid(); } }; wImg.addEventListener('load', go, { once: true }); wImg.addEventListener('error', go, { once: true }); setTimeout(go, 1500); }
     if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
   } else {
     cancelAnimationFrame(mvRaf); mvRaf = 0;

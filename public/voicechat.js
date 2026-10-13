@@ -54,18 +54,39 @@ window.VoiceChat = (() => {
       if (!mutedAll) try { await rm.startAudio(); } catch (e) {}
       applyMute();
       if (micAllowed && wantMic) setMic(true);
+      setTimeout(() => vcReport('20s'), 20000);
     } catch (e) { room = null; }
     connecting = false; render();
   }
   async function disconnect() { const r = room; room = null; micOn = false; speaking.clear(); if (r) try { await r.disconnect(); } catch (e) {} render(); }
 
+  // Владелец 13.10: «у друга на iPhone не было слышно». iPhone при включении микрофона переключает звук телефона
+  // в режим «звонок» — звуки игры замирают, голоса становятся тихими. Заранее ставим режим «разговор» (Safari 17+)
+  // и после включения микрофона будим звуки игры.
+  function iosSession(on) { try { if (navigator.audioSession) navigator.audioSession.type = on ? 'play-and-record' : 'playback'; } catch (e) {} }
+  function wake() { try { if (window.Sound) Sound.init(); } catch (e) {} if (room && !mutedAll) room.startAudio().catch(() => {}); }
+  // Отчёт о голосе (виден на /errs): подключился ли, включён ли микрофон, играют ли чужие голоса
+  let vcSent = 0;
+  function vcReport(why) {
+    if (vcSent++ >= 4) return;
+    try {
+      const au = [...document.querySelectorAll('audio')];
+      const msg = 'vc ' + why + ' | ios:' + isIOS + ' room:' + !!room + ' mic:' + micOn + ' err:' + (micErr || '-') + ' others:' + (room ? room.remoteParticipants.size : 0)
+        + ' audio:' + au.length + ' paused:' + au.filter(a => a.paused).length + ' canPlay:' + (room ? room.canPlaybackAudio : '-')
+        + ' game:' + ((window.Sound && Sound.state && Sound.state()) || '-') + ' mute:' + mutedAll + ' app:' + !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches);
+      navigator.sendBeacon('/clienterr', JSON.stringify({ msg, where: 'voice', w: innerWidth, h: innerHeight }));
+    } catch (e) {}
+  }
   async function setMic(on) {
     if (!room) return;
+    if (on && isIOS) iosSession(true);
     try { await room.localParticipant.setMicrophoneEnabled(on); micOn = on; if (on) { micAllowed = true; micErr = null; } }
     catch (e) { micOn = false; micErr = (e && e.name) || 'err'; }
     if (!mutedAll) try { await room.startAudio(); } catch (e) {}
+    if (isIOS) setTimeout(wake, 300);
     applyMute();
     render();
+    if (on && !micOn) vcReport('mic-fail');
   }
   // Владелец 06.10: сами по себе предупреждения не всплывают — подсказка появляется, только когда человек нажал 🎤, а микрофон не включился
   function toastMic(e) { micErr = (e && e.name) || 'nosupport'; }
@@ -83,6 +104,7 @@ window.VoiceChat = (() => {
   // Вызывается при нажатии «Играть» (это касание — браузер разрешает спросить микрофон). Спрашиваем один раз.
   async function askMic() {
     if (micAllowed || offline) return;
+    if (isIOS) iosSession(true);
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toastMic(); return; }
     try {
       const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -176,7 +198,7 @@ window.VoiceChat = (() => {
     $('vcMicBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); flip(); });
     $('vcMuteBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setMutedAll(!mutedAll); });
     // Браузеры включают звук только после касания — на любом касании пробуем включить
-    const unlock = () => { if (room && !mutedAll) room.startAudio().catch(() => {}); }; // выключил всех — касание не включает обратно
+    const unlock = () => { if (room && !mutedAll) room.startAudio().catch(() => {}); if (isIOS) try { if (window.Sound) Sound.init(); } catch (e) {} }; // выключил всех — касание не включает обратно
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
     render();

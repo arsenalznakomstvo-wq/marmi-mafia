@@ -1430,10 +1430,18 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404); res.end('not found'); return; }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-    res.end(data);
+  // Владелец 13.10: «фото медленно грузится». Раньше телефон каждый заход качал все фото заново.
+  // Теперь у файла есть «отпечаток» (размер+время): не изменился — сервер отвечает «бери из памяти» (304), без скачивания.
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404); res.end('not found'); return; }
+    const tag = '"' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"';
+    const img = /\.(jpe?g|png|webp|gif|m4a)$/i.test(file);
+    const hdr = { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'ETag': tag, 'Cache-Control': img ? 'public, max-age=3600' : 'no-cache' };
+    if (req.headers['if-none-match'] === tag) { res.writeHead(304, hdr); res.end(); return; }
+    fs.readFile(file, (err2, data) => {
+      if (err2) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, hdr); res.end(data);
+    });
   });
 });
 
