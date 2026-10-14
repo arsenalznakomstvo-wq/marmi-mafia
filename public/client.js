@@ -2127,7 +2127,7 @@ function itemSprite(t) {
 }
 // Предмет висит на поясе (владелец 14.10): сбоку от шеи, по ходу тела, на ремешке
 function drawCarriedItem(neck, r, t) {
-  const [nx, ny, na] = neck, spr = itemSprite(t), S = r * 2.5;
+  const [nx, ny, na] = neck, spr = itemSprite(t), S = Math.max(42, r * 2.6) * (t === 'dagger' ? 1.4 : 1); // владелец 14.10: у небольших змей предметы были мелкими — есть минимальный размер; кинжал узкий — крупнее
   ctx.save(); ctx.translate(nx, ny); ctx.rotate(na);
   ctx.strokeStyle = 'rgba(60,40,25,0.85)'; ctx.lineWidth = Math.max(1, r * 0.12); // ремешок
   ctx.beginPath(); ctx.moveTo(0, -r * 0.5); ctx.lineTo(-r * 0.4, -r * 1.05); ctx.stroke();
