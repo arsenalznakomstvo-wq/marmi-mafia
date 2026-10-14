@@ -67,8 +67,8 @@ function updateRoles() {
     }
     // Владелец 14.10: человек стал Параноиком — 1 кинжал и 1 электрошокер
     if (!s.bot && s.client && r === PARANOID_ROLE && !s.paraGiven) {
-      s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 1;
-      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ шокер — кнопка ' + (isTouchUA(s.client) ? '' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
+      s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 2; // владелец 14.10: шокера два
+      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — кнопка ' + (isTouchUA(s.client) ? '' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
     }
     // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
     if (!s.bot && s.client && r === SHERIFF_ROLE && !s.badgeGiven) {
@@ -1400,13 +1400,14 @@ function stepItems() {
       const it = items[i];
       if ((it.x - hx) ** 2 + (it.y - hy) ** 2 > rr * rr) continue;
       items.splice(i, 1); itemWait.push(tick + ITEM_RESPAWN); itemsDirty = true;
-      s.item = it.type; sendJSON(s.client, { t: 'item', type: it.type });
+      s.item = it.type; s.itemN = it.type === 'shock' ? 2 : 1; sendJSON(s.client, { t: 'item', type: it.type, n: s.itemN }); // шокер — на 2 удара (владелец 14.10)
     }
   }
 }
 function useItem(s) {
   const t = s.item; if (!t) return;
-  s.item = null; if (s.client) sendJSON(s.client, { t: 'item', type: null, used: t });
+  if (--s.itemN > 0) { if (s.client) sendJSON(s.client, { t: 'item', type: t, n: s.itemN, left: 1 }); } // ещё есть заряд
+  else { s.item = null; if (s.client) sendJSON(s.client, { t: 'item', type: null, used: t }); }
   if (t === 'grenade') launchBomb(s, true);
   else if (t === 'dagger') throwKnife(s, false, true);
   else if (t === 'smoke') throwSmoke(s, true);
