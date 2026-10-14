@@ -2402,7 +2402,7 @@ function fuseSparks(x, y, sz, time, hot) {
 }
 function drawCarriedBomb(hx, hy, a, r, time, sideSgn) {
   const px = -Math.sin(a) * (sideSgn || 1), py = Math.cos(a) * (sideSgn || 1), side = r * 1.9, sz = Math.max(26, r * 2.4);
-  const bx = hx + px * side - Math.cos(a) * r * 0.9, by = hy + py * side - Math.sin(a) * r * 0.9 + Math.sin(time * 0.006) * r * 0.08; // владелец 14.10: чуть дальше от головы // слегка подпрыгивает
+  const bx = hx + px * side - Math.cos(a) * r * 2.4, by = hy + py * side - Math.sin(a) * r * 2.4 + Math.sin(time * 0.006) * r * 0.08; // владелец 14.10: бомбы дальше от головы — на боках тела (было 0,4, потом 0,9) // слегка подпрыгивает
   ctx.strokeStyle = 'rgba(60, 45, 25, 0.8)'; ctx.lineWidth = Math.max(1, r * 0.08); // верёвочка к шее
   ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * r * 0.9 + px * r * 0.6, hy - Math.sin(a) * r * 0.9 + py * r * 0.6); ctx.quadraticCurveTo(bx - Math.cos(a) * r, by - Math.sin(a) * r + r * 0.3, bx, by - sz * 0.2); ctx.stroke();
   ctx.drawImage(bombSprite(), bx - sz / 2, by - sz / 2 - sz * 0.06, sz, sz);
