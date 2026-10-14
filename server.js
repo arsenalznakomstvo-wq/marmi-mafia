@@ -65,6 +65,11 @@ function updateRoles() {
       s.knifeGiven = true; s.knife = 2; // владелец 13.10: два кинжала
       sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
     }
+    // Владелец 14.10: человек стал Параноиком — 1 кинжал и 1 электрошокер
+    if (!s.bot && s.client && r === PARANOID_ROLE && !s.paraGiven) {
+      s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 1;
+      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ шокер — кнопка ' + (isTouchUA(s.client) ? '' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
+    }
     // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
     if (!s.bot && s.client && r === SHERIFF_ROLE && !s.badgeGiven) {
       s.badgeGiven = true; s.badge = 2;
@@ -88,7 +93,7 @@ function updateRoles() {
   }
 }
 // В рейтинге Дон — коротко «Ник Дон», чтобы не обрезалось (владелец 06.10)
-const BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба'), KILLER_ROLE = ROLES.findIndex(r => r.name === 'Киллер'), SHERIFF_ROLE = ROLES.findIndex(r => r.name === 'Шериф');
+const PARANOID_ROLE = ROLES.findIndex(r => r.name === 'Параноик'), BOMB_ROLE = ROLES.findIndex(r => r.name === 'Бомба'), KILLER_ROLE = ROLES.findIndex(r => r.name === 'Киллер'), SHERIFF_ROLE = ROLES.findIndex(r => r.name === 'Шериф');
 const roleShort = r => r === DON ? 'Дон' : ROLES[r].name;
 const displayName = s => TEAM ? s.name : s.name + ' ' + roleShort(s.role || 0);
 // Живые ники ботов (владелец 11.10: «рейтинг и карта скучные — Киллер, Киллер, Мафия»). На карте ники не повторяются.
@@ -854,7 +859,7 @@ function handleJSON(c, m) {
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.smoke) throwSmoke(c.snake); }
+    if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.shock) { c.snake.shock--; doShock(c.snake); } else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
     c.lagMs = clamp(Number(m.l) || 0, 0, 400); // владелец 14.10: насколько игрок видит чужих змей «в прошлом» (не больше 0,4 с)
     sendJSON(c, { t: 'pong', c: m.c });
@@ -1075,7 +1080,8 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive && s.rockets) (m.z || (m.z = [])).push([s.id, s.rockets]);
       for (const s of snakes.values()) if (s.alive && s.bomb) (m.b || (m.b = [])).push([s.id, s.bomb]); // у кого бомбы едут рядом и сколько
       for (const s of snakes.values()) if (s.alive && s.knife) (m.kn || (m.kn = [])).push([s.id, s.knife]); // у кого сколько кинжалов
-      for (const s of snakes.values()) if (s.alive && s.badge) (m.bd || (m.bd = [])).push([s.id, s.badge]); // у какого Шерифа сколько бросков значка
+      for (const s of snakes.values()) if (s.alive && s.badge) (m.bd || (m.bd = [])).push([s.id, s.badge]);
+      for (const s of snakes.values()) if (s.alive && s.shock) (m.sh || (m.sh = [])).push([s.id, s.shock]); // шокер Параноика // у какого Шерифа сколько бросков значка
       for (const s of snakes.values()) if (s.alive && s.smoke) (m.sm || (m.sm = [])).push([s.id, s.smoke]); // у какого Ниндзя сколько шашек
       for (const s of snakes.values()) if (s.alive) { // действующие предметы: оглушён, невидим, магнит, ускоритель
         if (s.stunUntil > tick) (m.st || (m.st = [])).push(s.id);
@@ -1407,7 +1413,9 @@ function useItem(s) {
   else if (t === 'magnet') s.magnetUntil = tick + 5 * TICK_RATE;
   else if (t === 'invis') s.invisUntil = tick + 4 * TICK_RATE;
   else if (t === 'turbo') s.turboUntil = tick + 4 * TICK_RATE;
-  else if (t === 'shock') { // ⚡ ближайшая змея впереди (до 520) 2 с почти стоит и не может повернуть
+  else if (t === 'shock') doShock(s);
+}
+function doShock(s) { // ⚡ ближайшая змея впереди (до 520) 2 с почти стоит и не может повернуть (предмет и Параноик)
     const hx = s.xs[0], hy = s.ys[0], ca = Math.cos(s.a), sa = Math.sin(s.a);
     let best = null, bd = 520 * 520;
     for (const o of snakes.values()) {
@@ -1419,7 +1427,6 @@ function useItem(s) {
     if (best) { best.stunUntil = tick + STUN_T; if (best.client) sendJSON(best.client, { t: 'tmsgMe', text: '⚡ Вас ударили шокером! 2 секунды не повернуть' }); }
     const msg = JSON.stringify({ t: 'shock', x0: Math.round(hx), y0: Math.round(hy), x: Math.round(x), y: Math.round(y), hit: best ? best.id : 0 });
     for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
-  }
 }
 const PORTAL_CD = 2 * TICK_RATE, PORTAL_GHOST = Math.round(0.4 * TICK_RATE);
 // Владелец 11.10 («глюк, особенно когда большой червяк лазит»): нора узкая — пролезают только змеи потоньше (длина примерно до 1000).
