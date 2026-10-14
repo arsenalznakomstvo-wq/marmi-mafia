@@ -990,3 +990,8 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 /* Владелец 14.10: сообщения в игре («Вы Параноик!…») — меньше и прозрачнее, не закрывают поле */
 #bigToast { font-size: 14px !important; padding: 5px 14px !important; background: rgba(10, 12, 22, 0.5) !important; max-width: min(560px, 70vw); white-space: normal; text-align: center; top: 160px !important; border-radius: 10px; }
 @media (max-width: 900px), (max-height: 500px) { #bigToast { font-size: 11px !important; padding: 3px 10px !important; top: 104px !important; max-width: 62vw; } }
+/* Владелец 14.10 (2): оповещения ещё чуть меньше и выше — особенно на ноутбуке */
+#promo { top: 90px !important; }
+#promo.show { transform: translateX(-50%) scale(0.72) !important; }
+#bigToast { top: 154px !important; font-size: 12.5px !important; padding: 4px 12px !important; max-width: min(480px, 60vw) !important; }
+@media (max-width: 900px), (max-height: 500px) { #promo { top: 50px !important; } #promo.show { transform: translateX(-50%) scale(0.66) !important; } #bigToast { top: 90px !important; font-size: 10px !important; padding: 3px 9px !important; } }
