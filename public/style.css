@@ -981,3 +981,6 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 #lb .row .rl { font-style: normal; font-size: 0.86em; opacity: 0.85; }
 #lb .row.me .nm.gold { color: #ffe9b0; }
 
+/* Владелец 14.10: сообщение в игре («Вы Параноик!…», предметы) — меньше и выше (табличка «Новая роль» — как была) */
+#bigToast { top: 104px !important; font-size: 13.5px !important; padding: 5px 13px !important; background: rgba(10, 12, 18, 0.6) !important; max-width: min(540px, 64vw) !important; border-radius: 10px !important; }
+@media (max-width: 900px), (max-height: 500px) { #bigToast { top: 62px !important; font-size: 11px !important; padding: 3px 10px !important; max-width: 60vw !important; } }
