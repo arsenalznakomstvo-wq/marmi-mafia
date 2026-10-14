@@ -68,7 +68,7 @@ function updateRoles() {
     // Владелец 14.10: человек стал Параноиком — 1 кинжал и 1 электрошокер
     if (!s.bot && s.client && r === PARANOID_ROLE && !s.paraGiven) {
       s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 2; // владелец 14.10: шокера два
-      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — кнопка ' + (isTouchUA(s.client) ? '' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
+      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — ' + (isTouchUA(s.client) ? 'кнопка справа' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
     }
     // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
     if (!s.bot && s.client && r === SHERIFF_ROLE && !s.badgeGiven) {
@@ -370,7 +370,7 @@ function collisions() {
       const c = grid.get(gkey(cx, cy)); if (!c) continue;
       for (let j = 0; j < c.length; j++) {
         const p = c[j], o = PS[p];
-        if (o === s || (TEAM && o.team === s.team)) continue; // в себя и в своих (командный режим) врезаться нельзя
+        if (o === s || (TEAM && o.team === s.team) || o.invisUntil > tick) continue; // в себя и в своих (командный режим) врезаться нельзя; владелец 14.10: о невидимку (👻) не разбиваются — она для побега, не для засады
         const dx = PX[p] - hx, dy = PY[p] - hy, rr = o.r + rs * 0.6;
         if (dx * dx + dy * dy < rr * rr) { killer = o; s.hitIdx = PIdx[p]; break outer; }
       }

@@ -2145,7 +2145,7 @@ function drawMapItems(view, time) {
   }
 }
 function drawInvisible(sn, time) { // 👻 чужая невидимка: только лёгкое мерцание вдоль тела
-  ctx.globalAlpha = 0.07 + 0.04 * Math.sin(time * 0.01);
+  ctx.globalAlpha = 0.13 + 0.06 * Math.sin(time * 0.01); // чуть заметнее (владелец 14.10)
   ctx.fillStyle = '#cfd8ff';
   for (let j = 0; j < sn.xs.length; j += 4) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], sn.r * 0.9, 0, TAU); ctx.fill(); }
   ctx.globalAlpha = 1;
