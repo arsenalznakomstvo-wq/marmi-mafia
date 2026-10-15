@@ -555,7 +555,7 @@ let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id 
 // Предметы на карте (владелец 14.10)
 const ITEM_TYPES = ['grenade', 'dagger', 'shock', 'magnet', 'smoke', 'invis', 'turbo'];
 const ITEM_INFO = { grenade: ['💣', 'Граната', '#ff8a1f'], dagger: ['🗡', 'Кинжал', '#dfe6ee'], shock: ['⚡', 'Шокер', '#5ac8ff'], magnet: ['🧲', 'Магнит', '#ff4f6d'], smoke: ['💨', 'Дымовая шашка', '#b8bec8'], invis: ['👻', 'Невидимость', '#c9b6ff'], turbo: ['🚀', 'Ускоритель', '#ffd24a'] };
-const mapItems = new Map(), zaps = [], pocketIds = new Map(); let myItem = null, myItemN = 0, stunIds = new Set(), invisIds = new Set(), magnetIds = new Set(), turboIds = new Set();
+const mapItems = new Map(), zaps = [], pocketIds = new Map(); let myItem = null, myItemN = 0, myInv = {}, stunIds = new Set(), invisIds = new Set(), magnetIds = new Set(), turboIds = new Set();
 let knifeIds = new Map(), myKnife = 0, badgeIds = new Map(), myBadge = 0, shockIds = new Map(), myShock = 0, smokeIds = new Map(), mySmoke = 0; const smokeClouds = []; /* Ниндзя (владелец 13.10): у кого висит шашка; облака дыма */ const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
@@ -601,7 +601,7 @@ function onJSON(m) {
         gameVer = m.v;
       }
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
-      if (window.VoiceChat && VoiceChat.setKey) VoiceChat.setKey(m.rk); // рация: ключ этого подключения
+      if (window.VoiceChat && VoiceChat.setKey) { VoiceChat.setKey(m.rk); if (VoiceChat.setSender) VoiceChat.setSender(buf => { if (ws && ws.readyState === 1) ws.send(buf); }); } // рация: ключ и канал
       if (m.bases) { BASES = m.bases; BASE_R = m.baseR; }
       protoOk = m.proto === PROTO;
       if (protoOk) {
@@ -635,7 +635,7 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
-    case 'item': myItem = m.type || null; myItemN = m.n || 0; if (m.type && !m.left) selW = 'item'; renderFireBtn(); /* подобрал — сразу выбран */ if (m.type && !m.left) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
+    case 'item': myInv = m.inv || (m.type ? { [m.type]: m.n || 1 } : {}); myItem = Object.keys(myInv)[0] || null; myItemN = myItem ? myInv[myItem] : 0; if (m.pick || (m.type && !m.left && !m.inv)) selW = 'i:' + m.type; renderFireBtn(); /* подобрал — сразу выбран */ if (m.type && !m.left) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
     case 'shock': zaps.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now() }); Sound.zap(nearVol(m.x0, m.y0)); break;
     case 'restart': serverUpdating = true; bigToast('🔄 Игра обновляется — через несколько секунд вернёмся сами'); break; // сервер перезапускается (новая версия)
     case 'smoke': { const now = performance.now(); smokeClouds.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, r: m.r, ms: m.ms, fly: m.fly || 0, t0: now + (m.fly || 0), thrown: now, popped: false, seed: Math.random() * 6 }); if (!m.it) { const left = (smokeIds.get(m.o) || 1) - 1; if (left > 0) smokeIds.set(m.o, left); else smokeIds.delete(m.o); if (m.o === myId) { mySmoke = left; renderFireBtn(); } } Sound.smokeThrow(nearVol(m.x0, m.y0)); break; } // Ниндзя бросил шашку: летит, потом дым
@@ -644,7 +644,7 @@ function onJSON(m) {
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; selW = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; myInv = {}; selW = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -656,7 +656,7 @@ function onJSON(m) {
       renderEvent(); renderLb(); break;
     }
     case 'record': showRecord(m.kind); break;
-    case 'radio': if (window.VoiceChat && VoiceChat.onRadio) VoiceChat.onRadio(m); break; // 🎙 рация: чьё-то голосовое сообщение
+    case 'rv': if (window.VoiceChat && VoiceChat.onRadio) VoiceChat.onRadio(m); break; // 🎙 живая рация: кусочек чужого голоса
     case 'pong': pingMs = Math.round(performance.now() - m.c); pingHist.push(pingMs); if (pingHist.length > 5) pingHist.shift(); if (m.s) sendJSON({ t: 'pr', s: m.s }); break; // pr — сервер сам меряет задержку (честная подрезка)
   }
 }
@@ -2583,12 +2583,12 @@ function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = 
 /* 15.10 (владелец: «есть граната и кинжал — нужно выбрать, чем воспользоваться; смахнул вверх — поменял»; разбор инженера):
    кнопка показывает выбранное оружие, слева — кружки остального. Смахнул вверх — следующее, вниз — предыдущее, нажал — выстрел.
    Нажатие никогда не переключает, смахивание никогда не стреляет. Компьютер: колесо мыши или Q — сменить, F / правая кнопка — выстрел */
-const WPN_ORDER = ['item', 'rocket', 'bomb', 'knife', 'badge', 'shock', 'smoke'];
+const WPN_ORDER = ['rocket', 'bomb', 'knife', 'badge', 'shock', 'smoke']; // предметы из кармана — первыми, каждый отдельно ('i:grenade' …)
 const WPN_ICON = { rocket: '🚀', bomb: '💣', knife: '🗡', badge: '⭐', shock: '⚡', smoke: '💨' };
 let selW = null;
-function wpnCount(w) { return w === 'item' ? (myItem ? Math.max(1, myItemN) : 0) : w === 'rocket' ? Math.max(0, myRockets) : w === 'bomb' ? myBomb : w === 'knife' ? myKnife : w === 'badge' ? myBadge : w === 'shock' ? myShock : mySmoke; }
-function wpnIcon(w) { return w === 'item' ? ITEM_INFO[myItem][0] : WPN_ICON[w]; }
-function wpnList() { return alive ? WPN_ORDER.filter(w => wpnCount(w) > 0) : []; }
+function wpnCount(w) { return w.startsWith('i:') ? (myInv[w.slice(2)] || 0) : w === 'rocket' ? Math.max(0, myRockets) : w === 'bomb' ? myBomb : w === 'knife' ? myKnife : w === 'badge' ? myBadge : w === 'shock' ? myShock : mySmoke; }
+function wpnIcon(w) { return w.startsWith('i:') ? ITEM_INFO[w.slice(2)][0] : WPN_ICON[w]; }
+function wpnList() { return alive ? Object.keys(myInv).filter(t => ITEM_INFO[t] && myInv[t] > 0).map(t => 'i:' + t).concat(WPN_ORDER.filter(w => wpnCount(w) > 0)) : []; }
 function wpnFeedback() { try { navigator.vibrate && navigator.vibrate(10); } catch (e) {} Sound.click(); const b = $('fireBtn'); b.classList.add('sw'); setTimeout(() => b.classList.remove('sw'), 160); }
 function cycleWpn(d) { const L = wpnList(); if (L.length < 2) return; selW = L[(L.indexOf(selW) + d + L.length) % L.length]; renderFireBtn(); wpnFeedback(); }
 function selectWpn(w) { if (w !== selW && wpnCount(w) > 0) { selW = w; renderFireBtn(); wpnFeedback(); } }
@@ -2597,14 +2597,14 @@ function renderFireBtn() {
   const b = $('fireBtn'), row = $('wpnRow'), L = wpnList();
   b.classList.toggle('hide', !L.length); row.classList.toggle('hide', L.length < 2);
   if (!L.length) { selW = null; row.innerHTML = ''; b.style.borderColor = ''; return; }
-  if (!L.includes(selW)) { const k = WPN_ORDER.indexOf(selW); selW = k < 0 ? L[0] : WPN_ORDER.slice(k + 1).concat(WPN_ORDER.slice(0, k + 1)).find(w => L.includes(w)); } // кончилось — следующее по кругу
+  if (!L.includes(selW)) { const k = WPN_ORDER.indexOf(selW); selW = k < 0 ? L[0] : WPN_ORDER.slice(k + 1).concat(WPN_ORDER.slice(0, k + 1)).find(w => L.includes(w)) || L[0]; } // кончилось — следующее по кругу
   const n = wpnCount(selW);
-  b.innerHTML = wpnIcon(selW) + (selW !== 'item' || n > 1 ? '<span>' + n + '</span>' : '');
-  b.style.borderColor = selW === 'item' ? ITEM_INFO[myItem][2] : ''; // предмет с карты — рамка своего цвета (💣/🗡/⚡ совпадают с оружием ролей)
+  b.innerHTML = wpnIcon(selW) + (!selW.startsWith('i:') || n > 1 ? '<span>' + n + '</span>' : '');
+  b.style.borderColor = selW.startsWith('i:') ? ITEM_INFO[selW.slice(2)][2] : ''; // предмет с карты — рамка своего цвета (💣/🗡/⚡ совпадают с оружием ролей)
   if (L.length < 2) { row.innerHTML = ''; return; }
   const i = L.indexOf(selW), rest = [];
   for (let j = 1; j < L.length && j <= 4; j++) rest.push(L[(i + j) % L.length]);
-  row.innerHTML = rest.map(w => '<b data-w="' + w + '"' + (w === 'item' ? ' class="it" style="--ic:' + ITEM_INFO[myItem][2] + '"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>').join('');
+  row.innerHTML = rest.map(w => '<b data-w="' + w + '"' + (w.startsWith('i:') ? ' class="it" style="--ic:' + ITEM_INFO[w.slice(2)][2] + '"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>').join('');
 }
 {
   const b = $('fireBtn'), row = $('wpnRow');

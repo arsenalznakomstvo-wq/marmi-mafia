@@ -47,6 +47,22 @@ const { ROLES, DON, rankFor } = require('./public/roles.js');
 const { PORTALS, PORTAL_R } = require('./public/portals.js');
 let donId = 0;
 /* 15.10 (аудит): «экран» 3000×3000 или 3000×200 показывал в 2–3 раза больше карты. Вытянутость — не больше 2,4:1, площадь — не больше 2560×1440 */
+/* 15.10 (владелец: «чтобы голос уходил сразу»): живая рация — кусочек голоса (0,25 с) сразу пересылаем всем остальным.
+   Одна передача — не дольше ~15 с, между передачами — пауза, всего — не больше 60 передач в минуту на всю игру */
+function radioChunk(c, data) {
+  if (TEAM || !c.snake || !c.snake.alive || data.length > 4000) return;
+  const now = Date.now(), end = data[3] === 1;
+  if (!c.rv || now - c.rv.last > 1500) { // новая передача
+    if (now < (c.radioNext || 0) || radioRecent.filter(t => now - t < 60000).length >= 60) return;
+    radioRecent.push(now); while (radioRecent.length > 100) radioRecent.shift();
+    c.rv = { bytes: 0, last: now };
+  }
+  c.rv.last = now; c.rv.bytes += data.length - 4;
+  if (c.rv.bytes > 12000 * 16) return;
+  const msg = JSON.stringify({ t: 'rv', id: c.snake.id, name: c.snake.name, end: end ? 1 : 0, d: data.subarray(4).toString('base64') });
+  for (const o of clients) if (o !== c && o.ws.readyState === 1) o.ws.send(msg);
+  if (end) { c.rv = null; c.radioNext = now + 800; }
+}
 function fitView(c) {
   if (c.w > c.h * 2.4) c.w = c.h * 2.4; else if (c.h > c.w * 2.4) c.h = c.w * 2.4;
   const k = Math.sqrt(2560 * 1440 / (c.w * c.h)); if (k < 1) { c.w *= k; c.h *= k; }
@@ -879,7 +895,8 @@ function handleJSON(c, m) {
     const s = c.snake;
     if (s && s.alive) {
       const w = m.w;
-      if (w === 'item') { if (s.item) useItem(s); }
+      if (typeof w === 'string' && w.startsWith('i:')) { if (s.inv && s.inv[w.slice(2)]) useItem(s, w.slice(2)); } // предмет из кармана — какой выбрал
+      else if (w === 'item') { if (s.item) useItem(s); }
       else if (w === 'rocket') { if (s.rockets) fireRocket(s); }
       else if (w === 'bomb') { if (s.bomb) throwBomb(s); }
       else if (w === 'knife') { if (s.knife) throwKnife(s); }
@@ -1428,21 +1445,27 @@ function stepItems() {
   for (let k = 0; k < 3 && items.length + itemWait.length < ITEM_N; k++) placeItem();
   for (let i = itemWait.length - 1; i >= 0; i--) if (itemWait[i] <= tick) { itemWait.splice(i, 1); placeItem(); }
   for (const s of snakes.values()) {
-    if (s.bot || !s.alive || !s.client || s.item) continue; // 15.10: карман занят — новый предмет не подбираем (раньше старый пропадал)
+    if (s.bot || !s.alive || !s.client) continue;
+    const inv = s.inv || (s.inv = {});
     const hx = s.xs[0], hy = s.ys[0], rr = s.r + ITEM_R;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if ((it.x - hx) ** 2 + (it.y - hy) ** 2 > rr * rr) continue;
+      // 15.10 (владелец: «граната есть — кинжал не взять, не переключиться»): в кармане до 3 разных предметов, каждого до 4 штук
+      if (!inv[it.type] && Object.keys(inv).length >= 3) continue;
+      if ((inv[it.type] || 0) >= 4) continue;
       items.splice(i, 1); itemWait.push(tick + ITEM_RESPAWN); itemsDirty = true;
-      s.item = it.type; s.itemN = it.type === 'shock' ? 2 : 1; sendJSON(s.client, { t: 'item', type: it.type, n: s.itemN }); // шокер — на 2 удара (владелец 14.10)
+      inv[it.type] = Math.min(4, (inv[it.type] || 0) + (it.type === 'shock' ? 2 : 1)); // шокер — на 2 удара (владелец 14.10)
+      s.item = Object.keys(inv)[0]; sendJSON(s.client, { t: 'item', inv, type: it.type, n: inv[it.type], pick: 1 });
       break; // один предмет за раз
     }
   }
 }
-function useItem(s) {
-  const t = s.item; if (!t) return;
-  if (--s.itemN > 0) { if (s.client) sendJSON(s.client, { t: 'item', type: t, n: s.itemN, left: 1 }); } // ещё есть заряд
-  else { s.item = null; if (s.client) sendJSON(s.client, { t: 'item', type: null, used: t }); }
+function useItem(s, t) {
+  const inv = s.inv || (s.inv = {}); t = t && inv[t] ? t : Object.keys(inv)[0]; if (!t) return; // какой предмет — выбирает игрок (без выбора — первый)
+  if (--inv[t] <= 0) delete inv[t];
+  s.item = Object.keys(inv)[0] || null;
+  if (s.client) sendJSON(s.client, { t: 'item', inv, used: t, left: inv[t] ? 1 : 0 });
   if (t === 'grenade') launchBomb(s, true);
   else if (t === 'dagger') throwKnife(s, false, true);
   else if (t === 'smoke') throwSmoke(s, true);
@@ -1733,6 +1756,7 @@ wss.on('connection', (ws, req) => {
     if (now - c.msgT > 1000) { c.msgT = now; c.msgs = 0; }
     if (++c.msgs > 150) { ws.close(1008, 'flood'); return; }
     if (isBinary) {
+      if (data.length >= 4 && data[0] === 0xA7) { radioChunk(c, data); return; } // 🎙 кусочек живой рации
       if (data.length === 4 && data[0] === 1 && c.snake && c.snake.alive) {
         c.snake.ta = (data[1] | (data[2] << 8)) / 65535 * TAU - Math.PI;
         c.snake.boost = data[3] === 1;
@@ -1771,4 +1795,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { useItem: (s, t) => { s.item = t; useItem(s); }, snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { useItem: (s, t) => { s.inv = { [t]: 1 }; s.item = t; useItem(s, t); }, items, stepItems, useItemSel: useItem, snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки

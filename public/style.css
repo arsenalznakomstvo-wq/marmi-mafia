@@ -1049,3 +1049,11 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 #wpnRow b.it { border-color: var(--ic, #5ac8ff); }
 #wpnRow b i { position: absolute; right: -4px; top: -5px; font: bold 10px Arial, sans-serif; font-style: normal; background: #ffd52e; color: #111; border-radius: 8px; padding: 0 4px; }
 #fireBtn.sw { animation: none; transform: scale(1.12); transition: transform 0.12s; }
+
+/* 15.10 (владелец): кнопка рации — внизу, чуть правее середины (справа от строки замеров) */
+@media (pointer: coarse) {
+  #radioBtn, body.ctrl-joy #radioBtn { right: auto; top: auto; left: calc(50% + 128px); bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+
+/* 15.10 (владелец): на телефоне в рейтинге только топ-5 — больше места для игры (своё место и так видно слева сверху) */
+@media (pointer: coarse) { #lb-rows > .row:nth-child(n+6) { display: none; } }

@@ -3,15 +3,18 @@
 // Телефон: нажал 🎙 — говоришь (до 10 с) — нажал ещё раз — сообщение слышат все в игре. Компьютер: держи V и говори.
 // Голос идёт через сервер игры: 12 000 отсчётов в секунду, 8 бит (μ-закон) — одинаково играет на любом телефоне, без LiveKit.
 // Наружу — те же имена, что у старого голосового чата (window.VoiceChat), чтобы игра показывала 🔊 у того, кто говорит.
+// 15.10 (владелец: «чтобы сразу уходило»): ЖИВАЯ рация — пока держишь кнопку, голос уходит кусочками по 0,25 с через игровое
+// соединение (двоичная посылка с меткой 0xA7), слушатели слышат примерно через 0,5 с. Передача — до 15 с, между передачами — 1 с.
 window.VoiceChat = (() => {
-  const RATE = 12000, MAX_S = 10, MIN_S = 0.4;
+  const RATE = 12000, MAX_S = 15, CHUNK_MS = 250;
+  let sendBin = null;
   const $ = id => document.getElementById(id);
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const ua = navigator.userAgent;
   const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua);
   const speaking = new Set();
-  let key = '', inGame = false, ac = null, rec = null, sending = false, nextOk = 0, autoT = 0, tickT = 0;
+  let key = '', inGame = false, ac = null, rec = null, nextOk = 0, autoT = 0, tickT = 0;
   let mutedAll = false; // 15.10: отдельной кнопки нет — чужую рацию выключает общая кнопка звука (режим «тишина»)
 
   function audio() {
@@ -48,9 +51,9 @@ window.VoiceChat = (() => {
     if (!btn) return;
     const show = inGame && !!key;
     btn.classList.toggle('hide', !show); muteBtn.classList.toggle('hide', !show);
-    btn.classList.toggle('rec', !!rec); btn.classList.toggle('wait', !rec && (sending || Date.now() < nextOk));
+    btn.classList.toggle('rec', !!rec); btn.classList.toggle('wait', !rec && Date.now() < nextOk);
     const sm = btn.querySelector('small');
-    sm.textContent = rec ? Math.min(MAX_S, Math.floor((performance.now() - rec.t0) / 1000)) + ' с' : sending ? '…' : Date.now() < nextOk ? Math.ceil((nextOk - Date.now()) / 1000) + '' : 'рация'; // 15.10 (владелец: «на телефоне нет подсказки, где рация») — подпись под кнопкой
+    sm.textContent = rec ? '🔴 ' + Math.min(MAX_S, Math.floor((performance.now() - rec.t0) / 1000)) + ' с' : 'рация'; // 15.10 (владелец: «на телефоне нет подсказки, где рация») — подпись под кнопкой
     muteBtn.textContent = mutedAll ? '🔇' : '🔊';
   }
   let tipT = 0;
@@ -58,8 +61,8 @@ window.VoiceChat = (() => {
 
   // ===== Запись =====
   async function start() {
-    if (rec || sending || !key) return;
-    if (Date.now() < nextOk) { say('🎙 Следующее сообщение — через ' + Math.ceil((nextOk - Date.now()) / 1000) + ' с'); return; }
+    if (rec || !key) return;
+    if (Date.now() < nextOk) return; // 1 с между передачами
     if (inApp || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { say('🎙 Рация работает в браузере (Chrome / Safari) или в установленной игре', 6000); return; }
     const a = audio(); if (!a) { say('🎙 Этот браузер не умеет записывать звук'); return; }
     rec = { t0: performance.now(), chunks: [], rate: a.sampleRate, pending: true }; render();
@@ -78,77 +81,68 @@ window.VoiceChat = (() => {
     audio();
     const src = a.createMediaStreamSource(stream), proc = a.createScriptProcessor(4096, 1, 1);
     proc.onaudioprocess = e => { if (rec === my) my.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    Object.assign(my, { seq: 0, rem: new Float32Array(0), peak: 0.12 });
+    my.iv = setInterval(() => flush(my, false), CHUNK_MS); // каждые 0,25 с — кусочек в эфир
     src.connect(proc); proc.connect(a.destination); // выход молчит — нужен, чтобы запись шла
     Object.assign(my, { stream, src, proc, pending: false, t0: performance.now() });
     Sound && Sound.click && Sound.click();
-    clearTimeout(autoT); autoT = setTimeout(() => { if (rec === my) finish(true); }, MAX_S * 1000);
+    clearTimeout(autoT); autoT = setTimeout(() => { if (rec === my) { finish(true); say('🎙 Не дольше 15 секунд за раз'); } }, MAX_S * 1000);
     clearInterval(tickT); tickT = setInterval(render, 250);
   }
   function iosBack() { try { if (isIOS && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} }
   function finish(send) {
     const r = rec; if (!r) return;
-    rec = null; clearTimeout(autoT); clearInterval(tickT);
-    if (r.stream) { try { r.src.disconnect(); r.proc.disconnect(); } catch (e) {} r.stream.getTracks().forEach(t => t.stop()); }
-    iosBack(); render();
-    if (!send || r.pending) return;
-    const n = r.chunks.reduce((s, c) => s + c.length, 0);
-    if (n < r.rate * MIN_S) { say('🎙 Держите кнопку, пока говорите, — отпустите, когда скажете'); return; }
-    upload(encode(r.chunks, r.rate));
+    rec = null; clearTimeout(autoT); clearInterval(tickT); clearInterval(r.iv);
+    if (r.stream) { flush(r, true); try { r.src.disconnect(); r.proc.disconnect(); } catch (e) {} r.stream.getTracks().forEach(t => t.stop()); }
+    iosBack();
+    if (!r.pending) { nextOk = Date.now() + 1000; clearInterval(tickT); tickT = setInterval(() => { render(); if (Date.now() >= nextOk) { clearInterval(tickT); render(); } }, 300); }
+    render();
   }
-  // Сжатие: усредняем до 12 000 отсчётов в секунду и переводим в 8 бит по μ-закону (как в телефонной связи)
-  function encode(chunks, rate) {
-    const all = new Float32Array(chunks.reduce((s, c) => s + c.length, 0)); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
-    const step = rate / RATE, n = Math.min(Math.floor(all.length / step), RATE * MAX_S), out = new Uint8Array(n);
-    let peak = 0.05; for (let i = 0; i < all.length; i++) { const v = Math.abs(all[i]); if (v > peak) peak = v; }
-    const gain = Math.min(4, 0.9 / peak); // тихий микрофон — чуть громче
-    for (let i = 0; i < n; i++) {
-      const a = Math.floor(i * step), b = Math.max(a + 1, Math.floor((i + 1) * step)); let s = 0; for (let j = a; j < b; j++) s += all[j];
-      out[i] = muEnc(s / (b - a) * gain);
-    }
-    return out;
+  // Кусочек в эфир: усредняем до 12 000 отсчётов в секунду, 8 бит по μ-закону; остаток копим до следующего раза
+  function flush(r, end) {
+    if (!r.stream) return;
+    const ch = r.chunks; r.chunks = [];
+    const tot = r.rem.length + ch.reduce((a, c) => a + c.length, 0), all = new Float32Array(tot); all.set(r.rem); let o = r.rem.length; for (const c of ch) { all.set(c, o); o += c.length; }
+    const step = r.rate / RATE, n = Math.floor(all.length / step);
+    for (let i = 0; i < all.length; i++) { const v = Math.abs(all[i]); if (v > r.peak) r.peak = v; }
+    const gain = Math.max(1, Math.min(3, 0.8 / r.peak)); // тихий микрофон — чуть громче
+    const out = new Uint8Array(4 + n);
+    for (let i = 0; i < n; i++) { const a = Math.floor(i * step), b = Math.max(a + 1, Math.floor((i + 1) * step)); let sum = 0; for (let j = a; j < b; j++) sum += all[j]; out[4 + i] = muEnc(sum / (b - a) * gain); }
+    r.rem = all.slice(Math.floor(n * step));
+    out[0] = 0xA7; out[1] = r.seq & 255; out[2] = (r.seq >> 8) & 255; out[3] = end ? 1 : 0; r.seq++;
+    if ((n || end) && sendBin) sendBin(out);
   }
   function muEnc(x) { x = Math.max(-1, Math.min(1, x)); const s = x < 0 ? 0x80 : 0; const m = Math.log1p(255 * Math.abs(x)) / Math.log1p(255); return (~(s | Math.round(m * 127))) & 0xff; }
   function muDec(u) { u = ~u & 0xff; const s = u & 0x80 ? -1 : 1, m = (u & 0x7f) / 127; return s * (Math.pow(256, m) - 1) / 255; }
-  async function upload(bytes) {
-    sending = true; render();
-    try {
-      const r = await fetch('/radio', { method: 'POST', headers: { 'x-rk': key, 'Content-Type': 'application/octet-stream' }, body: bytes });
-      if (r.ok) { nextOk = Date.now() + 5000; say('🎙 Отправлено — вас слышат все в игре', 2500); }
-      else if (r.status === 429) { nextOk = Date.now() + 5000; say('🎙 Не так часто — через пару секунд'); }
-      else say('🎙 Не отправилось — попробуйте ещё раз');
-    } catch (e) { say('🎙 Нет связи — не отправилось'); }
-    sending = false; render();
-    clearInterval(tickT); tickT = setInterval(() => { render(); if (Date.now() >= nextOk) { clearInterval(tickT); render(); } }, 500);
+  // ===== Проигрывание: живой поток от каждого говорящего, с запасом 0,35 с (чтобы неровная связь не рвала звук) =====
+  const streams = new Map(); // id говорящего -> { t (когда играть следующий кусок), name, last }
+  function onRadio(m) { // m: { t:'rv', id, name, end, d (base64 μ-закон) }
+    if (mutedAll || document.hidden || (window.Sound && Sound.isOn && !Sound.isOn())) return; // звук игры выключен (🔇) — рацию тоже не играем
+    const a = audio(); if (!a) return;
+    let st = streams.get(m.id);
+    if (!st) { st = { t: 0, name: m.name || 'Игрок', srcs: [] }; streams.set(m.id, st); speaking.add(st.name); showBanner(); }
+    st.last = performance.now();
+    if (m.d) {
+      const bin = atob(m.d), u = new Uint8Array(bin.length); for (let i = 0; i < u.length; i++) u[i] = bin.charCodeAt(i);
+      if (u.length) {
+        const k = a.sampleRate / RATE, len = Math.floor(u.length * k), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+        const f = new Float32Array(u.length); for (let i = 0; i < u.length; i++) f[i] = muDec(u[i]);
+        for (let i = 0; i < len; i++) { const x = i / k, j = Math.floor(x), t = x - j; d[i] = f[j] * (1 - t) + (f[Math.min(j + 1, f.length - 1)] || 0) * t; }
+        const src = a.createBufferSource(), g = a.createGain(); g.gain.value = 1.4; src.buffer = buf; src.connect(g); g.connect(a.destination);
+        if (st.t < a.currentTime + 0.03) st.t = a.currentTime + 0.35; // первый кусок или связь подвисла — небольшой запас
+        src.start(st.t); st.t += buf.duration; st.srcs.push(src); if (st.srcs.length > 12) st.srcs.shift();
+      }
+    }
+    if (m.end) { const left = Math.max(0, st.t - a.currentTime); setTimeout(() => endStream(m.id, st), left * 1000 + 200); }
   }
-
-  // ===== Проигрывание: по очереди, через обычный динамик (как звуки игры) =====
-  const queue = []; let playing = null;
-  function onRadio(m) {
-    if (mutedAll || !inGameOrMenu() || (window.Sound && Sound.isOn && !Sound.isOn())) return; // звук игры выключен (🔇) — рацию тоже не играем
-    queue.push(m); if (queue.length > 4) queue.shift();
-    if (!playing) next();
+  function endStream(id, st) { if (streams.get(id) !== st) return; streams.delete(id); speaking.delete(st.name); showBanner(); }
+  setInterval(() => { const now = performance.now(); for (const [id, st] of streams) if (now - st.last > 2500) endStream(id, st); }, 1000); // оборвалась связь — убираем надпись
+  function showBanner() {
+    const names = [...streams.values()].map(x => x.name);
+    if (!names.length) { banner.classList.add('hide'); return; }
+    banner.textContent = '🎙 ' + names.join(', '); banner.classList.remove('hide');
   }
-  const inGameOrMenu = () => !document.hidden;
-  async function next() {
-    const m = queue.shift(); if (!m) { playing = null; return; }
-    playing = m;
-    try {
-      const a = audio(); if (!a) throw new Error('no audio');
-      const r = await fetch('/radio/' + m.n, { cache: 'no-store' }); if (!r.ok) throw new Error('gone');
-      const u = new Uint8Array(await r.arrayBuffer());
-      const k = a.sampleRate / RATE, len = Math.floor(u.length * k), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
-      const f = new Float32Array(u.length); for (let i = 0; i < u.length; i++) f[i] = muDec(u[i]);
-      for (let i = 0; i < len; i++) { const x = i / k, j = Math.floor(x), t = x - j; d[i] = f[j] * (1 - t) + (f[Math.min(j + 1, f.length - 1)] || 0) * t; } // плавно до частоты динамика
-      if (mutedAll) throw new Error('muted');
-      const s = a.createBufferSource(), g = a.createGain(); g.gain.value = 1.4; s.buffer = buf; s.connect(g); g.connect(a.destination);
-      playing.src = s;
-      speaking.add(m.name || ''); banner.textContent = '🎙 ' + (m.name || 'Игрок'); banner.classList.remove('hide');
-      await new Promise(res => { s.onended = res; s.start(); setTimeout(res, buf.duration * 1000 + 500); });
-    } catch (e) {}
-    speaking.delete(m.name || ''); banner.classList.add('hide');
-    next();
-  }
-  function stopPlay() { queue.length = 0; if (playing && playing.src) try { playing.src.stop(); } catch (e) {} }
+  function stopPlay() { for (const st of streams.values()) for (const x of st.srcs) try { x.stop(); } catch (e) {} streams.clear(); speaking.clear(); showBanner(); }
 
   // ===== Связь с игрой =====
   function init() { build(); }
@@ -161,7 +155,8 @@ window.VoiceChat = (() => {
     btn.classList.add('hint'); setTimeout(() => btn.classList.remove('hint'), 7000);
   }
   function setKey(k) { key = k || ''; render(); }
+  function setSender(f) { sendBin = f; }
   function askMic() {} // разрешение спрашиваем при первом нажатии 🎙
   function setRoom() { key = ''; render(); } // командная арена — рации нет
-  return { init, tick, askMic, setRoom, setKey, onRadio, speaking, isSpeaking: name => speaking.has(name) };
+  return { init, tick, askMic, setRoom, setKey, setSender, onRadio, speaking, isSpeaking: name => speaking.has(name) };
 })();
