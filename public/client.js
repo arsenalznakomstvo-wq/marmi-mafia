@@ -1139,7 +1139,8 @@ function drawDonTrim(id, cnt, r, view, time) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#d4a73a'; ctx.lineWidth = Math.max(1.2, r * 0.1);
   for (const side of [-1, 1]) {
     ctx.beginPath(); let open = false;
-    for (let k = 1; k < cnt - 1; k += 2) {
+    const stepK = cnt > 240 ? 4 : cnt > 120 ? 3 : 2; // аудит 15.10: у длинного Дона окантовка по меньшему числу точек — линия та же гладкая
+    for (let k = 1; k < cnt - 1; k += stepK) {
       const x = SX[k], y = SY[k];
       if (x < view.x0 - m || x > view.x1 + m || y < view.y0 - m || y > view.y1 + m) { open = false; continue; }
       const a = Math.atan2(SY[k - 1] - SY[k + 1], SX[k - 1] - SX[k + 1]), w = r * 0.8 * (k / cnt < 0.6 ? 1 : Math.max(0.15, 1 - (k / cnt - 0.6) / 0.4));
@@ -1149,14 +1150,17 @@ function drawDonTrim(id, cnt, r, view, time) {
     ctx.stroke();
   }
   if (Math.random() < 0.6 && cnt > 4) { const k = (Math.random() * cnt * 0.8) | 0; donSparks.push({ x: SX[k] + (Math.random() - 0.5) * r, y: SY[k], life: 1, r }); }
+  // Аудит 15.10: искры — готовой картинкой-светлячком (раньше каждая — отдельная фигура и новая строка цвета каждый кадр), не больше 80
   ctx.globalCompositeOperation = 'lighter';
+  const spr = haloSprite('#ffd52e');
   for (let i = donSparks.length - 1; i >= 0; i--) {
     const s = donSparks[i]; s.y -= s.r * 0.04; s.life -= 0.015;
     if (s.life <= 0) { donSparks.splice(i, 1); continue; }
-    ctx.fillStyle = `rgba(255,213,46,${s.life * 0.8})`; ctx.beginPath(); ctx.arc(s.x + Math.sin(time * 0.003 + i) * s.r * 0.2, s.y, s.r * (0.05 + s.life * 0.08), 0, TAU); ctx.fill();
+    const sz = s.r * (0.05 + s.life * 0.08) * 4.5;
+    ctx.globalAlpha = s.life * 0.9; ctx.drawImage(spr, s.x + Math.sin(time * 0.003 + i) * s.r * 0.2 - sz / 2, s.y - sz / 2, sz, sz);
   }
-  ctx.globalCompositeOperation = 'source-over';
-  if (donSparks.length > 300) donSparks.length = 300;
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  if (donSparks.length > 80) donSparks.splice(0, donSparks.length - 80);
 }
 // Водные скины: бегущие волны-блики, пузырьки внутри; лёд — трещинки; мыльный пузырь — радужный перелив
 function drawWaterFx(w, cnt, r, view, time) {
