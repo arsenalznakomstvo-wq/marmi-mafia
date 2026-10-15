@@ -466,6 +466,21 @@ function photoLoad(i) {
 }
 // Аудит 13.10 (замеры игроков: первые 10–20 с после «Играть» — рывки): пока человек в меню, по одному и в свободное время
 // распаковываем все фото карты заранее — к началу игры они готовы, и старт плавный
+// Аудит 15.10 («лагает в первые секунды после «Играть»»): кружки тела всех цветов скинов и буквы/значки табличек
+// готовим заранее, пока человек в меню, — по чуть-чуть в свободное время телефона
+const idleRun = f => window.requestIdleCallback ? requestIdleCallback(f, { timeout: 2000 }) : setTimeout(() => f(null), 60);
+function warmStart() {
+  if (warmStart.done) return; warmStart.done = true;
+  const cols = [...new Set(window.Skins.SKINS.flatMap(d => d.cols || []))]; let k = 0;
+  const step = dl => {
+    while (k < cols.length && (!dl || dl.timeRemaining() > 4)) { ball(cols[k++]); if (!dl) break; }
+    if (k < cols.length) { idleRun(step); return; }
+    const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d');
+    const txt = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя0123456789' + ROLES.map(r => r.icon || '').join('') + '🔊⚡🗡💣💨🧲👻🚀⭐👑';
+    for (const sz of [9, 11, 13, 16, 20, 24, 30]) { g.font = `bold ${sz}px Arial, sans-serif`; g.fillText(txt, 0, 8); }
+  };
+  idleRun(step);
+}
 function warmPosters() { if (warmPosters.done) return; warmPosters.done = true; let k = 0; const step = () => { if (k >= POSTERS.length) return; photo(POSTERS[k++].i); setTimeout(step, 400); }; setTimeout(step, 2500); }
 // Постеры на полу карты: в центре — фото в смокинге, остальные по кругу
 const POSTERS = (() => {
@@ -2708,7 +2723,7 @@ const LOOK_DEFAULT = 'classic';
 // ===== Видео на заднем фоне меню (владелец 11.10). Вернуть фото по бокам: MENU_VIDEO = false =====
 // Видео играет только в меню: «Играть» — пауза и выгрузка из памяти (игра не тормозит), снова меню — играет дальше.
 const menuVid = $('menuVid'), mvCanvas = $('mvCanvas');
-var vidLoops = 0, vidLastT = 0, VID_SOUND_LOOPS = 2, vidEntries = 0, vidSnd = 0; // звук ролика меню: сколько кругов со звуком (см. ниже)
+var vidLoops = 0, vidLastT = 0, VID_SOUND_LOOPS = 2, vidEntries = 0, vidSnd = 0, vidFresh = false; // звук ролика меню: сколько кругов со звуком (см. ниже)
 const MENU_VIDEO = !!menuVid; // старая страница из кэша без видео — просто без видео (раньше игра падала: ошибка с Xiaomi / Яндекс Браузера)
 // Владелец 13.10: фото, которых не видно, не качаем — они отбирали интернет у окна с фото. Окно справа видно только на компьютере.
 { const setSrc = el => { if (el && el.dataset.src && !el.getAttribute('src')) el.src = el.dataset.src; };
@@ -2765,7 +2780,7 @@ function menuSteps(on) {
 }
 function menuVideo(on) {
   if (!MENU_VIDEO) return;
-  if (on && menuVid.getAttribute('src') === null) { vidLoops = 0; vidLastT = 0; VID_SOUND_LOOPS = vidEntries ? 1 : 2; vidSnd = 0; } // первый вход на сайт — звук 2 круга, вернулся в меню после игры — 1 круг (до menuSteps: он решает, включать ли звук)
+  if (on && (menuVid.getAttribute('src') === null || vidFresh)) { vidFresh = false; vidLoops = 0; vidLastT = 0; VID_SOUND_LOOPS = vidEntries ? 1 : 2; vidSnd = 0; } // первый вход на сайт — звук 2 круга, вернулся в меню после игры — 1 круг (до menuSteps: он решает, включать ли звук)
   menuSteps(on);
   if (on) {
     vidUserPaused = false; document.body.classList.remove('vidpaused'); // вернулся в меню — видео снова идёт
@@ -2777,7 +2792,7 @@ function menuVideo(on) {
     if (MV_CANVAS && !mvRaf) mvRaf = requestAnimationFrame(mvDraw);
   } else {
     cancelAnimationFrame(mvRaf); mvRaf = 0; vidEntries++; // ушёл в игру — следующий заход в меню уже «после игры»
-    menuVid.pause(); menuVid.removeAttribute('src'); menuVid.load(); // выгрузить — освободить память и видеочип для игры
+    menuVid.pause(); vidFresh = true; // аудит 15.10: только пауза — выгрузка видео при старте давала замирание (на iPhone до 1 с); вернулся в меню — продолжает сразу
   }
 }
 // Заставка (владелец 12.10: «название и ник закрывают лица»): при входе 6,5 с чистое видео на весь экран без кнопок,
@@ -3148,5 +3163,5 @@ if (location.hash.startsWith('#skins')) { const n = Number(location.hash.split('
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawSkinIcon);
 connect();
 requestAnimationFrame(frame);
-warmPosters(); // сразу при открытии, пока смотрят заставку
+warmPosters(); warmStart(); // сразу при открытии, пока смотрят заставку
 })();
