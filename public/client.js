@@ -505,7 +505,8 @@ const POSTERS = (() => {
     [41, 2100, -3500], /* p40 (кот) убран — владелец 13.10 */ [42, 3050, -2750], [43, -1750, 3200], [44, 200, -4150], [45, -100, 4150], [46, 4300, -350], [47, 2740, 3314]]) list.push({ i, x, y, h: 900 }); // 12.10: ещё 3 фото (девушка с леопардом, девушка в чалме, горилла с сигарой — внизу карты, где не было фото) // владелец 12.10: новое фото — на свободном месте (кольца не сдвигаем: на постере p27 потайные ходы)
   // Владелец 15.10: убраны 10 фото (по таблице: 13, 15, 16, 23, 27, 28, 36, 37, 38, 40) — остальные на своих местах
   const REMOVED = new Set([18, 20, 21, 28, 32, 33, 43, 44, 45, 47]);
-  return list.filter(p => !REMOVED.has(p.i));
+  /* 15.10 (замер: фото на полу — 36% всей работы видеокарты): фото на карте в 1,4 раза меньше — работы вдвое меньше */
+  return list.filter(p => !REMOVED.has(p.i)).map(p => ({ ...p, h: Math.round(p.h * 0.7) }));
 })();
 function drawPosters(view) {
   if (isTouch && autoLow >= 2) return; /* 15.10: телефон долго не тянет — фото на полу не рисуем */
@@ -1465,7 +1466,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (ghostT && ghostT < performance.now()) docGhost.delete(sn.id);
   const r = sn.r * (fade ? 1 + fade * 0.35 : 1); // тающее тело чуть разбухает
   // Кружки вдоль тела идут очень плотно — так тело выглядит гладкой трубкой
-  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView || zoomedOut ? 0.6 : isTouch ? 0.42 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
+  const sp = Math.max(2, sn.r * (!hiQ || autoLow >= 2 || farView || zoomedOut ? 0.6 : isTouch ? 0.5 : 0.28)); // farView — камера высоко (командная игра): издалека реже кружки не видны
   let cnt = 0;
   SX[0] = sn.xs[0]; SY[0] = sn.ys[0]; SI[0] = sn.idx[0]; cnt = 1;
   let rem = sp;
@@ -1503,12 +1504,15 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     for (let k = 0; k < cnt; k += 3) { const x = SX[k], y = SY[k]; if (x < view.x0 - hs || x > view.x1 + hs || y < view.y0 - hs || y > view.y1 + hs) continue; ctx.drawImage(halo, x - hs / 2, y - hs / 2, hs, hs); }
     ctx.restore();
   }
-  if (roleIdx && !sk.text) drawRoleUnder(roleIdx, cnt, r, time, view);
+  /* 15.10 (замер: украшения ролей — четверть всех рисований): на телефоне — только у крупных на экране и у своей */
+  const roleLod = isTouch && !isMe && sn.r * cam.s < 13;
+  if (roleIdx && !sk.text && !roleLod) drawRoleUnder(roleIdx, cnt, r, time, view);
   if (sn.boost && !fade && !(TEAM_MODE && meta && meta.team === 1)) { // при ускорении тело светится и пульсирует (у Мафии в командах — без свечения, владелец 07.10)
-    const hs = size * 2.2, hh = hs / 2;
+    /* 15.10 (замер: свечение при ускорении — 26% всей работы видеокарты): пятна меньше (1,7 вместо 2,2) и реже (через 2, на телефоне через 3), чуть ярче */
+    const hs = size * 1.7, hh = hs / 2, gStep = shadeStep * (isTouch ? 3 : 2);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.45 + 0.25 * Math.sin(time * 0.015);
-    for (let k = cnt - 1; k >= 0; k -= shadeStep) {
+    ctx.globalAlpha = 0.6 + 0.25 * Math.sin(time * 0.015);
+    for (let k = cnt - 1; k >= 0; k -= gStep) {
       const x = SX[k], y = SY[k];
       if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
       ctx.drawImage(haloSprite(bandColor(sk.cols, SI[k] / unit)), x - hh, y - hh, hs, hs);
@@ -1528,7 +1532,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (sk.water && !fade && !lod) drawWaterFx(sk.water, cnt, r, view, time);
 
   if (isDon && !lod) drawDonTrim(sn.id, cnt, sn.r, view, time);
-  if (roleIdx && !sk.text && !lod && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
+  if (roleIdx && !sk.text && !lod && !roleLod && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
   if (meta && !fade) drawRoleFlash(sn.id, roleIdx, cnt, r, view);
   if (sn.idx[0] === 0) { // голова на экране

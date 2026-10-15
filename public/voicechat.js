@@ -40,8 +40,10 @@ window.VoiceChat = (() => {
   }
   const myName = () => (($('nick') && $('nick').value.trim()) || 'Игрок').slice(0, 16);
 
+  /* 15.10: сервер голоса отказал (например, закончились минуты LiveKit) — не долбим его каждую секунду: после 3 отказов пауза 5 минут */
+  let failN = 0, pauseUntil = 0;
   async function connect() {
-    if (connecting || room || offline || !ROOM) return;
+    if (connecting || room || offline || !ROOM || Date.now() < pauseUntil) return;
     connecting = true; const want = ROOM;
     try {
       await loadSdk(); await idle();
@@ -71,7 +73,8 @@ window.VoiceChat = (() => {
       applyMute();
       if (micAllowed && wantMic) setMic(true);
       setTimeout(() => vcReport('20s'), 20000);
-    } catch (e) { room = null; }
+      failN = 0;
+    } catch (e) { room = null; if (++failN >= 3) { failN = 0; pauseUntil = Date.now() + 5 * 60000; vcReport('connect-fail ' + String((e && e.message) || e).slice(0, 80)); } }
     connecting = false; render();
   }
   async function disconnect() { const r = room; room = null; micOn = false; speaking.clear(); if (r) try { await r.disconnect(); } catch (e) {} render(); }
