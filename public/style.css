@@ -1001,3 +1001,8 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
   font: 13px Arial, sans-serif; padding: 8px 14px; border-radius: 12px; text-align: center; pointer-events: none; }
 #radioBtn.hide, #radioMute.hide, #radioBanner.hide, #radioTip.hide { display: none; }
 @media (pointer: fine) { #radioBtn { right: calc(max(16px, env(safe-area-inset-right)) + 6px); top: calc(42% + 84px); } #radioMute { right: calc(max(16px, env(safe-area-inset-right)) + 72px); top: calc(42% + 95px); } }
+
+/* 15.10: подсказка рации — кнопка мигает в первые игры */
+#radioBtn.hint { animation: radioHint 0.9s ease-in-out infinite; border-color: #ffd52e; }
+@keyframes radioHint { 50% { box-shadow: 0 0 0 12px rgba(255, 213, 46, 0.35); } }
+#radioBtn small { font-size: 11px; }

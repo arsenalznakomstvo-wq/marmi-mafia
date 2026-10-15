@@ -47,7 +47,7 @@ window.VoiceChat = (() => {
     btn.classList.toggle('hide', !show); muteBtn.classList.toggle('hide', !show);
     btn.classList.toggle('rec', !!rec); btn.classList.toggle('wait', !rec && (sending || Date.now() < nextOk));
     const sm = btn.querySelector('small');
-    sm.textContent = rec ? Math.min(MAX_S, Math.floor((performance.now() - rec.t0) / 1000)) + ' с' : sending ? '…' : Date.now() < nextOk ? Math.ceil((nextOk - Date.now()) / 1000) + '' : '';
+    sm.textContent = rec ? Math.min(MAX_S, Math.floor((performance.now() - rec.t0) / 1000)) + ' с' : sending ? '…' : Date.now() < nextOk ? Math.ceil((nextOk - Date.now()) / 1000) + '' : 'рация'; // 15.10 (владелец: «на телефоне нет подсказки, где рация») — подпись под кнопкой
     muteBtn.textContent = mutedAll ? '🔇' : '🔊';
   }
   let tipT = 0;
@@ -149,7 +149,14 @@ window.VoiceChat = (() => {
 
   // ===== Связь с игрой =====
   function init() { build(); }
-  function tick(alive) { const g = !!alive; if (g !== inGame) { inGame = g; if (!g && rec) finish(true); render(); } }
+  function tick(alive) { const g = !!alive; if (g !== inGame) { inGame = g; if (!g && rec) finish(true); render(); if (g && key) firstHint(); } }
+  // первые 3 игры — подсказка, где рация и как ей пользоваться; кнопка мигает
+  function firstHint() {
+    let n = 0; try { n = Number(localStorage.getItem('mm_radio_hint') || 0); localStorage.setItem('mm_radio_hint', String(n + 1)); } catch (e) {}
+    if (n >= 3) return;
+    say(isTouch ? '🎙 Рация — кнопка справа: нажмите, скажите, нажмите ещё раз — услышат все в игре' : '🎙 Рация: держите V и говорите — услышат все в игре', 7000);
+    btn.classList.add('hint'); setTimeout(() => btn.classList.remove('hint'), 7000);
+  }
   function setKey(k) { key = k || ''; render(); }
   function askMic() {} // разрешение спрашиваем при первом нажатии 🎙
   function setRoom() { key = ''; render(); } // командная арена — рации нет
