@@ -1537,6 +1537,7 @@ const server = http.createServer((req, res) => {
   if (url === '/perf') { const m = process.memoryUsage(); res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ now: { gapMax: Math.round(perf.gapMax), gaps100: perf.gaps100, stepMax: +perf.stepMax.toFixed(1) }, prevMinute: perf.prev, clients: clients.size, snakes: snakes.size, foods: foods.size, memMB: Math.round(m.rss / 1e6), heapMB: Math.round(m.heapUsed / 1e6), uptimeMin: Math.round(process.uptime() / 60) })); return; }
   // «Чёрный ящик скорости» (12.10): телефоны раз в 20 с присылают замеры игры — видно на /perfc
+  if (url.startsWith('/rtt')) { res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return; } /* 15.10: замер связи из фонового потока игры */
   if (url === '/perfc' && req.method === 'POST') {
     let body = ''; req.on('data', d => { if (body.length < 3000) body += d; });
     req.on('end', () => { try { const m = JSON.parse(body); clientPerf.unshift({ t: new Date().toISOString().slice(11, 19), ...m, ua: String(req.headers['user-agent'] || '').replace(/^Mozilla\/5\.0 /, '').slice(0, 110) }); clientPerf.length = Math.min(clientPerf.length, 60); } catch {} res.writeHead(204); res.end(); });

@@ -1576,11 +1576,32 @@ function showVisits() {
 $('visBtn').addEventListener('pointerdown', e => { e.stopPropagation(); pnShowUntil = 0; $('pnList').classList.add('hide'); visShowUntil = Date.now() + 5000; showVisits(); });
 // «Чёрный ящик скорости» (12.10): в игре считаем кадры, рывки (>50 / >100 мс) и самый долгий кадр, раз в 20 с шлём на сервер
 const pf = { n: 0, j50: 0, j100: 0, worst: 0, last: 0, t0: performance.now(), dpr: 0, netLast: 0, netTick: 0, ng150: 0, ngMax: 0, lost: 0 };
+/* 15.10 (владелец: «всё равно виснет»): точная диагностика, не зависящая от зависаний страницы.
+   1) связь меряет фоновый поток (крошечный запрос раз в секунду) — если страница замерла, замер всё равно честный;
+   2) браузер сам называет причину каждого долгого кадра (какой код или отрисовка); 3) зарядка ноутбука/телефона */
+const dg = { rN: 0, rSum: 0, rMax: 0, rBad: 0, lfN: 0, lfMs: 0, lfTop: '', lfTopMs: 0, lfScript: 0, lfRender: 0, hid: 0, bat: '' };
+try {
+  const wk = new Worker(URL.createObjectURL(new Blob(["let b=0;setInterval(async()=>{if(b)return;b=1;const t=performance.now();try{const r=await fetch('" + location.origin + "/rtt?'+Math.random(),{cache:'no-store'});postMessage(r.ok?performance.now()-t:-1)}catch(e){postMessage(-1)}b=0},1000)"], { type: 'text/javascript' })));
+  wk.onmessage = e => { const x = e.data; if (x < 0) { dg.rBad++; return; } dg.rN++; dg.rSum += x; if (x > dg.rMax) dg.rMax = x; };
+} catch (e) {}
+try {
+  new PerformanceObserver(l => { if (!alive) return; for (const e of l.getEntries()) {
+    if (e.duration < 120) continue;
+    const sc = (e.scripts || []).reduce((a, x) => a + x.duration, 0), rd = e.renderStart ? e.startTime + e.duration - e.renderStart : 0;
+    dg.lfN++; dg.lfMs += e.duration; dg.lfScript += sc; dg.lfRender += rd;
+    if (e.duration > dg.lfTopMs) { dg.lfTopMs = e.duration; const t = (e.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
+      dg.lfTop = Math.round(e.duration) + 'ms ' + (t ? (String(t.sourceURL || '').split('/').pop() + ':' + (t.sourceFunctionName || '') + ':' + String(t.invoker || '').slice(0, 40) + ':' + Math.round(t.duration) + 'ms') : 'нет кода') + ' render ' + Math.round(rd) + 'ms'; }
+  } }).observe({ type: 'long-animation-frame', buffered: false });
+} catch (e) {}
+document.addEventListener('visibilitychange', () => { if (document.hidden) dg.hid++; });
+try { navigator.getBattery && navigator.getBattery().then(b => { const u = () => { dg.bat = (b.charging ? 'зарядка ' : 'батарея ') + Math.round(b.level * 100) + '%'; }; u(); b.addEventListener('chargingchange', u); b.addEventListener('levelchange', u); }); } catch (e) {}
 setInterval(() => {
   if (!alive || pf.n < 30) { pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now(); return; }
   const secs = (performance.now() - pf.t0) / 1000;
   try { navigator.sendBeacon('/perfc', JSON.stringify({ fps: Math.round(pf.n / secs), j50: pf.j50, j100: pf.j100, worst: Math.round(pf.worst), ping: pingMs, net150: pf.ng150, netMax: Math.round(pf.ngMax), lost: pf.lost, interp: +interpTicks.toFixed(1), autoLow,
-    snakes: lastDrawn.size, foods: foods.size, mass: myMass, w: innerWidth, h: innerHeight, dpr: DPR, cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, app: isApp, name: myName() })); } catch (e) {}
+    snakes: lastDrawn.size, foods: foods.size, mass: myMass, w: innerWidth, h: innerHeight, dpr: DPR, cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, app: isApp, name: myName(),
+    rtt: dg.rN ? Math.round(dg.rSum / dg.rN) : -1, rttMax: Math.round(dg.rMax), rttBad: dg.rBad, lf: dg.lfN, lfMs: Math.round(dg.lfMs), lfJs: Math.round(dg.lfScript), lfDraw: Math.round(dg.lfRender), lfTop: dg.lfTop, hid: dg.hid, bat: dg.bat })); } catch (e) {}
+  Object.assign(dg, { rN: 0, rSum: 0, rMax: 0, rBad: 0, lfN: 0, lfMs: 0, lfTop: '', lfTopMs: 0, lfScript: 0, lfRender: 0, hid: 0 });
   pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now();
 }, 20000);
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
