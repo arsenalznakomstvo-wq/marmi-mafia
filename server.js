@@ -383,13 +383,15 @@ function collisions() {
       const o = killer;
       // Владелец 14.10 («я впереди, подрезаю — а погибаю сам»): человек видит соперника с опозданием (пинг + запас плавности,
       // до 0,4 с). Решаем по тому, где голова соперника была у него НА ЭКРАНЕ: берём её положение lagMs назад
-      const L = s.bot || !s.client ? 0 : Math.min(15, Math.round((s.client.lagMs || 0) / TICK_MS)), oh = o.hh || [];
+      const L = s.bot || !s.client ? 0 : Math.min(10, Math.round((s.client.lagMs || 0) / TICK_MS)), oh = o.hh || [];
       const pk = oh.length - 2 - L * 2, px = L && pk >= 0 ? oh[pk] : o.xs[0], py = L && pk >= 0 ? oh[pk + 1] : o.ys[0];
       const lagGap = Math.hypot(o.xs[0] - px, o.ys[0] - py); // на сколько соперник на самом деле уже уполз вперёд
       if (s.hitIdx * SEG_D <= o.r * 2.5 + (s.bot ? 0 : 25 + lagGap)) {
         const ca = Math.cos(o.a), sa = Math.sin(o.a);
         const ahead = (hx - px) * ca + (hy - py) * sa, sameWay = Math.cos(s.a) * ca + Math.sin(s.a) * sa;
-        if (ahead > (s.bot ? 0 : -25) && sameWay > -0.3) { if (!(o.ghostUntil > tick)) { o.hitIdx = 0; dead.push(o, s); } continue; } // Доктор-призрак не гибнет — тогда обе живы
+        // 15.10: подрезка засчитывается, только если голова действительно впереди (было «−25» — таран в бок шеи убивал жертву);
+        // невидимка (👻) подрезкой не убивает — её саму задеть нельзя, нечестно
+        if (ahead > 0 && sameWay > -0.3 && !(s.invisUntil > tick)) { if (!(o.ghostUntil > tick)) { o.hitIdx = 0; dead.push(o, s); } continue; } // Доктор-призрак не гибнет — тогда обе живы
       }
       dead.push(s, killer);
     }
@@ -861,8 +863,13 @@ function handleJSON(c, m) {
   } else if (m.t === 'fire') {
     if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.shock) { c.snake.shock--; doShock(c.snake); } else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
-    c.lagMs = clamp(Number(m.l) || 0, 0, 400); // владелец 14.10: насколько игрок видит чужих змей «в прошлом» (не больше 0,4 с)
-    sendJSON(c, { t: 'pong', c: m.c });
+    // 15.10 (аудит критика): «насколько я вижу чужих в прошлом» игрок сообщает сам — подделанная игра могла всегда говорить 0,4 с
+    // и убивать тараном в бок. Теперь сервер сам меряет задержку связи (pr) и не верит больше, чем пинг/2 + запас плавности
+    const rtt = c.rttS || 0, cap = rtt ? Math.min(330, rtt / 2 + 270) : 200;
+    c.lagMs = clamp(Number(m.l) || 0, 0, cap);
+    c.spS = Date.now(); sendJSON(c, { t: 'pong', c: m.c, s: c.spS });
+  } else if (m.t === 'pr') { // ответ на pong — сервер сам считает задержку связи
+    if (c.spS && m.s === c.spS) { const d = Date.now() - c.spS; if (d >= 0 && d < 5000) c.rttS = c.rttS ? c.rttS * 0.7 + d * 0.3 : d; c.spS = 0; }
   }
 }
 

@@ -649,7 +649,7 @@ function onJSON(m) {
       renderEvent(); renderLb(); break;
     }
     case 'record': showRecord(m.kind); break;
-    case 'pong': pingMs = Math.round(performance.now() - m.c); break;
+    case 'pong': pingMs = Math.round(performance.now() - m.c); pingHist.push(pingMs); if (pingHist.length > 5) pingHist.shift(); if (m.s) sendJSON({ t: 'pr', s: m.s }); break; // pr — сервер сам меряет задержку (честная подрезка)
   }
 }
 setInterval(() => sendJSON({ t: 'ping', c: performance.now(), l: Math.round(pingMs / 2 + interpTicks * 1000 / TICK_RATE) }), 2000); // l — на сколько мс чужие змеи у меня на экране отстают (для честной подрезки)
@@ -888,49 +888,76 @@ function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 /
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
 window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
 window.__mmHeadScreen = () => ({ x: W / 2 - look.x * cam.s, y: H / 2 - look.y * cam.s }); // для проверки
-function predStop() { pred.on = false; pred.trail.length = 0; }
+function predStop() { pred.on = false; pred.trail.length = 0; pred.D = null; pred.r = 0; predClk.v = null; }
 function predStart(srv) {
   pred.on = true; pred.x = srv.xs[0]; pred.y = srv.ys[0]; pred.a = srv.a; pred.t = performance.now();
-  pred.trail = [];
-  for (let j = 0; j < srv.xs.length; j++) pred.trail.push([srv.xs[j], srv.ys[j]]);
+  pred.trail = []; const t0 = pred.t, stepT = (1000 / TICK_RATE) / Math.max(1, moveSpeed(srv.r, srv.boost));
+  let acc = 0; for (let j = 0; j < srv.xs.length; j++) { if (j) acc += Math.hypot(srv.xs[j] - srv.xs[j - 1], srv.ys[j] - srv.ys[j - 1]); pred.trail.push([srv.xs[j], srv.ys[j], t0 - acc * stepT]); } // время — когда голова была в этой точке (примерно)
 }
 // srv — своя змейка из самого свежего снимка сервера; возвращает змейку для рисования
 const predStats = { frames: 0, snaps: 0, maxErr: 0, sumErr: 0 };
 window.__mmPred = () => predStats; // для проверки расхождения с сервером
-function predStep(srv) {
-  const now = performance.now(), tickMs = 1000 / TICK_RATE;
+/* 15.10 (владелец: «своя змейка на телефоне подпрыгивает, шевелится»; разбор инженера):
+   1) полоски узора и кончик хвоста считались по номерам точек из посылки сервера — между посылками они стояли, а кружки ехали,
+      с посылкой полоски прыгали вперёд (на скинах с узкими полосами — больше чем на полосу). Теперь номер точки = путь от головы
+      по нарисованному телу, хвост обрезается по длине — полоски и хвост едут вместе с головой ровно;
+   2) голову подтягивали к точке «по прямой» от сервера — на поворотах тянуло наружу, при ускорении дёргало вперёд-назад.
+      Теперь сравниваем голову сервера с тем местом, где наша голова была в тот же момент (след хранит время), — без догадок;
+   3) радиус своей змейки меняется плавно (раньше ступеньками по 0,25 — полоски по всей длине перескакивали) */
+const predClk = { v: null }, pingS = { v: 0 }, pingHist = [];
+function predStep(srv, now) {
+  const tickMs = 1000 / TICK_RATE;
   if (!pred.on) predStart(srv);
-  const dt = Math.min(6, (now - pred.t) / tickMs); pred.t = now;
+  const dt = Math.min(6, Math.max(0, (now - pred.t) / tickMs)); pred.t = now;
+  // Пинг — самый быстрый из последних 5 замеров: задержку неровной связи уже учитывает «возраст снимка» ниже, дважды её не считаем (замер 15.10)
+  const pingLo = pingHist.length ? Math.min(...pingHist) : pingMs;
+  pingS.v = pingS.v ? pingS.v + (pingLo - pingS.v) * Math.min(1, 0.01 * dt) : pingLo;
+  pred.r = pred.r && Math.abs(pred.r - srv.r) < 3 ? pred.r + (srv.r - pred.r) * Math.min(1, 0.08 * dt) : srv.r;
   const myStun = stunIds.has(myId), r = srv.r, boosting = turboIds.has(myId) || (inBoost && myMass >= MIN_BOOST); // предметы: 🚀 ускоритель, ⚡ шокер
   const tr = myStun ? 0 : turnRate(r) * dt;
   pred.a += clamp(angDiff(pred.a, inAngle), -tr, tr);
   const spd = moveSpeed(r, boosting) * dt * (myStun ? 0.35 : 1);
   pred.x += Math.cos(pred.a) * spd; pred.y += Math.sin(pred.a) * spd;
-  // Где голова на сервере «сейчас»: свежий снимок + путь за время, пока он шёл к нам
-  const lead = ((now - lastArrive) + pingMs) / tickMs;
-  const sx = srv.xs[0] + Math.cos(srv.a) * moveSpeed(r, srv.boost) * lead;
-  const sy = srv.ys[0] + Math.sin(srv.a) * moveSpeed(r, srv.boost) * lead;
-  const ex = sx - pred.x, ey = sy - pred.y, err = Math.hypot(ex, ey);
+  // Ровные «серверные часы»: сколько тиков прошло с момента свежего снимка (не по моменту прихода посылки — она приходит неровно)
+  const snapTick = snaps.length ? snaps[snaps.length - 1].tick : 0;
+  const raw = tickOffset == null ? snapTick : now / tickMs + tickOffset;
+  predClk.v = predClk.v == null || Math.abs(raw - predClk.v) > 4 ? raw : predClk.v + dt + clamp((raw - predClk.v) * 0.1, -0.05, 0.05) * dt;
+  const age = clamp(predClk.v - snapTick, 0, 10); // возраст снимка в тиках
+  // Где была наша голова в тот момент, который сервер уже обработал: снимок старше на age, а наши команды идут к серверу ~ пинг
+  const tWant = now - (age * tickMs + pingS.v);
+  const T = pred.trail;
+  let qx = pred.x, qy = pred.y;
+  if (T.length > 1 && tWant < T[0][2]) {
+    let j = 1; while (j < T.length && T[j][2] > tWant) j++;
+    if (j >= T.length) { qx = T[T.length - 1][0]; qy = T[T.length - 1][1]; }
+    else { const a = T[j - 1], b = T[j], f = a[2] === b[2] ? 0 : (a[2] - tWant) / (a[2] - b[2]); qx = a[0] + (b[0] - a[0]) * f; qy = a[1] + (b[1] - a[1]) * f; }
+  }
+  const ex = srv.xs[0] - qx, ey = srv.ys[0] - qy, err = Math.hypot(ex, ey);
   predStats.frames++; predStats.sumErr += err; if (err > predStats.maxErr) predStats.maxErr = err;
-  if (err > 120) { predStats.snaps++; predStart(srv); pred.x = sx; pred.y = sy; }
-  else { const k = Math.min(1, 0.06 * dt); pred.x += ex * k; pred.y += ey * k; }
-  // След головы → тело нужной длины
+  if (err > 120) { // сильно разошлись (нора, смерть-спасение, сильная пауза) — сразу встаём на место сервера
+    predStats.snaps++; predStart(srv);
+    const lead = (age * tickMs + pingS.v) / tickMs, sp0 = moveSpeed(r, srv.boost) * lead;
+    pred.x = srv.xs[0] + Math.cos(srv.a) * sp0; pred.y = srv.ys[0] + Math.sin(srv.a) * sp0;
+  } else { const k = Math.min(1, 0.05 * dt); pred.x += ex * k; pred.y += ey * k; } // мягко: ошибка теперь честная, без «прямой линии»
+  // След головы (со временем) → тело нужной длины
   const tr0 = pred.trail[0];
-  if (!tr0 || Math.hypot(pred.x - tr0[0], pred.y - tr0[1]) > 1.5) pred.trail.unshift([pred.x, pred.y]);
-  else { tr0[0] = pred.x; tr0[1] = pred.y; }
+  if (!tr0 || Math.hypot(pred.x - tr0[0], pred.y - tr0[1]) > 1.5) pred.trail.unshift([pred.x, pred.y, now]);
+  else { tr0[0] = pred.x; tr0[1] = pred.y; tr0[2] = now; }
   // Владелец 07.10 («змея проползла под другой»): по предсказанию рисуем только голову и шею — до места на следе, где сейчас
-  // голова на сервере; дальше тело строго по данным сервера. Раньше всё тело шло по следу предсказания, и его ошибки
-  // (замер при пинге 166 мс: в среднем 21, до 49 единиц вбок) оставались в теле — на экране оно пересекало чужих.
+  // голова на сервере; дальше тело строго по данным сервера.
   const shx = srv.xs[0], shy = srv.ys[0];
   let D = 0, best = 1e9, accS = 0, cut = pred.trail.length;
   for (let j = 1; j < pred.trail.length; j++) {
     const [x0, y0] = pred.trail[j - 1], [x1, y1] = pred.trail[j];
-    accS += Math.hypot(x1 - x0, y1 - y0);
-    const d = Math.hypot(x1 - shx, y1 - shy); if (d < best) { best = d; D = accS; }
+    const L = Math.hypot(x1 - x0, y1 - y0);
+    // ближайшая точка на отрезке следа (а не только в его концах) — место стыка не скачет
+    const f = L ? clamp(((shx - x0) * (x1 - x0) + (shy - y0) * (y1 - y0)) / (L * L), 0, 1) : 0;
+    const d = Math.hypot(x0 + (x1 - x0) * f - shx, y0 + (y1 - y0) * f - shy); if (d < best) { best = d; D = accS + L * f; }
+    accS += L;
     if (accS > 900) { cut = j + 1; break; }
   }
   if (best > 150) D = 0; // след не совпадает с сервером (после перескока) — всё тело с сервера
-  pred.D = pred.D == null ? D : pred.D + (D - pred.D) * 0.3; // сглаживаем, чтобы узор на теле не прыгал
+  pred.D = pred.D == null ? D : pred.D + (D - pred.D) * Math.min(1, 0.3 * dt);
   const Dk = Math.max(0, Math.min(srv.len - 1, Math.round(pred.D / SEG_D)));
   const idx = [0], xs = [pred.x], ys = [pred.y], gap = [false];
   // шея: точки следа через SEG_D до Dk, с плавной поправкой, чтобы последняя точка легла ровно на голову с сервера
@@ -943,12 +970,22 @@ function predStep(srv) {
   }
   const last = xs.length - 1;
   if (last > 0) { const cx = shx - xs[last], cy = shy - ys[last]; for (let k = 1; k <= last; k++) { xs[k] += cx * k / last; ys[k] += cy * k / last; } }
-  // тело: точки с сервера (без его головы), номера сдвинуты на длину шеи
-  const off = last;
-  for (let j = 1; j < srv.xs.length; j++) {
-    const id = srv.idx[j] + off; if (id > srv.len - 1) break;
-    idx.push(id); xs.push(srv.xs[j]); ys.push(srv.ys[j]); gap.push(srv.gap[j]);
+  // тело: точки с сервера (без его головы)
+  for (let j = 1; j < srv.xs.length; j++) { idx.push(srv.idx[j]); xs.push(srv.xs[j]); ys.push(srv.ys[j]); gap.push(srv.gap[j]); }
+  // номера точек = путь от головы по нарисованному телу (полоски едут вместе с головой), хвост — по длине змеи
+  const Lmax = (srv.len - 1) * SEG_D;
+  const origIdx = k => k > last ? srv.idx[k - last] + last : k; // номер точки, как его считали раньше (шея + номер с сервера)
+  let s = 0, j = 1, offAfterGap = null;
+  for (; j < xs.length; j++) {
+    if (gap[j] || offAfterGap !== null) { // разрыв (нора или тело за краем экрана): дальше номера сервера с тем же сдвигом
+      if (offAfterGap === null) offAfterGap = idx[j - 1] - origIdx(j - 1);
+      const id = origIdx(j) + offAfterGap; if (id > srv.len - 1) break; idx[j] = id; continue;
+    }
+    const L = Math.hypot(xs[j] - xs[j - 1], ys[j] - ys[j - 1]);
+    if (s + L >= Lmax) { const f = L ? (Lmax - s) / L : 0; xs[j] = xs[j - 1] + (xs[j] - xs[j - 1]) * f; ys[j] = ys[j - 1] + (ys[j] - ys[j - 1]) * f; idx[j] = Lmax / SEG_D; j++; break; }
+    s += L; idx[j] = s / SEG_D;
   }
+  idx.length = xs.length = ys.length = gap.length = Math.min(j, xs.length);
   pred.trail.length = Math.min(pred.trail.length, cut + 1);
   if (window.__mmTrailCheck) { // только для проверки: насколько нарисованное тело уходит вбок от настоящего (с сервера)
     let mx = 0, bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
@@ -960,7 +997,7 @@ function predStep(srv) {
     }
     const st = window.__mmTrailCheck; st.n++; if (mx > st.max) st.max = mx; st.sum += mx;
   }
-  return { id: srv.id, boost: boosting, mass: srv.mass, len: srv.len, r, a: pred.a, idx, xs, ys, gap };
+  return { id: srv.id, boost: boosting, mass: srv.mass, len: srv.len, r: pred.r, a: pred.a, idx, xs, ys, gap };
 }
 
 // ===== Роли: табличка на змее и поздравление =====
@@ -1604,6 +1641,7 @@ setInterval(() => {
   Object.assign(dg, { rN: 0, rSum: 0, rMax: 0, rBad: 0, lfN: 0, lfMs: 0, lfTop: '', lfTopMs: 0, lfScript: 0, lfRender: 0, hid: 0 });
   pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now();
 }, 20000);
+let dbgMe = null; window.__mmBody = d => { const sn = dbgMe; if (!sn) return null; let acc = 0; for (let j = 1; j < sn.xs.length; j++) { const L = Math.hypot(sn.xs[j] - sn.xs[j - 1], sn.ys[j] - sn.ys[j - 1]); if (acc + L >= d) { const f = (d - acc) / L; return [sn.xs[j - 1] + (sn.xs[j] - sn.xs[j - 1]) * f, sn.ys[j - 1] + (sn.ys[j] - sn.ys[j - 1]) * f, sn.xs[0], sn.ys[0], sn.idx[j - 1] + (sn.idx[j] - sn.idx[j - 1]) * f, sn.r]; } acc += L; } return null; }; /* для проверки плавности тела */
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
 function frame(time) {
   requestAnimationFrame(frame);
@@ -1620,7 +1658,7 @@ function frame(time) {
   let me = null;
   // Своя змейка — по предсказанию (мгновенный отклик), остальные — по снимкам сервера
   const latestMe = alive && snaps.length ? snaps[snaps.length - 1].sn.get(myId) : null;
-  if (world && alive && latestMe && latestMe.idx[0] === 0) me = predStep(latestMe);
+  if (world && alive && latestMe && latestMe.idx[0] === 0) me = predStep(latestMe, time);
   else if (pred.on && !alive) predStop();
   if (me && world) world.list = world.list.filter(s => s.id !== myId);
   Sound.boost(!!(me && me.boost));
@@ -1710,7 +1748,7 @@ function frame(time) {
     lastHeads.clear(); lastDrawn.clear();
     const list = world.list.slice().sort((a, b) => a.mass - b.mass);
     for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn === me) continue; if (invisIds.has(sn.id)) { drawInvisible(sn, time); continue; } drawSnake(sn, metas.get(sn.id), false, time, view); }
-    if (me) drawSnake(me, metas.get(me.id), true, time, view);
+    if (me) { dbgMe = me; drawSnake(me, metas.get(me.id), true, time, view); }
   }
   if (BASES) drawFlags(time);
   if (bombsFly.size) drawFlyingBombs(time);
