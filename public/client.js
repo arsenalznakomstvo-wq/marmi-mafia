@@ -888,7 +888,7 @@ function moveSpeed(r, boost) { return (boost ? 12 : 4.25 + 0.5 * (r / 10)) * 6 /
 const pred = { on: false, x: 0, y: 0, a: 0, t: 0, trail: [] };
 window.__mmHeading = () => pred.on ? ((pred.a * 180 / Math.PI) + 360) % 360 : NaN; // для проверки
 window.__mmHeadScreen = () => ({ x: W / 2 - look.x * cam.s, y: H / 2 - look.y * cam.s }); // для проверки
-function predStop() { pred.on = false; pred.trail.length = 0; pred.D = null; pred.r = 0; predClk.v = null; }
+function predStop() { pred.on = false; pred.trail.length = 0; pred.D = null; pred.r = 0; }
 function predStart(srv) {
   pred.on = true; pred.x = srv.xs[0]; pred.y = srv.ys[0]; pred.a = srv.a; pred.t = performance.now();
   pred.trail = []; const t0 = pred.t, stepT = (1000 / TICK_RATE) / Math.max(1, moveSpeed(srv.r, srv.boost));
@@ -904,7 +904,7 @@ window.__mmPred = () => predStats; // для проверки расхожден
    2) голову подтягивали к точке «по прямой» от сервера — на поворотах тянуло наружу, при ускорении дёргало вперёд-назад.
       Теперь сравниваем голову сервера с тем местом, где наша голова была в тот же момент (след хранит время), — без догадок;
    3) радиус своей змейки меняется плавно (раньше ступеньками по 0,25 — полоски по всей длине перескакивали) */
-const predClk = { v: null }, pingS = { v: 0 }, pingHist = [];
+const pingS = { v: 0 }, pingHist = [];
 function predStep(srv, now) {
   const tickMs = 1000 / TICK_RATE;
   if (!pred.on) predStart(srv);
@@ -920,9 +920,7 @@ function predStep(srv, now) {
   pred.x += Math.cos(pred.a) * spd; pred.y += Math.sin(pred.a) * spd;
   // Ровные «серверные часы»: сколько тиков прошло с момента свежего снимка (не по моменту прихода посылки — она приходит неровно)
   const snapTick = snaps.length ? snaps[snaps.length - 1].tick : 0;
-  const raw = tickOffset == null ? snapTick : now / tickMs + tickOffset;
-  predClk.v = predClk.v == null || Math.abs(raw - predClk.v) > 4 ? raw : predClk.v + dt + clamp((raw - predClk.v) * 0.1, -0.05, 0.05) * dt;
-  const age = clamp(predClk.v - snapTick, 0, 10); // возраст снимка в тиках
+  const age = clamp((srvClk.v == null ? snapTick : srvClk.v) - snapTick, 0, 10); // возраст снимка в тиках (общие ровные часы — в frame)
   // Где была наша голова в тот момент, который сервер уже обработал: снимок старше на age, а наши команды идут к серверу ~ пинг
   const tWant = now - (age * tickMs + pingS.v);
   const T = pred.trail;
@@ -1642,7 +1640,9 @@ setInterval(() => {
   pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now();
 }, 20000);
 let dbgMe = null; window.__mmBody = d => { const sn = dbgMe; if (!sn) return null; let acc = 0; for (let j = 1; j < sn.xs.length; j++) { const L = Math.hypot(sn.xs[j] - sn.xs[j - 1], sn.ys[j] - sn.ys[j - 1]); if (acc + L >= d) { const f = (d - acc) / L; return [sn.xs[j - 1] + (sn.xs[j] - sn.xs[j - 1]) * f, sn.ys[j - 1] + (sn.ys[j] - sn.ys[j - 1]) * f, sn.xs[0], sn.ys[0], sn.idx[j - 1] + (sn.idx[j] - sn.idx[j - 1]) * f, sn.r]; } acc += L; } return null; }; /* для проверки плавности тела */
+window.__mmHeads = () => { const o = {}; for (const [id, s] of lastDrawn) o[id] = [s.xs[0], s.ys[0]]; return o; }; /* для проверки плавности чужих змей */
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
+const srvClk = { v: null };
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
@@ -1650,9 +1650,18 @@ function frame(time) {
   pf.last = time;
   sendInput();
   const tickMs = 1000 / TICK_RATE;
-  interpTicks += (interpWant - interpTicks) * (interpWant > interpTicks ? 0.06 : 0.01); // запас растёт быстро (после рывка), уменьшается медленно — картинка не дёргается
-  const renderTick = tickOffset === null ? 0 : performance.now() / tickMs + tickOffset - interpTicks;
-  applyFood(renderTick);
+  /* 15.10 (разбор инженера): плавные движения считались «за кадр» — на телефоне с экраном 90–120 Гц камера и запас плавности
+     менялись быстрее, чем на 60 Гц, и неровно при скачущей частоте. Теперь — по времени (fdt — длина кадра в долях 1/60 с) */
+  const fdt = clamp((time - (frame.lt || time)) / 16.67, 0, 6); frame.lt = time;
+  const ease = a => 1 - Math.pow(1 - a, fdt);
+  interpTicks += (interpWant - interpTicks) * ease(interpWant > interpTicks ? 0.06 : 0.01); // запас растёт быстро (после рывка), уменьшается медленно — картинка не дёргается
+  /* 15.10: ровные «серверные часы» — раньше они прыгали вперёд, когда посылка приходила раньше обычного, и отползали назад
+     после пачки опоздавших; чужие змеи из-за этого дёргались вперёд-назад. Теперь часы идут ровно и только мягко подстраиваются */
+  if (tickOffset === null) srvClk.v = null;
+  else { const raw = time / tickMs + tickOffset, dT = fdt * 16.67 / tickMs;
+    srvClk.v = srvClk.v == null || Math.abs(raw - srvClk.v) > 4 ? raw : srvClk.v + dT + clamp((raw - srvClk.v) * 0.1, -0.05, 0.05) * dT; }
+  const renderTick = srvClk.v === null ? 0 : srvClk.v - interpTicks;
+  window.__mmRT = renderTick; applyFood(renderTick);
   const world = interpolated(renderTick);
 
   let me = null;
@@ -1665,17 +1674,17 @@ function frame(time) {
   if (me) {
     // «Взгляд вперёд» (владелец 06.10): камера плавно сдвигается по ходу движения — впереди видно больше
     const L = Math.min(W, H) / 2 / cam.s * 0.22, tx = Math.cos(me.a) * L, ty = Math.sin(me.a) * L;
-    look.x += (tx - look.x) * 0.04; look.y += (ty - look.y) * 0.04;
+    look.x += (tx - look.x) * ease(0.04); look.y += (ty - look.y) * ease(0.04);
     // Владелец 11.10: камера не прыгает (потайной ход, появление) — плавно доплывает за ~0,5 с
     const nx = me.xs[0] + look.x, ny = me.ys[0] + look.y;
     if (camLag.has && Math.abs(nx - camLag.tx) + Math.abs(ny - camLag.ty) > 300) { camLag.x = cam.x - nx; camLag.y = cam.y - ny; } // голова перескочила — камера начинает с того места, где была
     camLag.tx = nx; camLag.ty = ny; camLag.has = true;
-    camLag.x *= 0.9; camLag.y *= 0.9; if (Math.abs(camLag.x) + Math.abs(camLag.y) < 0.5) camLag.x = camLag.y = 0;
+    const cl = Math.pow(0.9, fdt); camLag.x *= cl; camLag.y *= cl; if (Math.abs(camLag.x) + Math.abs(camLag.y) < 0.5) camLag.x = camLag.y = 0;
     cam.x = nx + camLag.x; cam.y = ny + camLag.y;
-  } else if (world) { look.x *= 0.9; look.y *= 0.9; cam.x += (world.vx - cam.x) * 0.15; cam.y += (world.vy - cam.y) * 0.15; }
+  } else if (world) { const lk = Math.pow(0.9, fdt); look.x *= lk; look.y *= lk; cam.x += (world.vx - cam.x) * ease(0.15); cam.y += (world.vy - cam.y) * ease(0.15); }
   const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0, !!(me && metas.get(myId) && metas.get(myId).sk.id === window.Skins.EYE_ID));
   farView = TEAM_MODE && me && teamZoom(me.mass) < 0.8; // камера высоко — рисуем проще, чтобы телефон не тормозил
-  cam.s += (target - cam.s) * 0.06;
+  cam.s += (target - cam.s) * ease(0.06);
 
   const s = cam.s;
   // Аудит 12.10: камера далеко (большая змея) — еда простыми точками, кружки тела реже: на экране в разы больше объектов

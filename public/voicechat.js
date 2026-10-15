@@ -30,18 +30,27 @@ window.VoiceChat = (() => {
     if (window.LivekitClient) return Promise.resolve();
     return new Promise((ok, fail) => { const s = document.createElement('script'); s.src = SDK; s.onload = ok; s.onerror = () => fail(new Error('sdk')); document.head.appendChild(s); });
   }
+  /* 15.10 (замер на телефоне владельца: подключение голоса подвешивало игру на 0,7–1,7 с в начале игры): подключение — по шагам,
+     каждый в свободное время телефона; а библиотеку голоса прогреваем заранее, пока человек в меню */
+  const idle = () => new Promise(r => window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 50));
+  let warmed = false;
+  function warm() {
+    if (warmed) return; warmed = true;
+    idle().then(loadSdk).then(idle).then(() => { try { new window.LivekitClient.Room(); } catch (e) {} }).catch(() => { warmed = false; });
+  }
   const myName = () => (($('nick') && $('nick').value.trim()) || 'Игрок').slice(0, 16);
 
   async function connect() {
     if (connecting || room || offline || !ROOM) return;
     connecting = true; const want = ROOM;
     try {
-      await loadSdk();
+      await loadSdk(); await idle();
       const r = await fetch('/voice-token?room=' + ROOM + '&name=' + encodeURIComponent(myName()));
       if (r.status === 503) { offline = true; throw new Error('off'); }
       if (!r.ok) throw new Error('token');
       const { url, token } = await r.json();
       if (want !== ROOM) throw new Error('room-changed');
+      await idle();
       const L = window.LivekitClient;
       const rm = new L.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       rm.on(L.RoomEvent.TrackSubscribed, track => {
@@ -55,6 +64,7 @@ window.VoiceChat = (() => {
       rm.on(L.RoomEvent.ParticipantConnected, render);
       rm.on(L.RoomEvent.ParticipantDisconnected, render);
       rm.on(L.RoomEvent.Disconnected, () => { room = null; micOn = false; speaking.clear(); render(); });
+      await idle();
       await rm.connect(url, token);
       room = rm; micOn = false;
       if (!mutedAll) try { await rm.startAudio(); } catch (e) {}
@@ -147,6 +157,7 @@ window.VoiceChat = (() => {
     renderHelp();
     if (offline) return;
     if (alive) played = true;
+    else if (!played && online >= 2 && ROOM) warm(); // в меню: прогрев, чтобы в игре подключение не подвешивало
     const hiddenLong = hiddenSince && Date.now() - hiddenSince > 60000;
     const want = played && online >= 2 && !hiddenLong && !!ROOM;
     if (want) { lowSince = 0; if (!room) connect(); }

@@ -46,6 +46,11 @@ const BOT_NAME = 'Bot';
 const { ROLES, DON, rankFor } = require('./public/roles.js');
 const { PORTALS, PORTAL_R } = require('./public/portals.js');
 let donId = 0;
+/* 15.10 (аудит): «экран» 3000×3000 или 3000×200 показывал в 2–3 раза больше карты. Вытянутость — не больше 2,4:1, площадь — не больше 2560×1440 */
+function fitView(c) {
+  if (c.w > c.h * 2.4) c.w = c.h * 2.4; else if (c.h > c.w * 2.4) c.h = c.w * 2.4;
+  const k = Math.sqrt(2560 * 1440 / (c.w * c.h)); if (k < 1) { c.w *= k; c.h *= k; }
+}
 function updateRoles() {
   if (TEAM) return; // в командном режиме ролей нет
   let top = null;
@@ -60,23 +65,26 @@ function updateRoles() {
       s.roleShown = r;
       sendJSON(s.client, { t: 'role', r });
     }
+    // 15.10 (аудит): звание могли «перепрыгнуть» (быстро выросли между проверками) или стать сразу Доном — оружие не выдавалось.
+    // Теперь сравниваем с достигнутым званием по длине: >= вместо ==
+    const rk = r === DON ? rankFor(s.mass, 0) : r;
     // Владелец 11.10: человек стал Киллером — у него кинжал, метнуть можно один раз за жизнь
-    if (!s.bot && s.client && r === KILLER_ROLE && !s.knifeGiven) {
-      s.knifeGiven = true; s.knife = 2; // владелец 13.10: два кинжала
+    if (!s.bot && s.client && rk >= KILLER_ROLE && !s.knifeGiven) {
+      s.knifeGiven = true; s.knife = (s.knife || 0) + 2; /* 15.10: не затираем неиспользованный кинжал Параноика */ // владелец 13.10: два кинжала
       sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
     }
     // Владелец 14.10: человек стал Параноиком — 1 кинжал и 1 электрошокер
-    if (!s.bot && s.client && r === PARANOID_ROLE && !s.paraGiven) {
+    if (!s.bot && s.client && rk >= PARANOID_ROLE && !s.paraGiven) {
       s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 2; // владелец 14.10: шокера два
       sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — ' + (isTouchUA(s.client) ? 'кнопка справа' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
     }
     // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
-    if (!s.bot && s.client && r === SHERIFF_ROLE && !s.badgeGiven) {
+    if (!s.bot && s.client && rk >= SHERIFF_ROLE && !s.badgeGiven) {
       s.badgeGiven = true; s.badge = 2;
       sendJSON(s.client, { t: 'tmsgMe', text: '⭐ Вы Шериф! 2 броска значка — разрубает змею пополам: кнопка ⭐' + (isTouchUA(s.client) ? '' : ' или F') });
     }
     // Владелец 11.10: человек стал Бомбой — рядом с ним едет настоящая бомба, бросить её можно один раз за жизнь
-    if (!s.bot && s.client && r === BOMB_ROLE && !s.bombGiven) {
+    if (!s.bot && s.client && rk >= BOMB_ROLE && !s.bombGiven) {
       s.bombGiven = true; s.bomb = 2; // владелец 11.10: две бомбы
       sendJSON(s.client, { t: 'tmsgMe', text: '💣 Вы Бомба! Две бомбы едут рядом — бросайте в соперников: кнопка 💣' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
     }
@@ -431,7 +439,7 @@ const deathStats = { botBody: 0, botWall: 0, player: 0 };
 const DOCTOR = ROLES.findIndex(r => r.name === 'Доктор'), GHOST_TICKS = Math.round(0.4 * TICK_RATE);
 function docSave(s) {
   if (TEAM || s.docUsed || (s.role || 0) !== DOCTOR || !s.alive) return false;
-  s.docUsed = true; s.ghostUntil = tick + GHOST_TICKS;
+  s.docUsed = true; s.ghostUntil = tick + GHOST_TICKS; s.hh = [];
   const hx = s.xs[0], hy = s.ys[0];
   if (hx * hx + hy * hy > (MAP_R - 300) * (MAP_R - 300)) s.a = s.ta = Math.atan2(-hy, -hx); // у края — к центру
   else { s.a += Math.PI; if (s.a > Math.PI) s.a -= TAU; s.ta = s.a; } // врезался в змею — разворот назад, прочь от неё
@@ -444,7 +452,7 @@ function docSave(s) {
 const LIZ_GHOST = Math.round(0.7 * TICK_RATE);
 function lizardSave(s, killer) {
   if (TEAM || !killer || s.lizUsed || s.skin.id !== TEETH_ID || !s.alive || s.tun) return false;
-  s.lizUsed = true; s.ghostUntil = tick + LIZ_GHOST;
+  s.lizUsed = true; s.ghostUntil = tick + LIZ_GHOST; s.hh = [];
   const xs = s.xs, ys = s.ys, n = xs.length, keep = Math.max(8, Math.ceil(n / 2)), drop = s.mass * 0.5;
   s.mass -= drop;
   const m = n - keep, cnt = clamp(Math.round(m / 3), 3, 200), v = drop * 0.8 / cnt; // хвост — едой (чуть меньше, чем потерял)
@@ -748,7 +756,7 @@ function botThink(b) {
   if (ai.cool > 0) ai.cool -= 1;
   if (ai.boostT > 0) ai.boostT -= 1;
 
-  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3)) { ai.prey = null; ai.cool = 20; }
+  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
   if (!ai.prey && ai.cool <= 0 && b.mass > MIN_BOOST_MASS + 5 && Math.random() < ai.aggr * 0.6) {
     ai.prey = findPrey(b, hx, hy);
     if (ai.prey) { ai.preyT = Math.round(rand(90, 210)); ai.side = Math.random() < 0.5 ? -1 : 1; }
@@ -838,7 +846,7 @@ function cleanSkin(sk) {
 function handleJSON(c, m) {
   if (m.t === 'join') {
     if (c.snake && c.snake.alive) return;
-    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
+    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); fitView(c);
     const pos = process.env.TEST_SPAWN_AT ? { x: +process.env.TEST_SPAWN_AT.split(',')[0], y: +process.env.TEST_SPAWN_AT.split(',')[1] } : process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_AT / TEST_SPAWN_CENTER — только для проверок
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const team = TEAM ? (m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true)) : null;
@@ -859,7 +867,7 @@ function handleJSON(c, m) {
     if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 2; sendJSON(c, { t: 'tmsgMe', text: '🥷 2 дымовые шашки — 💨' + (isTouchUA(c) ? '' : ' или F') }); } // владелец 13.10: две шашки; надпись короче — мешала
     if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
   } else if (m.t === 'view') {
-    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000);
+    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); fitView(c);
   } else if (m.t === 'fire') {
     if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.shock) { c.snake.shock--; doShock(c.snake); } else if (c.snake.smoke) throwSmoke(c.snake); }
   } else if (m.t === 'ping') {
@@ -1201,7 +1209,7 @@ function stepRockets() {
       for (let gx = cx - 1; gx <= cx + 1 && !hit; gx++) for (let gy = cy - 1; gy <= cy + 1 && !hit; gy++) {
         const cell = grid.get(gkey(gx, gy)); if (!cell) continue;
         for (const p of cell) {
-          const o = PS[p]; if (!o.alive || o === r.owner || (TEAM && o.team === r.team)) continue;
+          const o = PS[p]; if (!o.alive || o === r.owner || (TEAM && o.team === r.team) || o.ghostUntil > tick) continue; // 15.10: защита после норы — и от ракеты
           const dx = PX[p] - r.x, dy = PY[p] - r.y, rr = o.r + ROCKET_HIT;
           if (dx * dx + dy * dy < rr * rr) { hit = o; break; }
         }
@@ -1240,7 +1248,7 @@ function stepBombs() {
     bombs.splice(i, 1);
     const hit = [];
     for (const o of snakes.values()) {
-      if (!o.alive || o === b.owner) continue;
+      if (!o.alive || o === b.owner || o.ghostUntil > tick) continue; // 15.10: защита после норы — и от бомбы
       const rr = BOMB_R + o.r, dx = o.xs[0] - b.x, dy = o.ys[0] - b.y;
       if (dx * dx + dy * dy < rr * rr) { hit.push(o); continue; }
       // Владелец 11.10: голова цела, а тело задето — змея жива, но кусок, попавший в круг, отлетает светящейся едой
@@ -1279,6 +1287,7 @@ function throwKnife(s, badge, fromItem) { // badge — значок Шерифа
 // Разрубить змею o в точке тела idx: хвост от idx — в еду, змея короче. Слишком близко к голове — гибель.
 function chopSnake(o, idx, killer, badge) {
   const xs = o.xs, ys = o.ys, len = xs.length;
+  if (idx >= len) return; /* 15.10 (аудит): точка уже отрублена (второй нож в тот же шаг) — мимо, а не смерть */
   if (idx <= 4 || len - idx < 2) { if (!docSave(o)) killSnake(o, killer && killer.alive ? killer : null); return; }
   const loss = Math.min(o.mass - START_MASS, o.mass * (len - idx) / len);
   if (loss > 0) {
@@ -1301,7 +1310,7 @@ function stepKnives() {
       for (let gx = cx - 1; gx <= cx + 1 && !hit; gx++) for (let gy = cy - 1; gy <= cy + 1 && !hit; gy++) {
         const cell = grid.get(gkey(gx, gy)); if (!cell) continue;
         for (const p of cell) {
-          const o = PS[p]; if (!o.alive || o === k.owner || k.hits.has(o) || o.ghostUntil > tick) continue;
+          const o = PS[p]; if (!o.alive || o === k.owner || k.hits.has(o) || o.ghostUntil > tick || PIdx[p] >= o.xs.length) continue; // 15.10: точку уже отрубили в этот шаг
           const dx = PX[p] - k.x, dy = PY[p] - k.y, rr = o.r + 10;
           if (dx * dx + dy * dy < rr * rr) { hit = o; hitIdx = PIdx[p]; break; }
         }
@@ -1401,13 +1410,14 @@ function stepItems() {
   for (let k = 0; k < 3 && items.length + itemWait.length < ITEM_N; k++) placeItem();
   for (let i = itemWait.length - 1; i >= 0; i--) if (itemWait[i] <= tick) { itemWait.splice(i, 1); placeItem(); }
   for (const s of snakes.values()) {
-    if (s.bot || !s.alive || !s.client) continue;
+    if (s.bot || !s.alive || !s.client || s.item) continue; // 15.10: карман занят — новый предмет не подбираем (раньше старый пропадал)
     const hx = s.xs[0], hy = s.ys[0], rr = s.r + ITEM_R;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if ((it.x - hx) ** 2 + (it.y - hy) ** 2 > rr * rr) continue;
       items.splice(i, 1); itemWait.push(tick + ITEM_RESPAWN); itemsDirty = true;
       s.item = it.type; s.itemN = it.type === 'shock' ? 2 : 1; sendJSON(s.client, { t: 'item', type: it.type, n: s.itemN }); // шокер — на 2 удара (владелец 14.10)
+      break; // один предмет за раз
     }
   }
 }
@@ -1457,7 +1467,7 @@ function stepPortals() {
       // Голова ныряет в нору и показывается из другой (с тем же сдвигом), тело втягивается следом по точкам (moveSnake)
       s.xs[0] += qx - px; s.ys[0] += qy - py;
       s.tun = { ax: px, ay: py, bx: qx, by: qy, k: 1, ux: Math.cos(s.a), uy: Math.sin(s.a) };
-      s.bbox(); s.portalCd = tick + PORTAL_CD; s.ghostUntil = tick + PORTAL_GHOST;
+      s.bbox(); s.portalCd = tick + PORTAL_CD; s.ghostUntil = tick + PORTAL_GHOST; s.hh = []; // 15.10: старая история головы — с другой стороны норы
       const msg = JSON.stringify({ t: 'portal', id: s.id, f: [px, py], d: [qx, qy] });
       for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg);
       break hop;
@@ -1480,6 +1490,8 @@ function step() {
   maintainBots();
   if (tick % 15 === 0) updateRoles(); // 2 раза в секунду
   for (const c of clients) sendState(c);
+  // 15.10 (аудит): «кого игрок уже знает» не забывало погибших — у открытой вкладки копились тысячи мёртвых змей (память сервера росла)
+  if (diedThisTick.length) for (const c of clients) if (c.known) for (const id of diedThisTick) c.known.delete(id);
   cellEv.clear();
   diedThisTick.length = 0;
   if (tick % (TICK_RATE / 2) === 0) sendLeaderboard(); // рейтинг и миникарта — 2 раза в секунду
