@@ -68,6 +68,13 @@ function brighten(c) {
   // Та же яркость ×1,15 без фильтра: рисуем фото и поверх него — его же в режиме «сложения» с прозрачностью 0,15 (видеочип, доли мс)
   const g = t.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.15; g.drawImage(c, 0, 0); return t;
 }
+/* 15.10 (аудит, критик): кружок тела без пустой прозрачной рамки — сам шар тот же (радиус 26, та же чёткость), видеокарта не закрашивает пустые поля: на ~30% меньше точек */
+const TB = 2 * (SR + 1), TB_O = 32 - SR - 1;
+function tightSprite(key, paint) {
+  let s = sprites.get(key);
+  if (!s) { const full = sprite('full' + key, paint); s = document.createElement('canvas'); s.width = s.height = TB; s.getContext('2d').drawImage(full, TB_O, TB_O, TB, TB, 0, 0, TB, TB); sprites.delete('full' + key); sprites.set(key, s); }
+  return s;
+}
 function sprite(key, paint) {
   let s = sprites.get(key);
   if (!s) { s = document.createElement('canvas'); s.width = s.height = SPR; paint(s.getContext('2d')); s = brighten(s); sprites.set(key, s); }
@@ -80,8 +87,8 @@ function paintBall(g, col) {
   gr.addColorStop(0, shade(col, 38)); gr.addColorStop(0.5, shade(col, 16)); gr.addColorStop(0.82, col); gr.addColorStop(1, shade(col, -45));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
 }
-const ball = col => sprite('b' + col, g => paintBall(g, col));
-const ringBall = (col, v) => sprite('r' + col + v, g => {
+const ball = col => tightSprite('b' + col, g => paintBall(g, col));
+const ringBall = (col, v) => tightSprite('r' + col + v, g => {
   const gr = g.createRadialGradient(32, 32, 2, 32, 32, SR); gr.addColorStop(0, '#2a2a2a'); gr.addColorStop(1, '#0b0b0b');
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
   g.strokeStyle = col; g.lineWidth = 4; g.beginPath(); g.arc(32, 32, SR - 2, 0, TAU); g.stroke();
@@ -92,7 +99,7 @@ const glowBall = col => sprite('g' + col, g => {
   const gr = g.createRadialGradient(32, 32, 1, 32, 32, SR); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, shade(col, 50)); gr.addColorStop(1, col);
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR - 2, 0, TAU); g.fill();
 });
-const spaceBall = (c1, c2, v) => sprite('s' + c1 + c2 + v, g => {
+const spaceBall = (c1, c2, v) => tightSprite('s' + c1 + c2 + v, g => {
   const gr = g.createRadialGradient(32, 32, 2, 32, 32, SR); gr.addColorStop(0, '#1d1d5a'); gr.addColorStop(1, '#06061a');
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
   g.fillStyle = c1;
@@ -139,7 +146,7 @@ function bandColor(cols, u) {
   return cols[((i % n) + n) % n];
 }
 // Водный шарик: прозрачная середина, плотнее к краю (кромка-поверхность), блик сверху. Внахлёст даёт «толщу воды».
-const waterBall = w => sprite('w' + w.kind, g => {
+const waterBall = w => tightSprite('w' + w.kind, g => {
   const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
   const gr = g.createRadialGradient(32 - 5, 32 - 6, 1, 32, 32, SR);
   gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
@@ -1473,10 +1480,12 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
+  const sizeT = r * 2 * TB / (SR * 2), halfT = sizeT / 2;
   for (let k = cnt - 1; k >= 0; k--) {
     const x = SX[k], y = SY[k];
     if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
-    ctx.drawImage(skinSprite(sk, SI[k] / unit), x - half, y - half, size, size);
+    const im = skinSprite(sk, SI[k] / unit);
+    if (im.width === TB) ctx.drawImage(im, x - halfT, y - halfT, sizeT, sizeT); else ctx.drawImage(im, x - half, y - half, size, size);
   }
   // Аудит 12.10 («всё равно виснет»): мелкие на экране чужие змеи (камера высоко или змея тонкая) — без мелких деталей,
   // их всё равно не видно: эффекты воды, золото Дона, узоры ролей, очки, жетоны, ремни, губы, сигара, надписи по телу
@@ -1613,7 +1622,7 @@ function frame(time) {
   // Аудит 12.10: камера далеко (большая змея) — еда простыми точками, кружки тела реже: на экране в разы больше объектов
   zoomedOut = s < (isTouch ? 0.62 : 0.45);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = BG.floor; ctx.fillRect(0, 0, W, H);
+  /* 15.10: отдельная заливка пола убрана — соты (непрозрачные) и так закрывают весь экран, с запасом на тряску */
   const shk = shakeUntil > performance.now() ? (shakeUntil - performance.now()) / 450 * 9 : 0; // тряска экрана после попадания из базуки
   const shx = shk ? (Math.random() - 0.5) * 2 * shk : 0, shy = shk ? (Math.random() - 0.5) * 2 * shk : 0;
   ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (W / 2 - cam.x * s + shx), DPR * (H / 2 - cam.y * s + shy));
@@ -1622,7 +1631,7 @@ function frame(time) {
 
   // Фон и граница карты
   if (!bgPattern) makeBg();
-  ctx.fillStyle = bgPattern; ctx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+  { const pad = 12 / s; ctx.fillStyle = bgPattern; ctx.fillRect(view.x0 - pad, view.y0 - pad, view.x1 - view.x0 + pad * 2, view.y1 - view.y0 + pad * 2); }
   /* 15.10: красную зону за краем рисуем, только если край виден (раньше — проход по всему экрану каждый кадр) */
   const edgeR2 = (MAP_R - 10) * (MAP_R - 10), edgeIn = Math.max(view.x0 * view.x0, view.x1 * view.x1) + Math.max(view.y0 * view.y0, view.y1 * view.y1) < edgeR2;
   if (!edgeIn) {
@@ -2528,7 +2537,8 @@ function drawSkinPath(g, sk, pts, r) {
   }
   const sh = shadowSprite(), ss = size * 1.35, st = Math.max(1, Math.round(r * 0.9 / sp));
   for (let i = xs.length - 1; i >= 0; i -= st) g.drawImage(sh, xs[i] - ss / 2 + r * 0.25, ys[i] - ss / 2 + r * 0.25, ss, ss);
-  for (let i = xs.length - 1; i >= 0; i--) g.drawImage(skinSprite(p, ds[i] / unit), xs[i] - size / 2, ys[i] - size / 2, size, size);
+  const sizeT = r * 2 * TB / (SR * 2);
+  for (let i = xs.length - 1; i >= 0; i--) { const im = skinSprite(p, ds[i] / unit), z = im.width === TB ? sizeT : size; g.drawImage(im, xs[i] - z / 2, ys[i] - z / 2, z, z); }
   const a = Math.atan2(pts[0][1] - pts[1][1], pts[0][0] - pts[1][0]);
   const nk = Math.min(xs.length - 2, Math.round(r * 2.6 / sp));
   const neck = nk > 1 ? [xs[nk], ys[nk], Math.atan2(ys[nk - 1] - ys[nk + 1], xs[nk - 1] - xs[nk + 1])] : null;
