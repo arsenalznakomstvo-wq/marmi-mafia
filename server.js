@@ -875,7 +875,19 @@ function handleJSON(c, m) {
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); fitView(c);
   } else if (m.t === 'fire') {
-    if (c.snake && c.snake.alive) { if (c.snake.item) useItem(c.snake); else if (c.snake.rockets) fireRocket(c.snake); else if (c.snake.bomb) throwBomb(c.snake); else if (c.snake.knife) throwKnife(c.snake); else if (c.snake.badge) throwKnife(c.snake, true); else if (c.snake.shock) { c.snake.shock--; doShock(c.snake); } else if (c.snake.smoke) throwSmoke(c.snake); }
+    // 15.10: игрок выбирает оружие (w). Выбранного уже нет — ничего (не стреляем тем, что не выбирали). Без w — прежний порядок (старые версии, приложение)
+    const s = c.snake;
+    if (s && s.alive) {
+      const w = m.w;
+      if (w === 'item') { if (s.item) useItem(s); }
+      else if (w === 'rocket') { if (s.rockets) fireRocket(s); }
+      else if (w === 'bomb') { if (s.bomb) throwBomb(s); }
+      else if (w === 'knife') { if (s.knife) throwKnife(s); }
+      else if (w === 'badge') { if (s.badge) throwKnife(s, true); }
+      else if (w === 'shock') { if (s.shock) { s.shock--; doShock(s); } }
+      else if (w === 'smoke') { if (s.smoke) throwSmoke(s); }
+      else { if (s.item) useItem(s); else if (s.rockets) fireRocket(s); else if (s.bomb) throwBomb(s); else if (s.knife) throwKnife(s); else if (s.badge) throwKnife(s, true); else if (s.shock) { s.shock--; doShock(s); } else if (s.smoke) throwSmoke(s); }
+    }
   } else if (m.t === 'ping') {
     // 15.10 (аудит критика): «насколько я вижу чужих в прошлом» игрок сообщает сам — подделанная игра могла всегда говорить 0,4 с
     // и убивать тараном в бок. Теперь сервер сам меряет задержку связи (pr) и не верит больше, чем пинг/2 + запас плавности

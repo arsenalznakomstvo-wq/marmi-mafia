@@ -12,7 +12,7 @@ window.VoiceChat = (() => {
   const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua);
   const speaking = new Set();
   let key = '', inGame = false, ac = null, rec = null, sending = false, nextOk = 0, autoT = 0, tickT = 0;
-  let mutedAll = (() => { try { return localStorage.getItem('mm_vc_mute') === '1'; } catch (e) { return false; } })();
+  let mutedAll = false; // 15.10: отдельной кнопки нет — чужую рацию выключает общая кнопка звука (режим «тишина»)
 
   function audio() {
     if (!ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ac = new AC(); }
@@ -25,14 +25,17 @@ window.VoiceChat = (() => {
   let btn, muteBtn, banner, tip;
   function build() {
     btn = document.createElement('button'); btn.id = 'radioBtn'; btn.innerHTML = '🎙<small></small>';
-    btn.title = isTouch ? 'Рация: нажмите — говорите — нажмите ещё раз' : 'Рация: держите V и говорите';
+    btn.title = isTouch ? 'Рация: держите кнопку и говорите, отпустите — сообщение уйдёт' : 'Рация: держите V (или кнопку) и говорите';
     muteBtn = document.createElement('button'); muteBtn.id = 'radioMute'; muteBtn.title = 'Не слышать рацию';
     banner = document.createElement('div'); banner.id = 'radioBanner'; banner.className = 'hide';
     tip = document.createElement('div'); tip.id = 'radioTip'; tip.className = 'hide';
     for (const el of [btn, muteBtn, banner, tip]) document.body.appendChild(el);
     const stop = e => { e.preventDefault(); e.stopPropagation(); };
-    btn.addEventListener('pointerdown', e => { stop(e); if (rec) finish(true); else start(); });
-    for (const ev of ['pointerup', 'touchstart', 'touchend', 'click', 'contextmenu']) btn.addEventListener(ev, stop);
+    // 15.10 (владелец): держишь кнопку — говоришь, отпустил — сообщение уходит само (и на телефоне, и мышкой)
+    btn.addEventListener('pointerdown', e => { stop(e); try { btn.setPointerCapture(e.pointerId); } catch (e2) {} if (!rec) start(); });
+    const release = e => { stop(e); if (rec) finish(true); };
+    btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release); btn.addEventListener('lostpointercapture', () => { if (rec) finish(true); });
+    for (const ev of ['touchstart', 'touchend', 'click', 'contextmenu']) btn.addEventListener(ev, stop);
     muteBtn.addEventListener('pointerdown', e => { stop(e); mutedAll = !mutedAll; try { localStorage.setItem('mm_vc_mute', mutedAll ? '1' : '0'); } catch (e2) {} if (mutedAll) stopPlay(); render(); });
     for (const ev of ['pointerup', 'touchstart', 'touchend', 'click']) muteBtn.addEventListener(ev, stop);
     // компьютер: держишь V — говоришь, отпустил — отправилось
@@ -89,7 +92,7 @@ window.VoiceChat = (() => {
     iosBack(); render();
     if (!send || r.pending) return;
     const n = r.chunks.reduce((s, c) => s + c.length, 0);
-    if (n < r.rate * MIN_S) { say('🎙 Слишком коротко — нажмите и скажите хотя бы слово'); return; }
+    if (n < r.rate * MIN_S) { say('🎙 Держите кнопку, пока говорите, — отпустите, когда скажете'); return; }
     upload(encode(r.chunks, r.rate));
   }
   // Сжатие: усредняем до 12 000 отсчётов в секунду и переводим в 8 бит по μ-закону (как в телефонной связи)
@@ -121,7 +124,7 @@ window.VoiceChat = (() => {
   // ===== Проигрывание: по очереди, через обычный динамик (как звуки игры) =====
   const queue = []; let playing = null;
   function onRadio(m) {
-    if (mutedAll || !inGameOrMenu()) return;
+    if (mutedAll || !inGameOrMenu() || (window.Sound && Sound.isOn && !Sound.isOn())) return; // звук игры выключен (🔇) — рацию тоже не играем
     queue.push(m); if (queue.length > 4) queue.shift();
     if (!playing) next();
   }
@@ -154,7 +157,7 @@ window.VoiceChat = (() => {
   function firstHint() {
     let n = 0; try { n = Number(localStorage.getItem('mm_radio_hint') || 0); localStorage.setItem('mm_radio_hint', String(n + 1)); } catch (e) {}
     if (n >= 3) return;
-    say(isTouch ? '🎙 Рация — кнопка справа: нажмите, скажите, нажмите ещё раз — услышат все в игре' : '🎙 Рация: держите V и говорите — услышат все в игре', 7000);
+    say(isTouch ? '🎙 Рация — кнопка справа: держите её и говорите, отпустите — услышат все в игре' : '🎙 Рация: держите V и говорите — услышат все в игре', 7000);
     btn.classList.add('hint'); setTimeout(() => btn.classList.remove('hint'), 7000);
   }
   function setKey(k) { key = k || ''; render(); }

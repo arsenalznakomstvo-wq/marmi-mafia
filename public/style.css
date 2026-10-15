@@ -1006,3 +1006,46 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 #radioBtn.hint { animation: radioHint 0.9s ease-in-out infinite; border-color: #ffd52e; }
 @keyframes radioHint { 50% { box-shadow: 0 0 0 12px rgba(255, 213, 46, 0.35); } }
 #radioBtn small { font-size: 11px; }
+
+/* 15.10 (владелец, телефон: «кто на первом месте — текст нечёткий, размывается»): рейтинг на тёмной подложке, без прозрачности,
+   чёткая тень вместо размытой — читается на любом фоне (и на фото). На компьютере — тоже без «тумана» */
+#lb { text-shadow: 0 1px 1px #000, 0 0 2px #000; opacity: 1; }
+.row { opacity: 0.95; }
+@media (pointer: coarse) {
+  #lb { opacity: 1; background: rgba(8, 10, 14, 0.62); border-radius: 10px; padding: 4px 8px 5px; }
+  #lb .lb-title { font-size: 12px; color: #fff; }
+  #lb .row { font-size: 11px; line-height: 1.3; font-weight: 600; opacity: 1; }
+  #lb .row .rl { opacity: 1; font-weight: 600; }
+}
+
+/* 15.10b (разбор инженера): оружие — справа по центру-низу (зона большого пальца, не выше прежнего), рация — в правом нижнем углу,
+   выключатель рации убран (рацию глушит общая кнопка звука); рядом с оружием — кружки другого оружия для выбора */
+#radioMute { display: none !important; }
+@media (pointer: coarse) {
+  #fireBtn { width: 64px; height: 64px; font-size: 30px; border-width: 3px; top: auto;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(calc(max(10px, env(safe-area-inset-bottom)) + 88px), 28vh); }
+  #fireBtn span { font-size: 13px; right: -6px; top: -6px; }
+  #radioBtn, body.ctrl-joy #radioBtn { top: auto; left: auto; right: max(6px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 24px; }
+  #radioBtn small { bottom: calc(100% + 2px); } /* подпись/секунды — над кнопкой, палец снизу её не закрывает */
+  #radioBtn.rec, #radioBtn.rec.hint { animation: radioPulse 0.8s ease-in-out infinite; border-color: #ffb3b8; } /* запись важнее мигания подсказки */
+  body:not(.ctrl-joy) #minimap { right: auto; bottom: auto; left: max(10px, env(safe-area-inset-left)); top: max(58px, env(safe-area-inset-top)); }
+  body:not(.ctrl-joy) #scorebox { bottom: auto; top: max(8px, env(safe-area-inset-top)); left: calc(max(8px, env(safe-area-inset-left)) + 52px); font-size: 12px; }
+  #wpnRow { right: calc(max(8px, env(safe-area-inset-right)) + 72px); top: auto;
+    bottom: calc(max(calc(max(10px, env(safe-area-inset-bottom)) + 88px), 28vh) + 13px); }
+}
+@media (pointer: coarse) and (max-height: 380px) {
+  #fireBtn { width: 60px; height: 60px; font-size: 28px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 82px); }
+  #radioBtn, body.ctrl-joy #radioBtn { width: 50px; height: 50px; font-size: 22px; }
+  #lb .row { line-height: 1.2; }
+  #wpnRow { right: calc(max(8px, env(safe-area-inset-right)) + 68px); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 93px); }
+}
+#wpnRow { position: fixed; z-index: 41; display: flex; flex-direction: row-reverse; gap: 6px; align-items: center; pointer-events: none;
+  right: calc(max(16px, env(safe-area-inset-right)) + 78px); top: calc(42% + 16px); } /* компьютер */
+#wpnRow.hide { display: none; }
+#wpnRow b { pointer-events: all; touch-action: none; position: relative; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font: normal 19px sans-serif; background: rgba(10, 12, 18, 0.72); border: 1.5px solid rgba(255, 213, 46, 0.55); opacity: 0.9; cursor: pointer; }
+#wpnRow b.it { border-color: var(--ic, #5ac8ff); }
+#wpnRow b i { position: absolute; right: -4px; top: -5px; font: bold 10px Arial, sans-serif; font-style: normal; background: #ffd52e; color: #111; border-radius: 8px; padding: 0 4px; }
+#fireBtn.sw { animation: none; transform: scale(1.12); transition: transform 0.12s; }

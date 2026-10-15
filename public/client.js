@@ -635,7 +635,7 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
-    case 'item': myItem = m.type || null; myItemN = m.n || 0; renderFireBtn(); if (m.type && !m.left) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
+    case 'item': myItem = m.type || null; myItemN = m.n || 0; if (m.type && !m.left) selW = 'item'; renderFireBtn(); /* подобрал — сразу выбран */ if (m.type && !m.left) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
     case 'shock': zaps.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now() }); Sound.zap(nearVol(m.x0, m.y0)); break;
     case 'restart': serverUpdating = true; bigToast('🔄 Игра обновляется — через несколько секунд вернёмся сами'); break; // сервер перезапускается (новая версия)
     case 'smoke': { const now = performance.now(); smokeClouds.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, r: m.r, ms: m.ms, fly: m.fly || 0, t0: now + (m.fly || 0), thrown: now, popped: false, seed: Math.random() * 6 }); if (!m.it) { const left = (smokeIds.get(m.o) || 1) - 1; if (left > 0) smokeIds.set(m.o, left); else smokeIds.delete(m.o); if (m.o === myId) { mySmoke = left; renderFireBtn(); } } Sound.smokeThrow(nearVol(m.x0, m.y0)); break; } // Ниндзя бросил шашку: летит, потом дым
@@ -644,7 +644,7 @@ function onJSON(m) {
     case 'roundStart': finalMinute = false; $('roundBanner').classList.add('hide'); if (rejoinAfterRound) { rejoinAfterRound = false; play(); } break;
     case 'role': showPromo(m.r); break;
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
-    case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
+    case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; selW = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
     case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
@@ -2580,14 +2580,63 @@ function drawRockets(time) {
 let shakeUntil = 0;
 const docGhost = new Map(); // Доктор спасён: id -> до какого времени он «призрак»
 function makeDebris() { const a = []; for (let i = 0; i < 26; i++) { const an = Math.random() * TAU, sp = 120 + Math.random() * 260; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, s: 10 + Math.random() * 16, c: ['#ffd52e', '#ff8a1f', '#ff3b2b', '#ffffff'][i % 4] }); } return a; }
-function fire() { if ((myItem || myRockets > 0 || myBomb || myKnife || myBadge || myShock || mySmoke) && alive) { sendJSON({ t: 'fire' }); Sound.click(); } } // сначала ракеты базуки, потом бомба, потом кинжал
-function renderFireBtn() { const b = $('fireBtn'); b.classList.toggle('hide', !((myItem || myRockets > 0 || myBomb || myKnife || myBadge || myShock || mySmoke) && alive)); if (alive && myItem) { b.innerHTML = ITEM_INFO[myItem][0] + (myItemN > 1 ? '<span>' + myItemN + '</span>' : ''); return; } /* предмет из кармана — первым */ if (alive && myBadge && !(myRockets > 0 || myBomb || myKnife)) { b.innerHTML = '⭐<span>' + myBadge + '</span>'; return; } /* Шериф — значок */ if (alive && myShock && !(myRockets > 0 || myBomb || myKnife || myBadge)) { b.innerHTML = '⚡<span>' + myShock + '</span>'; return; } /* Параноик — шокер */ if (alive && mySmoke && !(myRockets > 0 || myBomb || myKnife)) { b.innerHTML = '💨<span>' + mySmoke + '</span>'; return; } /* Ниндзя — дымовая шашка */ /* базука: в командах — за знамя, в обычной игре — у Дона; бомба — у Бомбы; кинжал — у Киллера */ b.innerHTML = myRockets > 0 ? '🚀<span>' + myRockets + '</span>' : myBomb ? '💣<span>' + myBomb + '</span>' : '🗡<span>' + myKnife + '</span>'; }
+/* 15.10 (владелец: «есть граната и кинжал — нужно выбрать, чем воспользоваться; смахнул вверх — поменял»; разбор инженера):
+   кнопка показывает выбранное оружие, слева — кружки остального. Смахнул вверх — следующее, вниз — предыдущее, нажал — выстрел.
+   Нажатие никогда не переключает, смахивание никогда не стреляет. Компьютер: колесо мыши или Q — сменить, F / правая кнопка — выстрел */
+const WPN_ORDER = ['item', 'rocket', 'bomb', 'knife', 'badge', 'shock', 'smoke'];
+const WPN_ICON = { rocket: '🚀', bomb: '💣', knife: '🗡', badge: '⭐', shock: '⚡', smoke: '💨' };
+let selW = null;
+function wpnCount(w) { return w === 'item' ? (myItem ? Math.max(1, myItemN) : 0) : w === 'rocket' ? Math.max(0, myRockets) : w === 'bomb' ? myBomb : w === 'knife' ? myKnife : w === 'badge' ? myBadge : w === 'shock' ? myShock : mySmoke; }
+function wpnIcon(w) { return w === 'item' ? ITEM_INFO[myItem][0] : WPN_ICON[w]; }
+function wpnList() { return alive ? WPN_ORDER.filter(w => wpnCount(w) > 0) : []; }
+function wpnFeedback() { try { navigator.vibrate && navigator.vibrate(10); } catch (e) {} Sound.click(); const b = $('fireBtn'); b.classList.add('sw'); setTimeout(() => b.classList.remove('sw'), 160); }
+function cycleWpn(d) { const L = wpnList(); if (L.length < 2) return; selW = L[(L.indexOf(selW) + d + L.length) % L.length]; renderFireBtn(); wpnFeedback(); }
+function selectWpn(w) { if (w !== selW && wpnCount(w) > 0) { selW = w; renderFireBtn(); wpnFeedback(); } }
+function fire() { if (!alive) return; if (!selW || !wpnCount(selW)) renderFireBtn(); if (!selW) return; sendJSON({ t: 'fire', w: selW }); Sound.click(); }
+function renderFireBtn() {
+  const b = $('fireBtn'), row = $('wpnRow'), L = wpnList();
+  b.classList.toggle('hide', !L.length); row.classList.toggle('hide', L.length < 2);
+  if (!L.length) { selW = null; row.innerHTML = ''; b.style.borderColor = ''; return; }
+  if (!L.includes(selW)) { const k = WPN_ORDER.indexOf(selW); selW = k < 0 ? L[0] : WPN_ORDER.slice(k + 1).concat(WPN_ORDER.slice(0, k + 1)).find(w => L.includes(w)); } // кончилось — следующее по кругу
+  const n = wpnCount(selW);
+  b.innerHTML = wpnIcon(selW) + (selW !== 'item' || n > 1 ? '<span>' + n + '</span>' : '');
+  b.style.borderColor = selW === 'item' ? ITEM_INFO[myItem][2] : ''; // предмет с карты — рамка своего цвета (💣/🗡/⚡ совпадают с оружием ролей)
+  if (L.length < 2) { row.innerHTML = ''; return; }
+  const i = L.indexOf(selW), rest = [];
+  for (let j = 1; j < L.length && j <= 4; j++) rest.push(L[(i + j) % L.length]);
+  row.innerHTML = rest.map(w => '<b data-w="' + w + '"' + (w === 'item' ? ' class="it" style="--ic:' + ITEM_INFO[myItem][2] + '"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>').join('');
+}
 {
-  const b = $('fireBtn');
+  const b = $('fireBtn'), row = $('wpnRow');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
-  b.addEventListener('pointerdown', e => { stop(e); e.preventDefault(); fire(); });
+  const SLOP = 10, SWIPE = 22, HOLD = 170;
+  let g = null;
+  b.addEventListener('pointerdown', e => {
+    stop(e); e.preventDefault();
+    if (g) return;                                   // второй палец на кнопке — не считаем
+    if (wpnList().length < 2) { fire(); return; }    // одно оружие — мгновенно, как раньше
+    try { b.setPointerCapture(e.pointerId); } catch (_) {}
+    g = { id: e.pointerId, x: e.clientX, y: e.clientY, done: false, moved: false };
+    const my = g; g.timer = setTimeout(() => { if (g === my && !my.done && !my.moved) { my.done = true; fire(); } }, HOLD); // держит палец на месте — выстрел
+  });
+  b.addEventListener('pointermove', e => {
+    if (!g || e.pointerId !== g.id || g.done) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (Math.abs(dx) > SLOP || Math.abs(dy) > SLOP) g.moved = true;          // уже не нажатие — выстрела не будет
+    if (Math.abs(dy) >= SWIPE && Math.abs(dy) >= 1.5 * Math.abs(dx)) { g.done = true; clearTimeout(g.timer); cycleWpn(dy < 0 ? 1 : -1); }
+  });
+  const end = e => {
+    if (!g || e.pointerId !== g.id) return; stop(e); clearTimeout(g.timer);
+    if (e.type === 'pointerup' && !g.done && !g.moved) fire();               // отмена/потеря касания — никогда не стреляет
+    g = null;
+  };
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, end);
   for (const ev of ['touchstart', 'touchmove', 'touchend', 'mousedown', 'click']) b.addEventListener(ev, stop, { passive: false });
-  window.addEventListener('keydown', e => { if ((e.code === 'KeyF') && !e.repeat && document.activeElement !== $('nick')) fire(); });
+  row.addEventListener('pointerdown', e => { stop(e); e.preventDefault(); const k = e.target.closest('b'); if (k) selectWpn(k.dataset.w); });
+  for (const ev of ['touchstart', 'touchend', 'mousedown', 'click']) row.addEventListener(ev, stop, { passive: false });
+  window.addEventListener('keydown', e => { if (e.repeat || document.activeElement === $('nick')) return; if (e.code === 'KeyF') fire(); else if (e.code === 'KeyQ' && alive) cycleWpn(1); });
+  let wheelT = 0;
+  window.addEventListener('wheel', e => { const t = performance.now(); if (!alive || t - wheelT < 150) return; wheelT = t; cycleWpn(e.deltaY > 0 ? 1 : -1); }, { passive: true });
 }
 
 let toastT = 0;
@@ -3117,7 +3166,7 @@ sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click
 
 function showHelp() {
   $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. 🎙 Рация: держите V и говорите — услышат все в игре.'
-    : ctrlMode === 'joy' ? 'Первый палец в любом месте — джойстик. Второй палец в любом месте — ускорение, пока держите. 🎙 Рация: нажмите — говорите — нажмите ещё раз, услышат все в игре.'
+    : ctrlMode === 'joy' ? 'Первый палец в любом месте — джойстик. Второй палец в любом месте — ускорение, пока держите. 🎙 Рация: держите кнопку 🎙 и говорите, отпустите — услышат все в игре.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
 if (isTouch) {
