@@ -501,12 +501,14 @@ const POSTERS = (() => {
   return list.filter(p => !REMOVED.has(p.i));
 })();
 function drawPosters(view) {
+  if (isTouch && autoLow >= 2) return; /* 15.10: телефон долго не тянет — фото на полу не рисуем */
   for (const p of POSTERS) {
     // фото грузим, только когда постер рядом (чтобы телефон не качал сразу все)
     const near = 1500, hh = p.h;
     if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) {
       // аудит 14.10: далёкие фото выгружаем из памяти видеокарты (37 фото держались всегда — 120–150 МБ, долгие кадры на ноутбуках); подъедем — загрузится снова
-      if (!isTouch && photoBmp[p.i] && Math.abs(p.x - (view.x0 + view.x1) / 2) + Math.abs(p.y - (view.y0 + view.y1) / 2) > 6000) { try { photoBmp[p.i].close && photoBmp[p.i].close(); } catch (e) {} photoBmp[p.i] = undefined; }
+      /* 15.10: и на телефоне тоже (порог ближе — экран меньше): держались все 30 фото */
+      if (photoBmp[p.i] && Math.abs(p.x - (view.x0 + view.x1) / 2) + Math.abs(p.y - (view.y0 + view.y1) / 2) > (isTouch ? 4000 : 6000)) { try { photoBmp[p.i].close && photoBmp[p.i].close(); } catch (e) {} photoBmp[p.i] = undefined; }
       continue;
     }
     const im = photo(p.i); if (!im) continue;
@@ -1621,9 +1623,13 @@ function frame(time) {
   // Фон и граница карты
   if (!bgPattern) makeBg();
   ctx.fillStyle = bgPattern; ctx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
-  ctx.beginPath(); ctx.rect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0); ctx.arc(0, 0, MAP_R, 0, TAU);
-  ctx.fillStyle = 'rgba(90, 0, 10, 0.55)'; ctx.fill('evenodd');
-  ctx.beginPath(); ctx.arc(0, 0, MAP_R, 0, TAU); ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(255, 50, 70, 0.75)'; ctx.stroke();
+  /* 15.10: красную зону за краем рисуем, только если край виден (раньше — проход по всему экрану каждый кадр) */
+  const edgeR2 = (MAP_R - 10) * (MAP_R - 10), edgeIn = Math.max(view.x0 * view.x0, view.x1 * view.x1) + Math.max(view.y0 * view.y0, view.y1 * view.y1) < edgeR2;
+  if (!edgeIn) {
+    ctx.beginPath(); ctx.rect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0); ctx.arc(0, 0, MAP_R, 0, TAU);
+    ctx.fillStyle = 'rgba(90, 0, 10, 0.55)'; ctx.fill('evenodd');
+    ctx.beginPath(); ctx.arc(0, 0, MAP_R, 0, TAU); ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(255, 50, 70, 0.75)'; ctx.stroke();
+  }
   drawPosters(view);
   drawPortals(view, time);
 
@@ -1633,7 +1639,7 @@ function frame(time) {
     if (f.x < view.x0 - 40 || f.x > view.x1 + 40 || f.y < view.y0 - 40 || f.y > view.y1 + 40) continue;
     const pulse = 1 + 0.12 * Math.sin(tt * 2 + f.ph);
     // Низкое качество: маленький ореол — в разы меньше закрашиваемых пикселей
-    const hq = hiQ && !farView && !zoomedOut, sz = f.r * pulse * (hq ? SPR / FOOD_CORE * FOOD_K : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
+    const hq = hiQ && !farView && !zoomedOut && autoLow < 2, sz = f.r * pulse * (hq ? SPR / FOOD_CORE * FOOD_K : 3.2), spr = hq ? foodSprite(f.col) : foodDot(f.col);
     ctx.drawImage(spr, f.x + Math.sin(tt + f.ph) * 1.5 - sz / 2, f.y + Math.cos(tt * 1.3 + f.ph) * 1.5 - sz / 2, sz, sz);
   }
   if (mapItems.size) drawMapItems(view, time); // предметы на карте
