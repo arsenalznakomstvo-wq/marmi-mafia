@@ -596,6 +596,7 @@ function onJSON(m) {
   switch (m.t) {
     case 'hello':
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
+      if (window.VoiceChat && VoiceChat.setKey) VoiceChat.setKey(m.rk); // рация: ключ этого подключения
       if (m.bases) { BASES = m.bases; BASE_R = m.baseR; }
       protoOk = m.proto === PROTO;
       if (protoOk) {
@@ -650,6 +651,7 @@ function onJSON(m) {
       renderEvent(); renderLb(); break;
     }
     case 'record': showRecord(m.kind); break;
+    case 'radio': if (window.VoiceChat && VoiceChat.onRadio) VoiceChat.onRadio(m); break; // 🎙 рация: чьё-то голосовое сообщение
     case 'pong': pingMs = Math.round(performance.now() - m.c); pingHist.push(pingMs); if (pingHist.length > 5) pingHist.shift(); if (m.s) sendJSON({ t: 'pr', s: m.s }); break; // pr — сервер сам меряет задержку (честная подрезка)
   }
 }
@@ -3109,8 +3111,8 @@ sb.addEventListener('pointerdown', e => e.stopPropagation());
 sb.addEventListener('click', () => { sb.textContent = Sound.cycle(); Sound.click(); if (typeof menuSteps === 'function') menuSteps(true); }); // звук видео меню тоже слушается кнопки
 
 function showHelp() {
-  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. Голосовой чат включается сам; V — выключить свой микрофон.'
-    : ctrlMode === 'joy' ? 'Первый палец в любом месте — джойстик. Второй палец в любом месте — ускорение, пока держите. Голосовой чат включается сам; 🎤 — выключить свой микрофон.'
+  $('help').innerHTML = !isTouch ? 'Мышка или стрелки (WASD) — направление. Левая кнопка мыши или пробел — ускорение. 🎙 Рация: держите V и говорите — услышат все в игре.'
+    : ctrlMode === 'joy' ? 'Первый палец в любом месте — джойстик. Второй палец в любом месте — ускорение, пока держите. 🎙 Рация: нажмите — говорите — нажмите ещё раз, услышат все в игре.'
     : 'Ведите пальцем — змейка ползёт за пальцем. Кнопка ⚡ — ускорение.';
 }
 if (isTouch) {

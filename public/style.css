@@ -984,3 +984,20 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 /* Владелец 14.10: сообщение в игре («Вы Параноик!…», предметы) — меньше и выше (табличка «Новая роль» — как была) */
 #bigToast { top: 104px !important; font-size: 13.5px !important; padding: 5px 13px !important; background: rgba(10, 12, 18, 0.6) !important; max-width: min(540px, 64vw) !important; border-radius: 10px !important; }
 @media (max-width: 900px), (max-height: 500px) { #bigToast { top: 62px !important; font-size: 11px !important; padding: 3px 10px !important; max-width: 60vw !important; } }
+
+/* 15.10: 🎙 рация — справа, в одном ряду с кнопкой оружия (левее неё), ниже рейтинга; запись — красная с секундами */
+#radioBtn { position: fixed; z-index: 42; right: calc(max(16px, env(safe-area-inset-right)) + 84px); top: calc(42% + 6px); width: 58px; height: 58px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.35); background: rgba(20, 24, 32, 0.6); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; touch-action: none;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; }
+#radioBtn small { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font: bold 12px Arial, sans-serif; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+#radioBtn.rec { background: #e8323c; border-color: #ffb3b8; animation: radioPulse 0.8s ease-in-out infinite; }
+#radioBtn.wait { opacity: 0.55; }
+@keyframes radioPulse { 50% { box-shadow: 0 0 0 10px rgba(232, 50, 60, 0.25); } }
+#radioMute { position: fixed; z-index: 42; right: calc(max(16px, env(safe-area-inset-right)) + 95px); top: calc(42% + 86px); width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: rgba(20, 24, 32, 0.5); color: #fff; font-size: 16px; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; }
+#radioBanner { position: fixed; z-index: 45; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(20, 24, 32, 0.8);
+  color: #fff; font: bold 14px Arial, sans-serif; padding: 6px 14px; border-radius: 16px; pointer-events: none; }
+#radioTip { position: fixed; z-index: 45; left: 50%; bottom: 70px; transform: translateX(-50%); max-width: min(90vw, 460px); background: rgba(20, 24, 32, 0.88); color: #fff;
+  font: 13px Arial, sans-serif; padding: 8px 14px; border-radius: 12px; text-align: center; pointer-events: none; }
+#radioBtn.hide, #radioMute.hide, #radioBanner.hide, #radioTip.hide { display: none; }
+@media (pointer: fine) { #radioBtn { right: calc(max(16px, env(safe-area-inset-right)) + 6px); top: calc(42% + 84px); } #radioMute { right: calc(max(16px, env(safe-area-inset-right)) + 72px); top: calc(42% + 95px); } }

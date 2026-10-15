@@ -189,6 +189,7 @@ const HEX_RE = /^#[0-9a-f]{6}$/i;
 // ===== Мир =====
 let tick = 0;
 const diedThisTick = [];
+const radioKeys = new Map(), radioClips = new Map(), radioRecent = []; let radioSeq = 0; // рация (голосовые сообщения)
 const snakes = new Map();   // id -> Snake
 let nextSnakeId = 0;
 function newSnakeId() {
@@ -1556,6 +1557,31 @@ const server = http.createServer((req, res) => {
   if (url === '/perf') { const m = process.memoryUsage(); res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ now: { gapMax: Math.round(perf.gapMax), gaps100: perf.gaps100, stepMax: +perf.stepMax.toFixed(1) }, prevMinute: perf.prev, clients: clients.size, snakes: snakes.size, foods: foods.size, memMB: Math.round(m.rss / 1e6), heapMB: Math.round(m.heapUsed / 1e6), uptimeMin: Math.round(process.uptime() / 60) })); return; }
   // «Чёрный ящик скорости» (12.10): телефоны раз в 20 с присылают замеры игры — видно на /perfc
+  /* 15.10 (владелец: «рация» вместо голосового чата LiveKit — там кончились минуты): нажал — сказал — отправилось всем.
+     Голос идёт через наш сервер: 12 000 отсчётов в секунду, 8 бит (μ-закон), до 10 с — не больше ~125 КБ. От игрока — не чаще раза в 5 с */
+  if (url === '/radio' && req.method === 'POST') {
+    const c = radioKeys.get(String(req.headers['x-rk'] || ''));
+    if (!c || !c.snake || !c.snake.alive) { res.writeHead(403); res.end(); req.resume(); return; }
+    const now = Date.now();
+    if (now < (c.radioNext || 0) || radioRecent.filter(t => now - t < 60000).length >= 30) { res.writeHead(429); res.end(); req.resume(); return; }
+    const parts = []; let size = 0, bad = false;
+    req.on('data', d => { size += d.length; if (size > 130000) { bad = true; req.destroy(); } else parts.push(d); });
+    req.on('end', () => {
+      if (bad || size < 4000) { res.writeHead(400); res.end(); return; }
+      c.radioNext = now + 5000; radioRecent.push(now); while (radioRecent.length > 60) radioRecent.shift();
+      const n = ++radioSeq; radioClips.set(n, { buf: Buffer.concat(parts), t: now });
+      for (const [k, cl] of radioClips) if (now - cl.t > 120000) radioClips.delete(k);
+      const name = c.snake ? c.snake.name : '', msg = JSON.stringify({ t: 'radio', n, name, id: c.snake ? c.snake.id : 0, sec: Math.round(size / 1200) / 10 });
+      for (const o of clients) if (o !== c && o.ws.readyState === 1) o.ws.send(msg);
+      res.writeHead(204); res.end();
+    });
+    return;
+  }
+  if (url.startsWith('/radio/')) {
+    const cl = radioClips.get(Number(url.slice(7)));
+    if (!cl) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': cl.buf.length }); res.end(cl.buf); return;
+  }
   if (url.startsWith('/rtt')) { res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return; } /* 15.10: замер связи из фонового потока игры */
   if (url === '/perfc' && req.method === 'POST') {
     let body = ''; req.on('data', d => { if (body.length < 3000) body += d; });
@@ -1670,9 +1696,10 @@ wss.on('connection', (ws, req) => {
   perIp.set(ip, nIp); ws.on('close', () => { const k = (perIp.get(ip) || 1) - 1; if (k > 0) perIp.set(ip, k); else perIp.delete(ip); });
   const c = { ws, snake: null, w: 1280, h: 720, vx: rand(-1500, 1500), vy: rand(-1500, 1500), known: new Map(), cells: new Set(), msgs: 0, msgT: Date.now() };
   clients.add(c); c.ua = String(req.headers['user-agent'] || '');
+  if (!TEAM) { c.rk = require('crypto').randomBytes(12).toString('hex'); radioKeys.set(c.rk, c); ws.on('close', () => radioKeys.delete(c.rk)); }
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: recView() });
-  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(c.rk ? { rk: c.rk } : {}), ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   if (process.env.TEST_STALL) { // только для проверок: каждые 3 с данные «застревают» на TEST_STALL мс, потом приходят пачкой — как плохой интернет
     const ST = Number(process.env.TEST_STALL), send0 = ws.send.bind(ws), q = []; let holdUntil = 0;
     const iv = setInterval(() => { holdUntil = Date.now() + ST; setTimeout(() => { while (q.length) { const [d, o] = q.shift(); if (ws.readyState === 1) send0(d, o); } }, ST); }, Number(process.env.TEST_STALL_EVERY) || 3000);
