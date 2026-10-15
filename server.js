@@ -189,6 +189,11 @@ const HEX_RE = /^#[0-9a-f]{6}$/i;
 // ===== Мир =====
 let tick = 0;
 const diedThisTick = [];
+/* 15.10 (владелец: «на ноутбуке нет рации»): после обновления открытые вкладки переподключались, но работали на старом коде.
+   Версия = отпечаток файлов игры; браузер видит другую версию — сам перезагружает страницу и возвращает игрока в игру */
+const GAME_VER = (() => { try { const h = require('crypto').createHash('md5'), dir = require('path').join(__dirname, 'public');
+  for (const f of fs.readdirSync(dir).filter(f => /.(js|css|html)$/.test(f)).sort()) h.update(f).update(fs.readFileSync(require('path').join(dir, f)));
+  return h.digest('hex').slice(0, 10); } catch (e) { return String(Date.now()); } })();
 const radioKeys = new Map(), radioClips = new Map(), radioRecent = []; let radioSeq = 0; // рация (голосовые сообщения)
 const snakes = new Map();   // id -> Snake
 let nextSnakeId = 0;
@@ -1699,7 +1704,7 @@ wss.on('connection', (ws, req) => {
   if (!TEAM) { c.rk = require('crypto').randomBytes(12).toString('hex'); radioKeys.set(c.rk, c); ws.on('close', () => radioKeys.delete(c.rk)); }
   stats.onConnect(c, req);
   sendJSON(c, { t: 'lb', top: [], players: 0, online: clients.size, rec: recView() });
-  sendJSON(c, { t: 'hello', proto: PROTO, team: TEAM, ...(c.rk ? { rk: c.rk } : {}), ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
+  sendJSON(c, { t: 'hello', proto: PROTO, v: GAME_VER, team: TEAM, ...(c.rk ? { rk: c.rk } : {}), ...(TEAM ? { bases: BASES, baseR: BASE_R } : {}), mapR: MAP_R, tickRate: TICK_RATE, segD: SEG_D, fcell: FCELL });
   if (process.env.TEST_STALL) { // только для проверок: каждые 3 с данные «застревают» на TEST_STALL мс, потом приходят пачкой — как плохой интернет
     const ST = Number(process.env.TEST_STALL), send0 = ws.send.bind(ws), q = []; let holdUntil = 0;
     const iv = setInterval(() => { holdUntil = Date.now() + ST; setTimeout(() => { while (q.length) { const [d, o] = q.shift(); if (ws.readyState === 1) send0(d, o); } }, ST); }, Number(process.env.TEST_STALL_EVERY) || 3000);

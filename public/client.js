@@ -564,7 +564,8 @@ let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1
 
 // Владелец 13.10: «игру выбивает» — при каждом обновлении сайта сервер перезапускается. Теперь: предупреждение «игра обновляется»,
 // а кто был в игре — после переподключения сам снова заходит в игру, без выхода в меню.
-let autoRejoin = false, serverUpdating = false;
+let autoRejoin = false, serverUpdating = false, gameVer = null;
+try { if (sessionStorage.getItem('mm_reload_play') === '1') { sessionStorage.removeItem('mm_reload_play'); autoRejoin = true; } } catch (e) {} // после перезагрузки на новую версию — сразу в игру
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws${TEAM_MODE ? '-team' : ''}`);
@@ -595,6 +596,10 @@ function setStatus(s) { $('status').textContent = s; }
 function onJSON(m) {
   switch (m.t) {
     case 'hello':
+      if (m.v) { // 15.10: вышла новая версия игры — перезагружаем страницу и сразу возвращаемся в игру
+        if (gameVer && m.v !== gameVer) { try { sessionStorage.setItem('mm_reload_play', alive || autoRejoin ? '1' : '0'); } catch (e) {} location.reload(); break; }
+        gameVer = m.v;
+      }
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
       if (window.VoiceChat && VoiceChat.setKey) VoiceChat.setKey(m.rk); // рация: ключ этого подключения
       if (m.bases) { BASES = m.bases; BASE_R = m.baseR; }
