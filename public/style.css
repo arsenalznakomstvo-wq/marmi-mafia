@@ -1057,3 +1057,15 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 
 /* 15.10 (владелец): на телефоне в рейтинге только топ-5 — больше места для игры (своё место и так видно слева сверху) */
 @media (pointer: coarse) { #lb-rows > .row:nth-child(n+6) { display: none; } }
+
+/* 16.10 (владелец): кнопка оружия на телефоне — выше, прозрачная, на 15% меньше (64 → 54 px) */
+@media (pointer: coarse) {
+  #fireBtn { width: 54px; height: 54px; font-size: 26px; border-width: 2px; border-color: rgba(255, 213, 46, 0.75);
+    background: rgba(20, 24, 32, 0.32); box-shadow: none;
+    bottom: max(calc(max(10px, env(safe-area-inset-bottom)) + 130px), 37vh); }
+  #wpnRow { right: calc(max(8px, env(safe-area-inset-right)) + 62px); bottom: calc(max(calc(max(10px, env(safe-area-inset-bottom)) + 130px), 37vh) + 8px); }
+}
+@media (pointer: coarse) and (max-height: 380px) {
+  #fireBtn { width: 51px; height: 51px; font-size: 24px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 118px); }
+  #wpnRow { right: calc(max(8px, env(safe-area-inset-right)) + 59px); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 124px); }
+}

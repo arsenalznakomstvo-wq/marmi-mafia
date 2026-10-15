@@ -151,7 +151,7 @@ window.VoiceChat = (() => {
   function firstHint() {
     let n = 0; try { n = Number(localStorage.getItem('mm_radio_hint') || 0); localStorage.setItem('mm_radio_hint', String(n + 1)); } catch (e) {}
     if (n >= 3) return;
-    say(isTouch ? '🎙 Рация — кнопка справа: держите её и говорите, отпустите — услышат все в игре' : '🎙 Рация: держите V и говорите — услышат все в игре', 7000);
+    say(isTouch ? '🎙 Рация — кнопка 🎙 внизу: держите её и говорите — вас сразу слышат все' : '🎙 Рация: держите V и говорите — услышат все в игре', 7000);
     btn.classList.add('hint'); setTimeout(() => btn.classList.remove('hint'), 7000);
   }
   function setKey(k) { key = k || ''; render(); }
