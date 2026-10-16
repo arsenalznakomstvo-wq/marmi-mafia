@@ -867,7 +867,7 @@ function cleanSkin(sk) {
 function handleJSON(c, m) {
   if (m.t === 'join') {
     if (c.snake && c.snake.alive) return;
-    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); fitView(c);
+    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); c.z = clamp(Number(m.z) || 1, 0.85, 1); fitView(c);
     const pos = process.env.TEST_SPAWN_AT ? { x: +process.env.TEST_SPAWN_AT.split(',')[0], y: +process.env.TEST_SPAWN_AT.split(',')[1] } : process.env.TEST_SPAWN_CENTER ? { x: 0, y: 300 } : findSpawn(false); // TEST_SPAWN_AT / TEST_SPAWN_CENTER — только для проверок
     if (TEAM && roundPause) return; // перерыв между раундами — браузер зайдёт сам через 10 с
     const team = TEAM ? (m.team === 0 || m.team === 1 ? m.team : teamWithFewer(true)) : null;
@@ -888,7 +888,7 @@ function handleJSON(c, m) {
     if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 2; sendJSON(c, { t: 'tmsgMe', text: '🥷 2 дымовые шашки — 💨' + (isTouchUA(c) ? '' : ' или F') }); } // владелец 13.10: две шашки; надпись короче — мешала
     if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
   } else if (m.t === 'view') {
-    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); fitView(c);
+    c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); c.z = clamp(Number(m.z) || 1, 0.85, 1); fitView(c);
   } else if (m.t === 'fire') {
     // 15.10: игрок выбирает оружие (w). Выбранного уже нет — ничего (не стреляем тем, что не выбирали). Без w — прежний порядок (старые версии, приложение)
     const s = c.snake;
@@ -927,7 +927,7 @@ function sendState(c) {
   let vx, vy, r = 10;
   if (me && me.alive) { vx = me.xs[0]; vy = me.ys[0]; r = me.r; c.vx = vx; c.vy = vy; }
   else { vx = c.vx; vy = c.vy; }
-  const sc = viewScale(c.w, c.h, r, me && me.alive ? me.role : 0, TEAM && me && me.alive ? me.mass : 0, me && me.alive && me.skin.id === EYE_ID);
+  const sc = viewScale(c.w, c.h, r, me && me.alive ? me.role : 0, TEAM && me && me.alive ? me.mass : 0, me && me.alive && me.skin.id === EYE_ID) * (c.z || 1); // 16.10: телефон смотрит на 15% выше — присылаем с той же площади
   const hw = c.w / 2 / sc + 260, hh = c.h / 2 / sc + 260; // запас под «взгляд вперёд» камеры в браузере
   let x0 = vx - hw, x1 = vx + hw, y0 = vy - hh, y1 = vy + hh;
   // Своя змея в тоннеле: камера плавно переплывает от входа к выходу — шлём картинку вокруг обеих нор

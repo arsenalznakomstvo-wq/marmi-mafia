@@ -590,7 +590,9 @@ function connect() {
   };
 }
 function sendJSON(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
-function sendView() { sendJSON({ t: 'view', w: W, h: H }); }
+/* 16.10 (владелец): на телефоне камера на 15% выше — видно больше поля; сервер узнаёт об этом (z), чтобы присылать змей с той же площади */
+const VIEW_Z = isTouch ? 1 / 1.15 : 1;
+function sendView() { sendJSON({ t: 'view', w: W, h: H, z: VIEW_Z }); }
 function setStatus(s) { $('status').textContent = s; }
 
 function onJSON(m) {
@@ -1684,7 +1686,7 @@ function frame(time) {
     const cl = Math.pow(0.9, fdt); camLag.x *= cl; camLag.y *= cl; if (Math.abs(camLag.x) + Math.abs(camLag.y) < 0.5) camLag.x = camLag.y = 0;
     cam.x = nx + camLag.x; cam.y = ny + camLag.y;
   } else if (world) { const lk = Math.pow(0.9, fdt); look.x *= lk; look.y *= lk; cam.x += (world.vx - cam.x) * ease(0.15); cam.y += (world.vy - cam.y) * ease(0.15); }
-  const target = viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0, !!(me && metas.get(myId) && metas.get(myId).sk.id === window.Skins.EYE_ID));
+  const target = VIEW_Z * viewScale(W, H, me ? me.r : 10, me && metas.get(myId) ? metas.get(myId).role : 0, TEAM_MODE && me ? me.mass : 0, !!(me && metas.get(myId) && metas.get(myId).sk.id === window.Skins.EYE_ID));
   farView = TEAM_MODE && me && teamZoom(me.mass) < 0.8; // камера высоко — рисуем проще, чтобы телефон не тормозил
   cam.s += (target - cam.s) * ease(0.06);
 
@@ -2851,7 +2853,7 @@ function play() {
   goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
-  sendJSON({ t: 'join', name, skin, w: W, h: H, ...(TEAM_MODE ? { team: teamChoice } : {}) });
+  sendJSON({ t: 'join', name, skin, w: W, h: H, z: VIEW_Z, ...(TEAM_MODE ? { team: teamChoice } : {}) });
 }
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
