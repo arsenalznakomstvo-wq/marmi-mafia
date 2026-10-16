@@ -7,7 +7,9 @@
 // соединение (двоичная посылка с меткой 0xA7), слушатели слышат примерно через 0,5 с. Передача — до 15 с, между передачами — 1 с.
 window.VoiceChat = (() => {
   const RATE = 12000, MAX_S = 15, CHUNK_MS = 250;
-  let sendBin = null;
+  let sendBin = null, workletReady = null;
+  // звуковой поток: копит ~85 мс и отдаёт кусок в игру
+  const WORKLET = "class R extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(4096);this.n=0}process(i){const c=i[0]&&i[0][0];if(c){if(this.n+c.length>this.b.length){this.port.postMessage(this.b.slice(0,this.n));this.n=0}this.b.set(c,this.n);this.n+=c.length}return true}}registerProcessor('mm-rec',R)";
   const $ = id => document.getElementById(id);
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -79,8 +81,22 @@ window.VoiceChat = (() => {
     }
     if (rec !== my) { stream.getTracks().forEach(t => t.stop()); iosBack(); return; } // успели отменить
     audio();
-    const src = a.createMediaStreamSource(stream), proc = a.createScriptProcessor(4096, 1, 1);
-    proc.onaudioprocess = e => { if (rec === my) my.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    const src = a.createMediaStreamSource(stream);
+    let proc = null;
+    // 16.10 (критик): запись в отдельном звуковом потоке (AudioWorklet) — у говорящего не подтормаживает игра. Нет поддержки — как раньше
+    try {
+      if (a.audioWorklet && window.AudioWorkletNode) {
+        if (!workletReady) workletReady = a.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })));
+        await workletReady;
+        if (rec !== my) { stream.getTracks().forEach(t => t.stop()); iosBack(); return; }
+        proc = new AudioWorkletNode(a, 'mm-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+        proc.port.onmessage = e => { if (rec === my) my.chunks.push(e.data); };
+      }
+    } catch (e) { proc = null; workletReady = null; }
+    if (!proc) {
+      proc = a.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = e => { if (rec === my) my.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    }
     Object.assign(my, { seq: 0, rem: new Float32Array(0), peak: 0.12 });
     my.iv = setInterval(() => flush(my, false), CHUNK_MS); // каждые 0,25 с — кусочек в эфир
     src.connect(proc); proc.connect(a.destination); // выход молчит — нужен, чтобы запись шла
@@ -123,14 +139,25 @@ window.VoiceChat = (() => {
   function muDec(u) { u = ~u & 0xff; const s = u & 0x80 ? -1 : 1, m = (u & 0x7f) / 127; return s * (Math.pow(256, m) - 1) / 255; }
   // ===== Проигрывание: живой поток от каждого говорящего, с запасом 0,35 с (чтобы неровная связь не рвала звук) =====
   const streams = new Map(); // id говорящего -> { t (когда играть следующий кусок), name, last }
-  function onRadio(m) { // m: { t:'rv', id, name, end, d (base64 μ-закон) }
+  function onRadio(m) { // старый вид (текстом): { t:'rv', id, name, end, d (base64) }
+    let u = null; if (m.d) { const bin = atob(m.d); u = new Uint8Array(bin.length); for (let i = 0; i < u.length; i++) u[i] = bin.charCodeAt(i); }
+    play(m.id, m.name, m.end, u);
+  }
+  function onRadioBin(buf) { // 16.10: [0xA7, id(2), конец(1), длина имени(1), имя, звук]
+    const b = new Uint8Array(buf); if (b.length < 5) return;
+    const id = b[1] | (b[2] << 8), end = b[3], nl = b[4];
+    let name = ''; try { name = new TextDecoder().decode(b.subarray(5, 5 + nl)); } catch (e) {}
+    play(id, name, end, b.subarray(5 + nl));
+  }
+  function busy() { if (rec) finish(false); say('🎙 Эфир занят — говорят двое, подождите пару секунд'); }
+  function play(mid, mname, mend, u) {
+    const m = { id: mid, name: mname, end: mend };
     if (mutedAll || document.hidden || (window.Sound && Sound.isOn && !Sound.isOn())) return; // звук игры выключен (🔇) — рацию тоже не играем
     const a = audio(); if (!a) return;
     let st = streams.get(m.id);
     if (!st) { st = { t: 0, name: m.name || 'Игрок', srcs: [] }; streams.set(m.id, st); speaking.add(st.name); showBanner(); }
     st.last = performance.now();
-    if (m.d) {
-      const bin = atob(m.d), u = new Uint8Array(bin.length); for (let i = 0; i < u.length; i++) u[i] = bin.charCodeAt(i);
+    if (u) {
       if (u.length) {
         const k = a.sampleRate / RATE, len = Math.floor(u.length * k), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
         const f = new Float32Array(u.length); for (let i = 0; i < u.length; i++) f[i] = muDec(u[i]);
@@ -165,5 +192,5 @@ window.VoiceChat = (() => {
   function setSender(f) { sendBin = f; }
   function askMic() {} // разрешение спрашиваем при первом нажатии 🎙
   function setRoom() { key = ''; render(); } // командная арена — рации нет
-  return { init, tick, askMic, setRoom, setKey, setSender, onRadio, speaking, isSpeaking: name => speaking.has(name) };
+  return { init, tick, askMic, setRoom, setKey, setSender, onRadio, onRadioBin, busy, speaking, isSpeaking: name => speaking.has(name) };
 })();

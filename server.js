@@ -55,12 +55,16 @@ function radioChunk(c, data) {
   if (!c.rv || now - c.rv.last > 1500) { // новая передача
     if (now < (c.radioNext || 0) || radioRecent.filter(t => now - t < 60000).length >= 60) return;
     radioRecent.push(now); while (radioRecent.length > 100) radioRecent.shift();
+    let talking = 0; for (const o of clients) if (o !== c && o.rv && now - o.rv.last < 1500) talking++;
+    if (talking >= 2) { if (!c.rvBusy || now - c.rvBusy > 3000) { c.rvBusy = now; sendJSON(c, { t: 'rvBusy' }); } return; } // 16.10: эфир занят — не больше двух сразу
     c.rv = { bytes: 0, last: now };
   }
   c.rv.last = now; c.rv.bytes += data.length - 4;
   if (c.rv.bytes > 12000 * 16) return;
-  const msg = JSON.stringify({ t: 'rv', id: c.snake.id, name: c.snake.name, end: end ? 1 : 0, d: data.subarray(4).toString('base64') });
-  for (const o of clients) if (o !== c && o.ws.readyState === 1 && o.snake && o.snake.alive && (o.ws.bufferedAmount < 8000 || end)) o.ws.send(msg); // 16.10: только играющим, и не забиваем слабую связь
+  // 16.10: голос — двоичной посылкой [0xA7, id(2), конец(1), длина имени(1), имя, звук] (раньше текстом base64 — на треть больше)
+  const nm = Buffer.from(String(c.snake.name || '').slice(0, 16)), pk = Buffer.allocUnsafe(5 + nm.length + data.length - 4);
+  pk[0] = 0xA7; pk.writeUInt16LE(c.snake.id & 0xffff, 1); pk[3] = end ? 1 : 0; pk[4] = nm.length; nm.copy(pk, 5); data.copy(pk, 5 + nm.length, 4);
+  for (const o of clients) if (o !== c && o.ws.readyState === 1 && o.snake && o.snake.alive && (o.ws.bufferedAmount < 8000 || end)) o.ws.send(pk, { binary: true }); // 16.10: только играющим, и не забиваем слабую связь
   if (end) { c.rv = null; c.radioNext = now + 800; }
 }
 function fitView(c) {
@@ -82,27 +86,29 @@ function updateRoles() {
     }
     // 15.10 (аудит): звание могли «перепрыгнуть» (быстро выросли между проверками) или стать сразу Доном — оружие не выдавалось.
     // Теперь сравниваем с достигнутым званием по длине: >= вместо ==
-    const rk = r === DON ? rankFor(s.mass, 0) : r;
+    const rk = r === DON ? rankFor(s.mass, 0) : r, grants = []; // 16.10: сразу несколько званий — одно сообщение, а не 3–4 подряд
     // Владелец 11.10: человек стал Киллером — у него кинжал, метнуть можно один раз за жизнь
     if (!s.bot && s.client && rk >= KILLER_ROLE && !s.knifeGiven) {
       s.knifeGiven = true; s.knife = (s.knife || 0) + 2; /* 15.10: не затираем неиспользованный кинжал Параноика */ // владелец 13.10: два кинжала
-      sendJSON(s.client, { t: 'tmsgMe', text: '🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
+      grants.push(('🗡 Вы Киллер! 2 кинжала — каждый разрубит две змеи: кнопка 🗡' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F')));
     }
     // Владелец 14.10: человек стал Параноиком — 1 кинжал и 1 электрошокер
     if (!s.bot && s.client && rk >= PARANOID_ROLE && !s.paraGiven) {
       s.paraGiven = true; s.knife = (s.knife || 0) + 1; s.shock = 2; // владелец 14.10: шокера два
-      sendJSON(s.client, { t: 'tmsgMe', text: '👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — ' + (isTouchUA(s.client) ? 'кнопка справа' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер' });
+      grants.push(('👀 Вы Параноик! 🗡 кинжал и ⚡ 2 шокера — ' + (isTouchUA(s.client) ? 'кнопка справа' : 'F или правая кнопка мыши') + ': сначала кинжал, потом шокер'));
     }
     // Владелец 13.10: человек стал Шерифом — 2 броска значка: значок разрубает змею пополам
     if (!s.bot && s.client && rk >= SHERIFF_ROLE && !s.badgeGiven) {
       s.badgeGiven = true; s.badge = 2;
-      sendJSON(s.client, { t: 'tmsgMe', text: '⭐ Вы Шериф! 2 броска значка — разрубает змею пополам: кнопка ⭐' + (isTouchUA(s.client) ? '' : ' или F') });
+      grants.push(('⭐ Вы Шериф! 2 броска значка — разрубает змею пополам: кнопка ⭐' + (isTouchUA(s.client) ? '' : ' или F')));
     }
     // Владелец 11.10: человек стал Бомбой — рядом с ним едет настоящая бомба, бросить её можно один раз за жизнь
     if (!s.bot && s.client && rk >= BOMB_ROLE && !s.bombGiven) {
       s.bombGiven = true; s.bomb = 2; // владелец 11.10: две бомбы
-      sendJSON(s.client, { t: 'tmsgMe', text: '💣 Вы Бомба! Две бомбы едут рядом — бросайте в соперников: кнопка 💣' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F') });
+      grants.push(('💣 Вы Бомба! Две бомбы едут рядом — бросайте в соперников: кнопка 💣' + (isTouchUA(s.client) ? '' : ', правая кнопка мыши или F')));
     }
+    if (grants.length === 1) sendJSON(s.client, { t: 'tmsgMe', text: grants[0] });
+    else if (grants.length > 1) sendJSON(s.client, { t: 'tmsgMe', text: '🎁 Новое оружие сразу за несколько званий! Выбор — смахните кнопку оружия вверх' + (isTouchUA(s.client) ? '' : ' (или колесо мыши / Q)') });
   }
   // Новый Дон Мафии среди людей — объявляем всем
   if (top && top.id !== donId) {
@@ -209,7 +215,7 @@ const diedThisTick = [];
 const GAME_VER = (() => { try { const h = require('crypto').createHash('md5'), dir = require('path').join(__dirname, 'public');
   for (const f of fs.readdirSync(dir).filter(f => /.(js|css|html)$/.test(f)).sort()) h.update(f).update(fs.readFileSync(require('path').join(dir, f)));
   return h.digest('hex').slice(0, 10); } catch (e) { return String(Date.now()); } })();
-const radioKeys = new Map(), radioClips = new Map(), radioRecent = []; let radioSeq = 0; // рация (голосовые сообщения)
+const radioKeys = new Map(), radioRecent = []; // рация
 const snakes = new Map();   // id -> Snake
 let nextSnakeId = 0;
 function newSnakeId() {
@@ -923,6 +929,10 @@ function sendState(c) {
   // Не копим очередь: если телефон не успел принять прошлое обновление — пропускаем этот кадр,
   // иначе он получает мир «из прошлого» и задержка растёт (так и было: пинг 281 мс при Wi-Fi 4 мс)
   if (c.ws.readyState !== 1 || c.ws.bufferedAmount > 12000) return;
+  // 16.10: связь подвисла (подтверждений нет дольше пинга + 0,4 с) — кадры не копим: после паузы игрок сразу получит свежий,
+  // а не догоняет пачку устаревших. Пропуск запоминаем: следующий кадр пришлёт еду целиком (тип 2 — «начать заново»)
+  if (c.ackTick && tick - c.ackTick > Math.round((c.rttS || 150) / TICK_MS) + 12) { c.resync = true; return; }
+  if (c.resync) { c.resync = false; c.cells = new Set(); c.foodReset = true; }
   const me = c.snake;
   let vx, vy, r = 10;
   if (me && me.alive) { vx = me.xs[0]; vy = me.ys[0]; r = me.r; c.vx = vx; c.vy = vy; }
@@ -934,7 +944,7 @@ function sendState(c) {
   if (me && me.alive && me.tun) { const T = me.tun; x0 = Math.min(x0, T.ax - hw); x1 = Math.max(x1, T.ax + hw); y0 = Math.min(y0, T.ay - hh); y1 = Math.max(y1, T.ay + hh); }
 
   let o = 0, metas = null;
-  OUT[o++] = 1;
+  OUT[o++] = c.foodReset ? 2 : 1; c.foodReset = false; // 2 — еду на экране собрать заново (после пропуска кадров)
   OUT.writeUInt32LE(tick, o); o += 4;
   OUT.writeFloatLE(vx, o); o += 4;
   OUT.writeFloatLE(vy, o); o += 4;
@@ -1604,6 +1614,7 @@ const server = http.createServer((req, res) => {
     req.on('end', () => { try { const m = JSON.parse(body); clientPerf.unshift({ t: new Date().toISOString().slice(11, 19), ...m, ua: String(req.headers['user-agent'] || '').replace(/^Mozilla\/5\.0 /, '').slice(0, 110) }); clientPerf.length = Math.min(clientPerf.length, 60); } catch {} res.writeHead(204); res.end(); });
     return;
   }
+  if ((url === '/perfc' || url === '/errs') && req.method !== 'POST' && process.env.STATS_KEY && new URL(req.url, 'http://x').searchParams.get('key') !== process.env.STATS_KEY) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('нужен ключ'); return; } // 16.10: ники и устройства игроков — не для всех
   if (url === '/perfc') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientPerf, null, 1)); return; }
   if (url === '/errs') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientErrs, null, 1)); return; }
   if (stats.handle(req, res, url, liveCounts)) return;
@@ -1733,6 +1744,7 @@ wss.on('connection', (ws, req) => {
     if (++c.msgs > 150) { ws.close(1008, 'flood'); return; }
     if (isBinary) {
       if (data.length >= 4 && data[0] === 0xA7) { radioChunk(c, data); return; } // 🎙 кусочек живой рации
+      if (data.length === 5 && data[0] === 2) { c.ackTick = data.readUInt32LE(1); return; } // 16.10: какой кадр игрок уже получил
       if (data.length === 4 && data[0] === 1 && c.snake && c.snake.alive) {
         c.snake.ta = (data[1] | (data[2] << 8)) / 65535 * TAU - Math.PI;
         c.snake.boost = data[3] === 1;

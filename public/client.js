@@ -564,7 +564,9 @@ let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1
 
 // Владелец 13.10: «игру выбивает» — при каждом обновлении сайта сервер перезапускается. Теперь: предупреждение «игра обновляется»,
 // а кто был в игре — после переподключения сам снова заходит в игру, без выхода в меню.
-let autoRejoin = false, serverUpdating = false, gameVer = null, verStale = false;
+let autoRejoin = false, serverUpdating = false, gameVer = null, verStale = false, lastRecvTick = 0;
+// 16.10: раз в 0,1 с сообщаем серверу, какой кадр уже получили — при паузе связи он не копит нам очередь устаревших кадров
+setInterval(() => { if (ws && ws.readyState === 1 && lastRecvTick) { const b = new Uint8Array(5); b[0] = 2; new DataView(b.buffer).setUint32(1, lastRecvTick, true); ws.send(b); } }, 100);
 try { if (sessionStorage.getItem('mm_reload_play') === '1') { sessionStorage.removeItem('mm_reload_play'); autoRejoin = true; } } catch (e) {} // после перезагрузки на новую версию — сразу в игру
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -585,6 +587,7 @@ function connect() {
   ws.onmessage = e => {
     try {
       if (typeof e.data === 'string') onJSON(JSON.parse(e.data));
+      else if (new Uint8Array(e.data, 0, 1)[0] === 0xA7) { if (window.VoiceChat && VoiceChat.onRadioBin) VoiceChat.onRadioBin(e.data); } // 🎙 голос рации
       else if (protoOk) onState(e.data);
     } catch (err) { console.error('Ошибка разбора данных сервера', err); }
   };
@@ -637,7 +640,7 @@ function onJSON(m) {
     case 'portal': portalFx.push({ x: m.f[0], y: m.f[1], t0: performance.now() }, { x: m.d[0], y: m.d[1], t0: performance.now() + 120 }); Sound.portal(Math.max(nearVol(m.f[0], m.f[1]), nearVol(m.d[0], m.d[1]))); break;
     case 'docSave': docGhost.set(m.id, performance.now() + m.ms); break;
     case 'tmsgMe': bigToast(m.text); Sound.alert(); break;
-    case 'item': myInv = m.inv || (m.type ? { [m.type]: m.n || 1 } : {}); myItem = Object.keys(myInv)[0] || null; myItemN = myItem ? myInv[myItem] : 0; if (m.pick || (m.type && !m.left && !m.inv)) selW = 'i:' + m.type; renderFireBtn(); /* подобрал — сразу выбран */ if (m.type && !m.left) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
+    case 'item': myInv = m.inv || (m.type ? { [m.type]: m.n || 1 } : {}); myItem = Object.keys(myInv)[0] || null; myItemN = myItem ? myInv[myItem] : 0; if (m.pick || (m.type && !m.left && !m.inv)) selW = 'i:' + m.type; renderFireBtn(); /* подобрал — сразу выбран */ if (m.type && !m.left && !(m.inv && m.n > 1)) { const I = ITEM_INFO[m.type]; bigToast(I[0] + ' ' + I[1] + ' — нажмите ' + I[0] + (isTouch ? '' : ' или F')); Sound.pickup(); } break; // подобрал / использовал предмет
     case 'shock': zaps.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, t0: performance.now() }); Sound.zap(nearVol(m.x0, m.y0)); break;
     case 'restart': serverUpdating = true; bigToast('🔄 Игра обновляется — через несколько секунд вернёмся сами'); break; // сервер перезапускается (новая версия)
     case 'smoke': { const now = performance.now(); smokeClouds.push({ x0: m.x0, y0: m.y0, x: m.x, y: m.y, r: m.r, ms: m.ms, fly: m.fly || 0, t0: now + (m.fly || 0), thrown: now, popped: false, seed: Math.random() * 6 }); if (!m.it) { const left = (smokeIds.get(m.o) || 1) - 1; if (left > 0) smokeIds.set(m.o, left); else smokeIds.delete(m.o); if (m.o === myId) { mySmoke = left; renderFireBtn(); } } Sound.smokeThrow(nearVol(m.x0, m.y0)); break; } // Ниндзя бросил шашку: летит, потом дым
@@ -658,8 +661,9 @@ function onJSON(m) {
       renderEvent(); renderLb(); break;
     }
     case 'record': showRecord(m.kind); break;
+    case 'rvBusy': if (window.VoiceChat && VoiceChat.busy) VoiceChat.busy(); break; // эфир занят (говорят двое)
     case 'rv': if (window.VoiceChat && VoiceChat.onRadio) VoiceChat.onRadio(m); break; // 🎙 живая рация: кусочек чужого голоса
-    case 'pong': pingMs = Math.round(performance.now() - m.c); pingHist.push(pingMs); if (pingHist.length > 5) pingHist.shift(); if (m.s) sendJSON({ t: 'pr', s: m.s }); break; // pr — сервер сам меряет задержку (честная подрезка)
+    case 'pong': pingMs = Math.round(performance.now() - m.c); if (m.s) sendJSON({ t: 'pr', s: m.s }); break; // pr — сервер сам меряет задержку (честная подрезка)
   }
 }
 setInterval(() => sendJSON({ t: 'ping', c: performance.now(), l: Math.round(pingMs / 2 + interpTicks * 1000 / TICK_RATE) }), 2000); // l — на сколько мс чужие змеи у меня на экране отстают (для честной подрезки)
@@ -699,7 +703,8 @@ function onState(buf) {
     }
     sn.set(id, { id, boost: flags & 1, a, mass, r, step, len, idx, xs, ys, gap });
   }
-  const ev = { tick, add: [], rem: [], drop: [] };
+  const ev = { tick, add: [], rem: [], drop: [], clear: dv.getUint8(0) === 2 }; // 2 — после пропуска кадров: еда на экране целиком заново
+  lastRecvTick = tick;
   const nA = dv.getUint16(o, true); o += 2;
   for (let i = 0; i < nA; i++) {
     const id = dv.getUint32(o, true); o += 4;
@@ -746,6 +751,7 @@ const fkey = (x, y) => ((Math.floor(x / FCELL) + 64) << 8) | (Math.floor(y / FCE
 function applyFood(upTo) {
   while (foodQueue.length && foodQueue[0].tick <= upTo) {
     const ev = foodQueue.shift();
+    if (ev.clear) foods.clear();
     for (const f of ev.add) foods.set(f.id, f);
     for (let i = 0; i < ev.rem.length; i += 2) {
       const f = foods.get(ev.rem[i]); if (!f) continue;
@@ -914,14 +920,10 @@ window.__mmPred = () => predStats; // для проверки расхожден
    2) голову подтягивали к точке «по прямой» от сервера — на поворотах тянуло наружу, при ускорении дёргало вперёд-назад.
       Теперь сравниваем голову сервера с тем местом, где наша голова была в тот же момент (след хранит время), — без догадок;
    3) радиус своей змейки меняется плавно (раньше ступеньками по 0,25 — полоски по всей длине перескакивали) */
-const pingS = { v: 0 }, pingHist = [];
 function predStep(srv, now0) {
   const now = performance.now(), tickMs = 1000 / TICK_RATE; // как раньше: время — в одних единицах с lastArrive
   if (!pred.on) predStart(srv);
   const dt = Math.min(6, Math.max(0, (now - pred.t) / tickMs)); pred.t = now;
-  // Пинг — самый быстрый из последних 5 замеров: задержку неровной связи уже учитывает «возраст снимка» ниже, дважды её не считаем (замер 15.10)
-  const pingLo = pingHist.length ? Math.min(...pingHist) : pingMs;
-  pingS.v = pingS.v ? pingS.v + (pingLo - pingS.v) * Math.min(1, 0.01 * dt) : pingLo;
   pred.r = pred.r && Math.abs(pred.r - srv.r) < 3 ? pred.r + (srv.r - pred.r) * Math.min(1, 0.08 * dt) : srv.r;
   const myStun = stunIds.has(myId), r = srv.r, boosting = turboIds.has(myId) || (inBoost && myMass >= MIN_BOOST); // предметы: 🚀 ускоритель, ⚡ шокер
   const tr = myStun ? 0 : turnRate(r) * dt;
@@ -1643,10 +1645,7 @@ setInterval(() => {
   Object.assign(dg, { rN: 0, rSum: 0, rMax: 0, rBad: 0, lfN: 0, lfMs: 0, lfTop: '', lfTopMs: 0, lfScript: 0, lfRender: 0, hid: 0 });
   pf.n = pf.j50 = pf.j100 = pf.worst = pf.ng150 = pf.ngMax = pf.lost = 0; pf.t0 = performance.now();
 }, 20000);
-let dbgMe = null; window.__mmBody = d => { const sn = dbgMe; if (!sn) return null; let acc = 0; for (let j = 1; j < sn.xs.length; j++) { const L = Math.hypot(sn.xs[j] - sn.xs[j - 1], sn.ys[j] - sn.ys[j - 1]); if (acc + L >= d) { const f = (d - acc) / L; return [sn.xs[j - 1] + (sn.xs[j] - sn.xs[j - 1]) * f, sn.ys[j - 1] + (sn.ys[j] - sn.ys[j - 1]) * f, sn.xs[0], sn.ys[0], sn.idx[j - 1] + (sn.idx[j] - sn.idx[j - 1]) * f, sn.r]; } acc += L; } return null; }; /* для проверки плавности тела */
-window.__mmHeads = () => { const o = {}; for (const [id, s] of lastDrawn) o[id] = [s.xs[0], s.ys[0]]; return o; }; /* для проверки плавности чужих змей */
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
-const srvClk = { v: null };
 function frame(time) {
   requestAnimationFrame(frame);
   fpsCount++;
@@ -1659,13 +1658,8 @@ function frame(time) {
   const fdt = clamp((time - (frame.lt || time)) / 16.67, 0, 6); frame.lt = time;
   const ease = a => 1 - Math.pow(1 - a, fdt);
   interpTicks += (interpWant - interpTicks) * ease(interpWant > interpTicks ? 0.06 : 0.01); // запас растёт быстро (после рывка), уменьшается медленно — картинка не дёргается
-  /* 15.10: ровные «серверные часы» — раньше они прыгали вперёд, когда посылка приходила раньше обычного, и отползали назад
-     после пачки опоздавших; чужие змеи из-за этого дёргались вперёд-назад. Теперь часы идут ровно и только мягко подстраиваются */
-  if (tickOffset === null) srvClk.v = null;
-  else { const raw = time / tickMs + tickOffset, dT = fdt * 16.67 / tickMs;
-    srvClk.v = srvClk.v == null || Math.abs(raw - srvClk.v) > 4 ? raw : srvClk.v + dT + clamp((raw - srvClk.v) * 0.1, -0.05, 0.05) * dT; }
   const renderTick = tickOffset === null ? 0 : performance.now() / tickMs + tickOffset - interpTicks; /* 16.10: прежние часы (проверка критиков) */
-  window.__mmRT = renderTick; applyFood(renderTick);
+  applyFood(renderTick);
   const world = interpolated(renderTick);
 
   let me = null;
@@ -1761,7 +1755,7 @@ function frame(time) {
     lastHeads.clear(); lastDrawn.clear();
     const list = world.list.slice().sort((a, b) => a.mass - b.mass);
     for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn === me) continue; if (invisIds.has(sn.id)) { drawInvisible(sn, time); continue; } drawSnake(sn, metas.get(sn.id), false, time, view); }
-    if (me) { dbgMe = me; drawSnake(me, metas.get(me.id), true, time, view); }
+    if (me) drawSnake(me, metas.get(me.id), true, time, view);
   }
   if (BASES) drawFlags(time);
   if (bombsFly.size) drawFlyingBombs(time);
