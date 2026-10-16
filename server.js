@@ -50,7 +50,7 @@ let donId = 0;
 /* 15.10 (владелец: «чтобы голос уходил сразу»): живая рация — кусочек голоса (0,25 с) сразу пересылаем всем остальным.
    Одна передача — не дольше ~15 с, между передачами — пауза, всего — не больше 60 передач в минуту на всю игру */
 function radioChunk(c, data) {
-  if (TEAM || !c.snake || !c.snake.alive || data.length > 4000) return;
+  if (TEAM || !c.snake || !c.snake.alive || data.length > 8000) return;
   const now = Date.now(), end = data[3] === 1;
   if (!c.rv || now - c.rv.last > 1500) { // новая передача
     if (now < (c.radioNext || 0) || radioRecent.filter(t => now - t < 60000).length >= 60) return;
@@ -60,12 +60,11 @@ function radioChunk(c, data) {
   c.rv.last = now; c.rv.bytes += data.length - 4;
   if (c.rv.bytes > 12000 * 16) return;
   const msg = JSON.stringify({ t: 'rv', id: c.snake.id, name: c.snake.name, end: end ? 1 : 0, d: data.subarray(4).toString('base64') });
-  for (const o of clients) if (o !== c && o.ws.readyState === 1) o.ws.send(msg);
+  for (const o of clients) if (o !== c && o.ws.readyState === 1 && o.snake && o.snake.alive && (o.ws.bufferedAmount < 8000 || end)) o.ws.send(msg); // 16.10: только играющим, и не забиваем слабую связь
   if (end) { c.rv = null; c.radioNext = now + 800; }
 }
 function fitView(c) {
   if (c.w > c.h * 2.4) c.w = c.h * 2.4; else if (c.h > c.w * 2.4) c.h = c.w * 2.4;
-  const k = Math.sqrt(2560 * 1440 / (c.w * c.h)); if (k < 1) { c.w *= k; c.h *= k; }
 }
 function updateRoles() {
   if (TEAM) return; // в командном режиме ролей нет
@@ -1599,29 +1598,6 @@ const server = http.createServer((req, res) => {
   // «Чёрный ящик скорости» (12.10): телефоны раз в 20 с присылают замеры игры — видно на /perfc
   /* 15.10 (владелец: «рация» вместо голосового чата LiveKit — там кончились минуты): нажал — сказал — отправилось всем.
      Голос идёт через наш сервер: 12 000 отсчётов в секунду, 8 бит (μ-закон), до 10 с — не больше ~125 КБ. От игрока — не чаще раза в 5 с */
-  if (url === '/radio' && req.method === 'POST') {
-    const c = radioKeys.get(String(req.headers['x-rk'] || ''));
-    if (!c || !c.snake || !c.snake.alive) { res.writeHead(403); res.end(); req.resume(); return; }
-    const now = Date.now();
-    if (now < (c.radioNext || 0) || radioRecent.filter(t => now - t < 60000).length >= 30) { res.writeHead(429); res.end(); req.resume(); return; }
-    const parts = []; let size = 0, bad = false;
-    req.on('data', d => { size += d.length; if (size > 130000) { bad = true; req.destroy(); } else parts.push(d); });
-    req.on('end', () => {
-      if (bad || size < 4000) { res.writeHead(400); res.end(); return; }
-      c.radioNext = now + 5000; radioRecent.push(now); while (radioRecent.length > 60) radioRecent.shift();
-      const n = ++radioSeq; radioClips.set(n, { buf: Buffer.concat(parts), t: now });
-      for (const [k, cl] of radioClips) if (now - cl.t > 120000) radioClips.delete(k);
-      const name = c.snake ? c.snake.name : '', msg = JSON.stringify({ t: 'radio', n, name, id: c.snake ? c.snake.id : 0, sec: Math.round(size / 1200) / 10 });
-      for (const o of clients) if (o !== c && o.ws.readyState === 1) o.ws.send(msg);
-      res.writeHead(204); res.end();
-    });
-    return;
-  }
-  if (url.startsWith('/radio/')) {
-    const cl = radioClips.get(Number(url.slice(7)));
-    if (!cl) { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': cl.buf.length }); res.end(cl.buf); return;
-  }
   if (url.startsWith('/rtt')) { res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return; } /* 15.10: замер связи из фонового потока игры */
   if (url === '/perfc' && req.method === 'POST') {
     let body = ''; req.on('data', d => { if (body.length < 3000) body += d; });
@@ -1668,7 +1644,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: 4096, perMessageDeflate: false });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 16384, perMessageDeflate: false });
 // Командная арена — отдельный процесс (этот же файл с TEAM_MODE=1). Запускается, когда кто-то зашёл в «Команды»,
 // и выключается через 3 минуты без игроков — обычная игра от неё не тормозит.
 const TEAM_PORT = Number(process.env.TEAM_PORT) || PORT + 1;
@@ -1689,7 +1665,7 @@ function ensureTeamArena() {
   });
   return teamReady;
 }
-const teamWss = TEAM ? null : new WebSocketServer({ noServer: true, maxPayload: 4096, perMessageDeflate: false });
+const teamWss = TEAM ? null : new WebSocketServer({ noServer: true, maxPayload: 16384, perMessageDeflate: false });
 server.on('upgrade', (req, socket, head) => {
   const p = (req.url || '').split('?')[0];
   if (p === '/ws') wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));

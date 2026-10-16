@@ -109,8 +109,15 @@ window.VoiceChat = (() => {
     const out = new Uint8Array(4 + n);
     for (let i = 0; i < n; i++) { const a = Math.floor(i * step), b = Math.max(a + 1, Math.floor((i + 1) * step)); let sum = 0; for (let j = a; j < b; j++) sum += all[j]; out[4 + i] = muEnc(sum / (b - a) * gain); }
     r.rem = all.slice(Math.floor(n * step));
-    out[0] = 0xA7; out[1] = r.seq & 255; out[2] = (r.seq >> 8) & 255; out[3] = end ? 1 : 0; r.seq++;
-    if ((n || end) && sendBin) sendBin(out);
+    // 16.10 (критик): кусок больше 4 КБ сервер считал нарушением и рвал связь — режем на части по 2000 отсчётов
+    if (!sendBin) return;
+    for (let p = 0; p < n || (p === 0 && end); p += 2000) {
+      const m = Math.min(2000, n - p), last = p + 2000 >= n, pk = new Uint8Array(4 + Math.max(0, m));
+      if (m > 0) pk.set(out.subarray(4 + p, 4 + p + m), 4);
+      pk[0] = 0xA7; pk[1] = r.seq & 255; pk[2] = (r.seq >> 8) & 255; pk[3] = end && last ? 1 : 0; r.seq++;
+      sendBin(pk);
+      if (n === 0) break;
+    }
   }
   function muEnc(x) { x = Math.max(-1, Math.min(1, x)); const s = x < 0 ? 0x80 : 0; const m = Math.log1p(255 * Math.abs(x)) / Math.log1p(255); return (~(s | Math.round(m * 127))) & 0xff; }
   function muDec(u) { u = ~u & 0xff; const s = u & 0x80 ? -1 : 1, m = (u & 0x7f) / 127; return s * (Math.pow(256, m) - 1) / 255; }

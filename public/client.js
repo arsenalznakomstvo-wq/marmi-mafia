@@ -516,7 +516,7 @@ function drawPosters(view) {
     if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) {
       // аудит 14.10: далёкие фото выгружаем из памяти видеокарты (37 фото держались всегда — 120–150 МБ, долгие кадры на ноутбуках); подъедем — загрузится снова
       /* 15.10: и на телефоне тоже (порог ближе — экран меньше): держались все 30 фото */
-      if (photoBmp[p.i] && Math.abs(p.x - (view.x0 + view.x1) / 2) + Math.abs(p.y - (view.y0 + view.y1) / 2) > (isTouch ? 4000 : 6000)) { try { photoBmp[p.i].close && photoBmp[p.i].close(); } catch (e) {} photoBmp[p.i] = undefined; }
+      if (photoBmp[p.i] && Math.abs(p.x - (view.x0 + view.x1) / 2) + Math.abs(p.y - (view.y0 + view.y1) / 2) > (isTouch ? 7000 : 6000)) { /* 16.10: на телефоне — вдвое дальше зоны загрузки, чтобы не грузить и выгружать одно и то же */ try { photoBmp[p.i].close && photoBmp[p.i].close(); } catch (e) {} photoBmp[p.i] = undefined; }
       continue;
     }
     const im = photo(p.i); if (!im) continue;
@@ -564,7 +564,7 @@ let myTeam = -1, teamChoice = QS.get('team') === '0' ? 0 : QS.get('team') === '1
 
 // Владелец 13.10: «игру выбивает» — при каждом обновлении сайта сервер перезапускается. Теперь: предупреждение «игра обновляется»,
 // а кто был в игре — после переподключения сам снова заходит в игру, без выхода в меню.
-let autoRejoin = false, serverUpdating = false, gameVer = null;
+let autoRejoin = false, serverUpdating = false, gameVer = null, verStale = false;
 try { if (sessionStorage.getItem('mm_reload_play') === '1') { sessionStorage.removeItem('mm_reload_play'); autoRejoin = true; } } catch (e) {} // после перезагрузки на новую версию — сразу в игру
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -597,7 +597,7 @@ function onJSON(m) {
   switch (m.t) {
     case 'hello':
       if (m.v) { // 15.10: вышла новая версия игры — перезагружаем страницу и сразу возвращаемся в игру
-        if (gameVer && m.v !== gameVer) { try { sessionStorage.setItem('mm_reload_play', alive || autoRejoin ? '1' : '0'); } catch (e) {} location.reload(); break; }
+        if (gameVer && m.v !== gameVer) { verStale = true; if (!autoRejoin || m.proto !== PROTO) { location.reload(); break; } } // 16.10: в игре не перезагружаем — обновимся после смерти
         gameVer = m.v;
       }
       MAP_R = m.mapR; TICK_RATE = m.tickRate; SEG_D = m.segD; FCELL = m.fcell;
@@ -646,7 +646,7 @@ function onJSON(m) {
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; myInv = {}; selW = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
-    case 'dead': alive = false; myId = 0; predStop(); Sound.death(); setTimeout(() => showMenu(m), 1300); break;
+    case 'dead': alive = false; myId = 0; predStop(); if (verStale) setTimeout(() => location.reload(), 1200); /* новая версия — тихо обновимся в меню */ Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
       const prevEv = evNow ? evNow[0] : null;
@@ -913,8 +913,8 @@ window.__mmPred = () => predStats; // для проверки расхожден
       Теперь сравниваем голову сервера с тем местом, где наша голова была в тот же момент (след хранит время), — без догадок;
    3) радиус своей змейки меняется плавно (раньше ступеньками по 0,25 — полоски по всей длине перескакивали) */
 const pingS = { v: 0 }, pingHist = [];
-function predStep(srv, now) {
-  const tickMs = 1000 / TICK_RATE;
+function predStep(srv, now0) {
+  const now = performance.now(), tickMs = 1000 / TICK_RATE; // как раньше: время — в одних единицах с lastArrive
   if (!pred.on) predStart(srv);
   const dt = Math.min(6, Math.max(0, (now - pred.t) / tickMs)); pred.t = now;
   // Пинг — самый быстрый из последних 5 замеров: задержку неровной связи уже учитывает «возраст снимка» ниже, дважды её не считаем (замер 15.10)
@@ -926,25 +926,15 @@ function predStep(srv, now) {
   pred.a += clamp(angDiff(pred.a, inAngle), -tr, tr);
   const spd = moveSpeed(r, boosting) * dt * (myStun ? 0.35 : 1);
   pred.x += Math.cos(pred.a) * spd; pred.y += Math.sin(pred.a) * spd;
-  // Ровные «серверные часы»: сколько тиков прошло с момента свежего снимка (не по моменту прихода посылки — она приходит неровно)
-  const snapTick = snaps.length ? snaps[snaps.length - 1].tick : 0;
-  const age = clamp((srvClk.v == null ? snapTick : srvClk.v) - snapTick, 0, 10); // возраст снимка в тиках (общие ровные часы — в frame)
-  // Где была наша голова в тот момент, который сервер уже обработал: снимок старше на age, а наши команды идут к серверу ~ пинг
-  const tWant = now - (age * tickMs + pingS.v);
-  const T = pred.trail;
-  let qx = pred.x, qy = pred.y;
-  if (T.length > 1 && tWant < T[0][2]) {
-    let j = 1; while (j < T.length && T[j][2] > tWant) j++;
-    if (j >= T.length) { qx = T[T.length - 1][0]; qy = T[T.length - 1][1]; }
-    else { const a = T[j - 1], b = T[j], f = a[2] === b[2] ? 0 : (a[2] - tWant) / (a[2] - b[2]); qx = a[0] + (b[0] - a[0]) * f; qy = a[1] + (b[1] - a[1]) * f; }
-  }
-  const ex = srv.xs[0] - qx, ey = srv.ys[0] - qy, err = Math.hypot(ex, ey);
+  /* 16.10 (проверка двух критиков): вернули прежнюю, проверенную временем поправку головы — «где голова на сервере сейчас»:
+     свежий снимок + путь по прямой за время, пока он шёл к нам. Вчерашняя сверка по следу при плохой связи зацикливала сбросы */
+  const lead = ((now - lastArrive) + pingMs) / tickMs;
+  const sx = srv.xs[0] + Math.cos(srv.a) * moveSpeed(r, srv.boost) * lead;
+  const sy = srv.ys[0] + Math.sin(srv.a) * moveSpeed(r, srv.boost) * lead;
+  const ex = sx - pred.x, ey = sy - pred.y, err = Math.hypot(ex, ey);
   predStats.frames++; predStats.sumErr += err; if (err > predStats.maxErr) predStats.maxErr = err;
-  if (err > 120) { // сильно разошлись (нора, смерть-спасение, сильная пауза) — сразу встаём на место сервера
-    predStats.snaps++; predStart(srv);
-    const lead = (age * tickMs + pingS.v) / tickMs, sp0 = moveSpeed(r, srv.boost) * lead;
-    pred.x = srv.xs[0] + Math.cos(srv.a) * sp0; pred.y = srv.ys[0] + Math.sin(srv.a) * sp0;
-  } else { const k = Math.min(1, 0.05 * dt); pred.x += ex * k; pred.y += ey * k; } // мягко: ошибка теперь честная, без «прямой линии»
+  if (err > 120) { predStats.snaps++; predStart(srv); pred.x = sx; pred.y = sy; }
+  else { const k = Math.min(1, 0.06 * dt); pred.x += ex * k; pred.y += ey * k; }
   // След головы (со временем) → тело нужной длины
   const tr0 = pred.trail[0];
   if (!tr0 || Math.hypot(pred.x - tr0[0], pred.y - tr0[1]) > 1.5) pred.trail.unshift([pred.x, pred.y, now]);
@@ -1627,7 +1617,8 @@ const pf = { n: 0, j50: 0, j100: 0, worst: 0, last: 0, t0: performance.now(), dp
    2) браузер сам называет причину каждого долгого кадра (какой код или отрисовка); 3) зарядка ноутбука/телефона */
 const dg = { rN: 0, rSum: 0, rMax: 0, rBad: 0, lfN: 0, lfMs: 0, lfTop: '', lfTopMs: 0, lfScript: 0, lfRender: 0, hid: 0, bat: '' };
 try {
-  const wk = new Worker(URL.createObjectURL(new Blob(["let b=0;setInterval(async()=>{if(b)return;b=1;const t=performance.now();try{const r=await fetch('" + location.origin + "/rtt?'+Math.random(),{cache:'no-store'});postMessage(r.ok?performance.now()-t:-1)}catch(e){postMessage(-1)}b=0},1000)"], { type: 'text/javascript' })));
+  const wk = new Worker(URL.createObjectURL(new Blob(["let b=0,on=0;onmessage=e=>{on=e.data};setInterval(async()=>{if(b||!on)return;b=1;const t=performance.now(),ac=new AbortController(),to=setTimeout(()=>ac.abort(),3000);try{const r=await fetch('" + location.origin + "/rtt?'+Math.random(),{cache:'no-store',signal:ac.signal});postMessage(r.ok?performance.now()-t:-1)}catch(e){postMessage(-1)}clearTimeout(to);b=0},1000)"], { type: 'text/javascript' })));
+  setInterval(() => { try { wk.postMessage(alive && !document.hidden ? 1 : 0); } catch (e) {} }, 1000); // 16.10: только в игре
   wk.onmessage = e => { const x = e.data; if (x < 0) { dg.rBad++; return; } dg.rN++; dg.rSum += x; if (x > dg.rMax) dg.rMax = x; };
 } catch (e) {}
 try {
@@ -1671,7 +1662,7 @@ function frame(time) {
   if (tickOffset === null) srvClk.v = null;
   else { const raw = time / tickMs + tickOffset, dT = fdt * 16.67 / tickMs;
     srvClk.v = srvClk.v == null || Math.abs(raw - srvClk.v) > 4 ? raw : srvClk.v + dT + clamp((raw - srvClk.v) * 0.1, -0.05, 0.05) * dT; }
-  const renderTick = srvClk.v === null ? 0 : srvClk.v - interpTicks;
+  const renderTick = tickOffset === null ? 0 : performance.now() / tickMs + tickOffset - interpTicks; /* 16.10: прежние часы (проверка критиков) */
   window.__mmRT = renderTick; applyFood(renderTick);
   const world = interpolated(renderTick);
 
@@ -2609,7 +2600,7 @@ function renderFireBtn() {
 {
   const b = $('fireBtn'), row = $('wpnRow');
   const stop = e => { e.stopPropagation(); }; // кнопка не должна включать ускорение/джойстик под собой
-  const SLOP = 10, SWIPE = 22, HOLD = 170;
+  const SLOP = 18, SWIPE = 24, HOLD = 110; // 16.10 (критик): выстрел быстрее (было 170 мс), небольшой сдвиг пальца — всё равно выстрел
   let g = null;
   b.addEventListener('pointerdown', e => {
     stop(e); e.preventDefault();
