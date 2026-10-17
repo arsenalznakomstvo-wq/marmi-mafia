@@ -931,7 +931,9 @@ function sendState(c) {
   if (c.ws.readyState !== 1 || c.ws.bufferedAmount > 12000) return;
   // 16.10: связь подвисла (подтверждений нет дольше пинга + 0,4 с) — кадры не копим: после паузы игрок сразу получит свежий,
   // а не догоняет пачку устаревших. Пропуск запоминаем: следующий кадр пришлёт еду целиком (тип 2 — «начать заново»)
-  if (c.ackTick && tick - c.ackTick > Math.round((c.rttS || 150) / TICK_MS) + 12) { c.resync = true; return; }
+  // 17.10 (зависание «сервер 0/30»): без новых кадров игре нечего подтверждать — сервер ждал её вечно. Теперь во время паузы кадр всё равно уходит раз в 10 тиков (0,33 с): игра его получит, подтвердит, и всё продолжится
+  if (c.ackTick && tick - c.ackTick > Math.round((c.rttS || 150) / TICK_MS) + 12 && tick - (c.lastSent || 0) < 10) { c.resync = true; return; }
+  c.lastSent = tick;
   if (c.resync) { c.resync = false; c.cells = new Set(); c.foodReset = true; }
   const me = c.snake;
   let vx, vy, r = 10;
