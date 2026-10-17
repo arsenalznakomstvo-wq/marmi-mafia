@@ -1077,3 +1077,15 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
   body.lb-full #lb-rows > .row:nth-child(n+6):nth-child(-n+10):not(.hide) { display: flex; }
   body.lb-full #lb { background: rgba(8, 10, 14, 0.72); }
 }
+
+/* 18.10 (владелец): на компьютере блок меню (рекорд, имя, «Играть», «Команда на команду») ниже — лица девушек в видео не закрыты */
+@media (pointer: fine) { #menu .title { margin-bottom: clamp(0px, 25vh, 260px) !important; } }
+@media (pointer: fine) and (max-height: 560px) { #menu .title { margin-bottom: 8vh !important; } }
+/* 18.10: карточка «Топ-5 всех времён» на компьютере на треть меньше — опущенный блок меню помещается над ней */
+@media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards { --cw: 176px !important; --ih: 168px !important; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 156px !important; --ih: 140px !important; } }
+@media (pointer: fine) { #menu .title { margin-bottom: clamp(0px, 23vh, 240px) !important; } }
+@media (pointer: fine) and (max-height: 560px) { #menu .title { margin-bottom: 6vh !important; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 150px !important; --ih: 108px !important; } }
+@media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards .wtitle { white-space: nowrap; font-size: 13px; margin-bottom: 6px; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 700px) { body.mvid #winCards { --cw: 128px !important; --ih: 96px !important; } #menu .title { margin-bottom: 17vh !important; } }
