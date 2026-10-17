@@ -1069,3 +1069,11 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
   #fireBtn { width: 51px; height: 51px; font-size: 24px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 118px); }
   #wpnRow { right: calc(max(8px, env(safe-area-inset-right)) + 59px); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 124px); }
 }
+
+/* 18.10 (владелец): на телефоне в рейтинге топ-5, кнопка «📊 Топ-10» раскрывает весь топ-10 на прозрачной подложке (10 с или до второго нажатия) */
+#statBtn { display: none; }
+@media (pointer: coarse) {
+  #statBtn { display: block; pointer-events: all; touch-action: none; margin: 4px 0 0 auto; border: 1px solid rgba(255,213,46,0.55); background: rgba(20,24,32,0.55); color: #ffd52e; font: bold 11px Arial, sans-serif; border-radius: 12px; padding: 3px 9px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  body.lb-full #lb-rows > .row:nth-child(n+6):nth-child(-n+10):not(.hide) { display: flex; }
+  body.lb-full #lb { background: rgba(8, 10, 14, 0.72); }
+}

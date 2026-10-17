@@ -459,7 +459,31 @@ function photo(i) {
 // Владелец 13.10: фото карты в WebP — на 36% легче (быстрее грузятся, меньше рывков). Старые браузеры — прежний JPG
 let WEBP = false;
 { const t = new Image(); t.onload = () => { WEBP = t.width === 1; }; t.src = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA'; }
+/* 18.10 (владелец: «при подъезде к фото на полу игра подвисает»; замер на телефоне — 0,2 с на распаковку фото): фото целиком
+   готовится в отдельном фоновом потоке — скачать, распаковать, уменьшить, добавить яркость — и приходит в игру готовой картинкой.
+   Игра в это время не ждёт. Нет фонового потока с холстом (старые телефоны) — как раньше */
+const PH_SRC = "onmessage=async e=>{const d=e.data;try{let r=await fetch(d.url);if(!r.ok)r=await fetch(d.alt);let b=await createImageBitmap(await r.blob());if(b.height>d.H){const x=await createImageBitmap(b,{resizeHeight:d.H,resizeQuality:'medium'});b.close();b=x}if(d.bright){const c=new OffscreenCanvas(b.width,b.height),g=c.getContext('2d');g.drawImage(b,0,0);g.globalCompositeOperation='lighter';g.globalAlpha=0.15;g.drawImage(b,0,0);b.close();b=c.transferToImageBitmap()}postMessage({id:d.id,bmp:b},[b])}catch(err){postMessage({id:d.id,err:1})}}";
+let phW = null, phSeq = 0; const phWait = new Map();
+function posterWorker(i, url, alt, H) {
+  if (phW === false || !window.Worker || !window.OffscreenCanvas || !window.createImageBitmap) return null;
+  if (!phW) {
+    try {
+      phW = new Worker(URL.createObjectURL(new Blob([PH_SRC], { type: 'text/javascript' })));
+      phW.onmessage = e => { const cb = phWait.get(e.data.id); phWait.delete(e.data.id); if (cb) cb(e.data); };
+      phW.onerror = () => { phW = false; for (const cb of phWait.values()) cb({ err: 1 }); phWait.clear(); };
+    } catch (e) { phW = false; return null; }
+  }
+  return new Promise(res => {
+    const id = ++phSeq;
+    phWait.set(id, d => { if (d.bmp) { photoBmp[i] = d.bmp; res(); } else photoLoadMain(i).then(res); }); // не вышло в фоне — как раньше
+    phW.postMessage({ id, url: new URL(url, location.href).href, alt: new URL(alt, location.href).href, H, bright: BRIGHT });
+  });
+}
 function photoLoad(i) {
+  const base = (isTouch ? 'photos/m/p' : 'photos/p') + i, url = base + (WEBP ? '.webp' : '.jpg'), H = isTouch ? (i >= 29 ? 480 : 640) : 1100;
+  return posterWorker(i, url, base + '.jpg', H) || photoLoadMain(i);
+}
+function photoLoadMain(i) {
   // Аудит 12.10: распаковка из файла в фоновом потоке (fetch → createImageBitmap) — раньше Image.decode занимал главный поток на ~45 мс
   const base = (isTouch ? 'photos/m/p' : 'photos/p') + i, url = base + (WEBP ? '.webp' : '.jpg'), H = isTouch ? (i >= 29 ? 480 : 640) : 1100; // p29–p36 на телефоне — 480 px (владелец 12.10) // на телефоне — лёгкая копия (640 px)
   if (window.createImageBitmap) return fetch(url).then(r => r.ok ? r : fetch(base + '.jpg')).then(r => r.blob()) // нет WebP-файла — берём JPG
@@ -512,7 +536,7 @@ function drawPosters(view) {
   if (isTouch && autoLow >= 2) return; /* 15.10: телефон долго не тянет — фото на полу не рисуем */
   for (const p of POSTERS) {
     // фото грузим, только когда постер рядом (чтобы телефон не качал сразу все)
-    const near = 1500, hh = p.h;
+    const near = isTouch ? 2200 : 1500, hh = p.h; // 18.10: на телефоне — заранее, чтобы фото успело приготовиться в фоне
     if (p.x - hh > view.x1 + near || p.x + hh < view.x0 - near || p.y - hh > view.y1 + near || p.y + hh < view.y0 - near) {
       // аудит 14.10: далёкие фото выгружаем из памяти видеокарты (37 фото держались всегда — 120–150 МБ, долгие кадры на ноутбуках); подъедем — загрузится снова
       /* 15.10: и на телефоне тоже (порог ближе — экран меньше): держались все 30 фото */
@@ -2626,6 +2650,16 @@ function renderFireBtn() {
   window.addEventListener('wheel', e => { const t = performance.now(); if (!alive || t - wheelT < 150) return; wheelT = t; cycleWpn(e.deltaY > 0 ? 1 : -1); }, { passive: true });
 }
 
+/* 18.10: кнопка «📊 Топ-10» на телефоне — раскрыть / свернуть рейтинг */
+{
+  const b = $('statBtn');
+  if (b) {
+    let t = 0;
+    const set = on => { document.body.classList.toggle('lb-full', on); b.textContent = on ? '✕ Свернуть' : '📊 Топ-10'; clearTimeout(t); if (on) t = setTimeout(() => set(false), 10000); };
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); set(!document.body.classList.contains('lb-full')); Sound.click(); });
+    for (const ev of ['click', 'touchstart', 'touchend', 'mousedown']) b.addEventListener(ev, e => e.stopPropagation());
+  }
+}
 let toastT = 0;
 function toast(text, cls) { const t = $('toast'); t.textContent = text; t.classList.toggle('ev', cls === 'ev'); t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
 
