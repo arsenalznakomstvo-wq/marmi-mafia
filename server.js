@@ -10,6 +10,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
 const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, TEETH_ID, TEETH_MAX, NINJA_ID } = require('./public/skins.js');
 const stats = require('./stats.js');
+const owner = require('./owner.js'); // 17.10: страница владельца «кто играл»
 const voice = require('./voice.js');
 const records = require('./records.js');
 const winners = require('./winners.js');
@@ -76,6 +77,7 @@ function updateRoles() {
   for (const s of snakes.values()) if (s.alive && (!top || s.mass > top.mass)) top = s;
   for (const s of snakes.values()) {
     if (!s.alive) continue;
+    if (!s.bot && s.mass > (s.maxMass || 0)) s.maxMass = s.mass; // для страницы владельца — лучшая длина за игру
     const prev = s.role || 0;
     const r = s === top ? DON : rankFor(s.mass, prev === DON ? rankFor(s.mass, 0) : prev);
     s.role = r;
@@ -492,7 +494,7 @@ function lizardSave(s, killer) {
 }
 function killSnake(s, killer) {
   if (!s.alive) return;
-  if (!s.bot) records.report(s.name, s.mass);
+  if (!s.bot) { records.report(s.name, s.mass); owner.finish(s); }
   if (!s.bot) deathStats.player++; else if (killer) deathStats.botBody++; else deathStats.botWall++;
   s.alive = false;
   snakes.delete(s.id);
@@ -883,6 +885,7 @@ function handleJSON(c, m) {
     if (process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     if (process.env.TEST_SPAWN_AT && process.env.TEST_SPAWN_AT.split(',')[2]) { const an = +process.env.TEST_SPAWN_AT.split(',')[2]; s.a = s.ta = an; for (let i = 0; i < s.xs.length; i++) { s.xs[i] = pos.x - Math.cos(an) * i * SEG_D; s.ys[i] = pos.y - Math.sin(an) * i * SEG_D; } s.bbox(); } // только для проверок: куда смотрит
     s.client = c; c.snake = s; c.inA = s.a;
+    if (!TEAM) owner.start(s, c, m.app); // 17.10: страница владельца «кто играл»
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
@@ -1619,6 +1622,7 @@ const server = http.createServer((req, res) => {
   if ((url === '/perfc' || url === '/errs') && req.method !== 'POST' && process.env.STATS_KEY && new URL(req.url, 'http://x').searchParams.get('key') !== process.env.STATS_KEY) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('нужен ключ'); return; } // 16.10: ники и устройства игроков — не для всех
   if (url === '/perfc') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientPerf, null, 1)); return; }
   if (url === '/errs') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(clientErrs, null, 1)); return; }
+  if (!TEAM && owner.handle(req, res, url, () => [...clients].filter(c => c.snake && c.snake.alive && !c.snake.bot && c.snake.sess).map(c => ({ n: c.snake.name, m: Math.round(c.snake.mass), t: c.snake.sess.t, d: c.snake.sess.d, a: c.snake.sess.a })))) return;
   if (stats.handle(req, res, url, liveCounts)) return;
   if (voice.handle(req, res, url, cleanName)) return;
   if (!TEAM && winners.handle(req, res, url, n => records.placeAll(n) > 0)) return;
@@ -1710,6 +1714,7 @@ process.on('uncaughtException', e => console.error('непойманная ош�
 // Владелец 13.10: перед перезапуском (новая версия на Render) предупреждаем игроков — их игра сама вернётся, когда сервер поднимется
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {
   if (teamProc) teamProc.kill();
+  try { for (const s of snakes.values()) if (!s.bot) owner.finish(s); } catch {} // 17.10: игры, шедшие во время обновления, тоже записываем
   try { const msg = JSON.stringify({ t: 'restart' }); for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg); } catch {}
   setTimeout(() => process.exit(0), 700);
 });
@@ -1766,6 +1771,7 @@ wss.on('connection', (ws, req) => {
 while (naturalFood < FOOD_TARGET) spawnNaturalFood();
 cellEv.clear();
 if (process.env.TEST_SEED_RECORDS) for (const [n, sc] of [['BBB', 12061], ['Двойник', 11694], ['Bekhruz', 11105], ['Я сам в шоке', 9852], ['альмано', 9609]]) records.report(n, sc); // только для проверок
+owner.load();
 records.load().then(() => { if (!TEAM) winners.load(records.allNames()); });
 // Фото тех, кто выпал из топ-5, больше нигде не видно — убираем (раз в 30 с)
 if (!TEAM) setInterval(() => winners.prune(records.allNames()), 30000);

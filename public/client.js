@@ -2847,7 +2847,7 @@ function play() {
   goFullscreen();
   const name = myName();
   store('mm_nick', $('nick').value.trim());
-  sendJSON({ t: 'join', name, skin, w: W, h: H, z: VIEW_Z, ...(TEAM_MODE ? { team: teamChoice } : {}) });
+  sendJSON({ t: 'join', name, skin, w: W, h: H, z: VIEW_Z, app: isApp ? 1 : 0, ...(TEAM_MODE ? { team: teamChoice } : {}) });
 }
 $('play').addEventListener('click', play);
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
