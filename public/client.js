@@ -1357,7 +1357,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
   const start = r * 6; // начинаем за табличкой на спине
   ctx.save();
   if (name === 'Доктор') { // белый Доктор с розовыми плюсами по всему телу (владелец 06.10)
-    for (const [x, y, a] of bodyMarks(cnt, r * 2.4, r * 1.6)) {
+    for (const [x, y, a] of bodyMarks(cnt, r * 2.4, r * 1.6).slice(0, 1)) { // 19.10 (владелец): один крест на шее, а не по всему телу
       if (!inView(x, y)) continue;
       ctx.save(); ctx.translate(x, y); ctx.rotate(a); const L = r * 0.5, W = r * 0.15;
       ctx.fillStyle = '#ff5fa8'; ctx.fillRect(-L, -W, L * 2, W * 2); ctx.fillRect(-W, -L, W * 2, L * 2);
@@ -1384,7 +1384,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
       ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 0.05); ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(fx, fy, r * 0.22, 0, TAU); ctx.fill();
     }
   } else if (name === 'Доктор') {
-    for (const [x, y, a] of bodyMarks(cnt, r * 3.4, start)) {
+    for (const [x, y, a] of bodyMarks(cnt, r * 3.4, start).slice(0, 1)) { // один крест
       if (!inView(x, y)) continue;
       ctx.save(); ctx.translate(x, y); ctx.rotate(a); const L = r * 0.42, W = r * 0.15;
       ctx.fillStyle = '#ffffff'; ctx.fillRect(-L, -W, L * 2, W * 2); ctx.fillRect(-W, -L, W * 2, L * 2);
@@ -1465,7 +1465,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
   // 19.10 (владелец): звание Доктор — змея становится прозрачной «водяной» под соты (как маскировка Хамелеона), у людей и ботов;
   // перешла на следующее звание — облик пропадает. Только вид: её видят все
-  const docCamo = meta && !fade && !TEAM_MODE && (ROLES[meta.role || 0] || {}).name === 'Доктор';
+  const docCamo = false; // 19.10 (владелец): Доктора снова чисто белые — прозрачный облик убран
   if (sk.style === 'chameleon') sk = Object.assign({}, sk, { style: 'water', water: sn.boost ? CHAM_HOT : CHAM_W }); // 🦎 спокойный — зелёный, на ускорении — оранжевый
   if (sk.eyes === 'yemen' && sn.boost) sk = Object.assign({}, sk, { cols: YEMEN_HOT }); // 🦎 Йеменский на ускорении «злится»: оранжевый с золотыми и красными полосами
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
