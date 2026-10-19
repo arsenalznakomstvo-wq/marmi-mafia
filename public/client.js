@@ -1571,7 +1571,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && !lod && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r, sn.id); } // владелец 12.10: без шляпы — жетон и тёмные очки (у каждого свой стиль)
-    if (meta && !fade && !TEAM_MODE && ROLES[meta.role || 0] && ROLES[meta.role || 0].name === 'Проститутка' && !lod) drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
+    /* 19.10 (владелец): губы у Проститутки убраны — роль узнаётся по сердечкам на теле */
+    if (false) drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && !lod && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя
     if (!fade && bazooka.has(sn.id)) drawBazooka(hx, hy, a, r, bazooka.get(sn.id));
