@@ -1434,12 +1434,15 @@ const SX = [], SY = [], SI = [];
 const lastDrawn = new Map();   // id -> змейка, как она нарисована в прошлом кадре (для таяния при смерти)
 const dying = [];              // тающие тела погибших змей
 const DIE_MS = 700;
+let MARMI_SK = null;
 function drawSnake(sn, meta, isMe, time, view, fade) {
   let sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
   // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Красотка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
   // Владелец 07.10: у людей при смене роли змея остаётся как есть (меняется только табличка); роль красит только ботов
   const RS = meta && meta.bot && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
+  // 19.10 (владелец: «очень много докторов ползает — вместо докторов пусть будет Марми»): половина ботов-Докторов выглядит как скин Марми
+  if (meta && meta.bot && !fade && (ROLES[meta.role || 0] || {}).name === 'Доктор' && sn.id % 2 === 0) sk = MARMI_SK || (MARMI_SK = prepSkin({ id: SKINS.findIndex(d => d.name === 'Марми') }));
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
   const isDon = meta && !fade && meta.role === DON;
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
@@ -2230,21 +2233,23 @@ function drawMapItems(view, time) {
     ctx.drawImage(itemSprite(it.t), it.x - S / 2, it.y + bob - S / 2, S, S);
   }
 }
-/* 19.10 (владелец: «хамелеон не сливается» — свою змейку игра рисовала как обычно): в маскировке и сам игрок видит себя прозрачным, только глаза — чтобы понимать, где голова */
-function drawCamoSelf(sn, time) {
-  ctx.globalAlpha = 0.16; // своё тело — еле заметный зелёный «призрак»: видно, где змея, но понятно, что её не видно другим
-  ctx.fillStyle = '#7be08a';
-  for (let j = 0; j < sn.xs.length; j += 2) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], sn.r, 0, TAU); ctx.fill(); }
-  ctx.globalAlpha = 0.55;
-  const meta = metas.get(sn.id); if (meta) drawHeadDecor(ctx, meta.sk, sn.xs[0], sn.ys[0], sn.a, inAngle, sn.r, null);
+/* 19.10 (владелец: «видеть должны все, но сливаться с полем — как вода, под соты»): тело Хамелеона в маскировке
+   залито тем же узором сот, что и пол (совпадает с ним точь-в-точь — будто прозрачное), по краю светлая водяная кромка и блик, глаза видны */
+function drawCamoBody(sn, time) {
+  if (!bgPattern) makeBg();
+  const n = sn.xs.length, r = sn.r, st = n > 120 ? 2 : 1, sh = 0.5 + 0.5 * Math.sin(time * 0.004);
+  ctx.globalAlpha = 0.22 + 0.06 * sh; ctx.fillStyle = '#bfe8ff'; // кромка — чуть шире тела
+  for (let j = n - 1; j >= 0; j -= st) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], r * 1.06, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 1; ctx.fillStyle = bgPattern; // внутри — сам пол
+  for (let j = n - 1; j >= 0; j -= st) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], r * 0.9, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 0.07 + 0.03 * sh; ctx.fillStyle = '#ffffff'; // водяной блик вдоль тела
+  for (let j = n - 1; j >= 0; j -= st * 2) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], r * 0.35, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 0.85;
+  const meta = metas.get(sn.id); if (meta) drawHeadDecor(ctx, meta.sk, sn.xs[0], sn.ys[0], sn.a, sn.id === myId ? inAngle : sn.a, r, null);
   ctx.globalAlpha = 1;
 }
-function drawCamo(sn, time) { // 🦎 чужой Хамелеон в маскировке: только еле заметная рябь цвета пола
-  ctx.globalAlpha = 0.16 + 0.05 * Math.sin(time * 0.006);
-  ctx.fillStyle = BG.top;
-  for (let j = 0; j < sn.xs.length; j += 3) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], sn.r * 0.95, 0, TAU); ctx.fill(); }
-  ctx.globalAlpha = 1;
-}
+function drawCamoSelf(sn, time) { drawCamoBody(sn, time); }
+function drawCamo(sn, time) { drawCamoBody(sn, time); }
 function drawInvisible(sn, time) { // 👻 чужая невидимка: только лёгкое мерцание вдоль тела
   ctx.globalAlpha = 0.13 + 0.06 * Math.sin(time * 0.01); // чуть заметнее (владелец 14.10)
   ctx.fillStyle = '#cfd8ff';
