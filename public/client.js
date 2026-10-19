@@ -20,7 +20,9 @@ let protoOk = false;
 let interpTicks = 4, interpWant = 4, lastArrive = 0;
 const gaps = []; let gapsN = 0;
 
-const $ = id => document.getElementById(id);
+/* 19.10 (отчёт с iPhone: «visBtn is null» — игра падала на запуске): если элемента нет на странице (например, Safari «Скрыть отвлекающие элементы»), подставляем пустую заглушку — игра работает без этой кнопки; один раз сообщаем, чего не хватило */
+const missingEl = {};
+const $ = id => document.getElementById(id) || missingEl[id] || (missingEl[id] = (() => { try { navigator.sendBeacon('/clienterr', JSON.stringify({ msg: 'нет элемента #' + id, where: 'dom', w: innerWidth, h: innerHeight })); } catch (e) {} return document.createElement('div'); })());
 const canvas = $('game'), ctx = canvas.getContext('2d');
 const mm = $('minimap'), mctx = mm.getContext('2d');
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
