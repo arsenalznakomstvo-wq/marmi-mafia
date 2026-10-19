@@ -1089,3 +1089,6 @@ body:not(.in-menu) #visBtn { right: auto !important; left: calc(50% + 2px) !impo
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 150px !important; --ih: 108px !important; } }
 @media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards .wtitle { white-space: nowrap; font-size: 13px; margin-bottom: 6px; } }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 700px) { body.mvid #winCards { --cw: 128px !important; --ih: 96px !important; } #menu .title { margin-bottom: 17vh !important; } }
+
+/* 19.10: Telegram на весь экран — его кнопки «закрыть» и «меню» лежат поверх игры сверху; верхние надписи игры опускаем под них */
+body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, body.tgfs #radioBanner { margin-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }

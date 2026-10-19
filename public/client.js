@@ -2866,6 +2866,9 @@ if (TG) {
     const W = window.Telegram && Telegram.WebApp; if (!W) return;
     try { W.ready(); W.expand(); } catch (e) {}
     try { if (W.disableVerticalSwipes) W.disableVerticalSwipes(); } catch (e) {} // свайп вниз во время игры не закрывает её
+    // 19.10 (владелец: «видно, что играем в Telegram — окно не до конца»): полноэкранный режим (Telegram 8.0+) — без полосы с названием бота
+    try { if (W.isVersionAtLeast && W.isVersionAtLeast('8.0') && W.requestFullscreen) { W.requestFullscreen(); document.body.classList.add('tgfs'); } } catch (e) {}
+    try { W.onEvent && W.onEvent('fullscreenFailed', () => document.body.classList.remove('tgfs')); } catch (e) {}
     try { W.setHeaderColor && W.setHeaderColor('#0f1012'); W.setBackgroundColor && W.setBackgroundColor('#0f1012'); } catch (e) {}
     try { const u = W.initDataUnsafe && W.initDataUnsafe.user, n = $('nick'); if (u && n && !n.value.trim()) { n.value = String(u.first_name || u.username || '').slice(0, 16); n.dispatchEvent(new Event('input')); } } catch (e) {}
   };
