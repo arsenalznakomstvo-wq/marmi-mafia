@@ -3255,6 +3255,19 @@ window.addEventListener('appinstalled', reportInstall);
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
   window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Игра устанавливается — иконка <b>«Марми Мафия»</b> появится через 1–3 минуты.<br>Пока играйте здесь, потом откройте игру с иконки, а браузер закройте', 20000); /* владелец 13.10: «пишет „готово“, а иконки ещё нет» */ });
   if (!inApp) btn.classList.remove('hide');
+  // 19.10 (владелец: «а установить на телефон в Telegram будет?»): в мини-приложении Telegram кнопка ставит значок игры на главный экран
+  // (Telegram 8.0+): нажал на значок — игра открывается в Telegram. Значок уже есть — кнопку прячем
+  if (typeof TG !== 'undefined' && TG) {
+    const W = () => window.Telegram && window.Telegram.WebApp;
+    const setup = () => {
+      const w = W(); if (!w || !w.addToHomeScreen || !(w.isVersionAtLeast && w.isVersionAtLeast('8.0'))) return;
+      btn.classList.remove('hide');
+      try { w.checkHomeScreenStatus(st => { if (st === 'added') btn.classList.add('hide'); }); } catch (e) {}
+      try { w.onEvent('homeScreenAdded', () => { btn.classList.add('hide'); tip('✅ Значок «Марми Мафия» добавлен на экран телефона — открывайте игру с него', 6000); }); } catch (e) {}
+    };
+    setTimeout(setup, 1500); // библиотека Telegram загружается чуть позже страницы
+    btn.addEventListener('click', e => { const w = W(); if (!w || !w.addToHomeScreen) return; e.stopImmediatePropagation(); e.preventDefault(); try { w.addToHomeScreen(); } catch (er) {} }, true);
+  }
   // Окно «шаг за шагом с картинками» (владелец 13.10) — общее для iPhone и Android
   const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
   const page = '<div class="ip-page"><img src="icon-192.png?v=2" alt=""><b>марми мафия</b></div>';
