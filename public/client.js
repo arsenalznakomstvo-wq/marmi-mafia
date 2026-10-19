@@ -139,7 +139,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', side: !!def.side, badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain, bag: !!def.bag };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', side: !!def.side, fx: def.fx || '', hot: def.hot || null, solidCol: def.solidCol || '', hotCol: def.hotCol || '', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain, bag: !!def.bag };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -148,8 +148,9 @@ function bandColor(cols, u) {
   return cols[((i % n) + n) % n];
 }
 // Водный шарик: прозрачная середина, плотнее к краю (кромка-поверхность), блик сверху. Внахлёст даёт «толщу воды».
+const WATER_A = { cuttle: 0.14, cuttlehot: 0.16, jelly: 0.09, jellyhot: 0.11, firefly: 0.2, fireflyhot: 0.2, crystal: 0.035, crystalhot: 0.05, frost: 0.12, frosthot: 0.1 }; // 20.10: «живые» скины
 const waterBall = w => tightSprite('w' + w.kind, g => {
-  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' || w.kind === 'cham' || w.kind === 'chamhot' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
+  const a = WATER_A[w.kind] != null ? WATER_A[w.kind] : w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' || w.kind === 'cham' || w.kind === 'chamhot' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
   const gr = g.createRadialGradient(32 - 5, 32 - 6, 1, 32, 32, SR);
   gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
@@ -168,6 +169,7 @@ function skinSprite(sk, u) {
     case 'skeleton': return ringBall(sk.cols[0], Math.floor(u) & 1);
     case 'water': return waterBall(sk.water);
     case 'chameleon': return waterBall(CHAM_W);
+    case 'fx': return sk.solidCol ? ball(sk.solidCol) : waterBall(sk.water);
     default: return ball(bandColor(sk.cols, u));
   }
 }
@@ -1214,6 +1216,46 @@ function drawSideStripe(cnt, r) {
   }
   ctx.stroke(); ctx.lineCap = 'butt';
 }
+/* 20.10: «живые» скины — у каждого свой эффект поверх полупрозрачного тела (лёгкие: шаг по телу, только видимые точки) */
+function drawSkinFx(fx, cnt, r, view, time, boost) {
+  const m = r * 2, vis = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
+  const sp = Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])), step = Math.max(1, Math.round(r * 0.5 / sp));
+  if (fx === 'cuttle') { // каракатица: по коже бегут тёмные волны от головы к хвосту
+    ctx.fillStyle = boost ? 'rgba(80, 0, 8, 0.4)' : 'rgba(40, 10, 34, 0.42)';
+    for (let k = 0; k < cnt; k += step) { const w = Math.sin(k * 0.12 - time * 0.009); if (w < 0.55) continue; const x = SX[k], y = SY[k]; if (!vis(x, y)) continue; ctx.globalAlpha = (w - 0.55) * 2.2; ctx.beginPath(); ctx.arc(x, y, r * 0.85, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else if (fx === 'jelly') { // медуза: мягко пульсирующее свечение + щупальца за хвостом
+    const col = boost ? '#5fe0ff' : '#ff8ff0', spr = haloSprite(col), hs = r * 2.6;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < cnt; k += step * 3) { const x = SX[k], y = SY[k]; if (!vis(x, y)) continue; ctx.globalAlpha = 0.1 + 0.09 * Math.sin(time * 0.004 - k * 0.05); ctx.drawImage(spr, x - hs / 2, y - hs / 2, hs, hs); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    const t = cnt - 1; if (t > 2 && vis(SX[t], SY[t])) {
+      const a0 = Math.atan2(SY[t] - SY[t - 2], SX[t] - SX[t - 2]);
+      ctx.strokeStyle = boost ? 'rgba(160, 240, 255, 0.55)' : 'rgba(255, 190, 245, 0.55)'; ctx.lineWidth = r * 0.09; ctx.lineCap = 'round';
+      for (let q = -2; q <= 2; q++) { ctx.beginPath(); let x = SX[t], y = SY[t]; ctx.moveTo(x, y); for (let f = 1; f <= 8; f++) { const a = a0 + q * 0.22 + Math.sin(time * 0.006 + f * 0.7 + q) * 0.35; x += Math.cos(a) * r * 0.55; y += Math.sin(a) * r * 0.55; ctx.lineTo(x, y); } ctx.stroke(); }
+      ctx.lineCap = 'butt';
+    }
+  } else if (fx === 'lava') { // лава: светящиеся трещины мерцают; на ускорении — добела
+    const spr = haloSprite(boost ? '#fff3b0' : '#ff7a1a'), hs = r * 1.3;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < cnt; k += step * 2) { const x = SX[k], y = SY[k]; if (!vis(x, y)) continue; ctx.globalAlpha = (boost ? 0.55 : 0.32) + 0.22 * Math.sin(time * 0.011 + k * 1.3); const ox = Math.sin(k * 2.1) * r * 0.35, oy = Math.cos(k * 1.7) * r * 0.35; ctx.drawImage(spr, x + ox - hs / 2, y + oy - hs / 2, hs, hs); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  } else if (fx === 'firefly') { // светлячок: огоньки по очереди загораются; на ускорении горят все
+    const spr = haloSprite('#ffe14a'), hs = r * 1.5;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < cnt; k += step * 4) { const on = boost ? 1 : Math.max(0, Math.sin(time * 0.004 + k * 1.7)); if (on < 0.2) continue; const x = SX[k], y = SY[k]; if (!vis(x, y)) continue; ctx.globalAlpha = 0.9 * on; ctx.drawImage(spr, x - hs / 2, y - hs / 2, hs, hs); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  } else if (fx === 'crystal') { // хрустальная: по телу бегут радужные блики; на ускорении — вся в радуге
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < cnt; k += step * 2) { const x = SX[k], y = SY[k]; if (!vis(x, y)) continue; const hue = (Math.round((k * 8 - time * 0.12) / 30) * 30 % 360 + 360) % 360; ctx.globalAlpha = boost ? 0.3 : 0.14; const hs = r * 2.1; ctx.drawImage(haloSprite(hslToHex(hue, 90, 62)), x - hs / 2, y - hs / 2, hs, hs); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  } else if (fx === 'frost') { // ледяной дракон: внутри мерцают снежинки; на ускорении — морозное сияние
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = Math.max(1, r * 0.06);
+    for (let k = 0; k < cnt; k += step * 3) { const tw = Math.sin(time * 0.006 + k * 2.3); if (tw < 0.3) continue; const x = SX[k] + Math.sin(k * 3.1) * r * 0.4, y = SY[k] + Math.cos(k * 2.7) * r * 0.4; if (!vis(x, y)) continue; const L = r * 0.22 * tw; ctx.globalAlpha = tw; ctx.beginPath(); for (let q = 0; q < 3; q++) { const a = q * Math.PI / 3; ctx.moveTo(x - Math.cos(a) * L, y - Math.sin(a) * L); ctx.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); } ctx.stroke(); }
+    if (boost) { const spr = haloSprite('#dff6ff'), hs = r * 2.4; ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18; for (let k = 0; k < cnt; k += step * 3) { const x = SX[k], y = SY[k]; if (vis(x, y)) ctx.drawImage(spr, x - hs / 2, y - hs / 2, hs, hs); } ctx.globalCompositeOperation = 'source-over'; }
+    ctx.globalAlpha = 1;
+  }
+}
 function drawWaterFx(w, cnt, r, view, time) {
   const m = r * 2, vis = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
   const sp = Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])), every = Math.max(1, Math.round(r * 0.55 / sp));
@@ -1467,7 +1509,8 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   // перешла на следующее звание — облик пропадает. Только вид: её видят все
   const docCamo = false; // 19.10 (владелец): Доктора снова чисто белые — прозрачный облик убран
   if (sk.style === 'chameleon') sk = Object.assign({}, sk, { style: 'water', water: sn.boost ? CHAM_HOT : CHAM_W }); // 🦎 спокойный — зелёный, на ускорении — оранжевый
-  if (sk.eyes === 'yemen' && sn.boost) sk = Object.assign({}, sk, { cols: YEMEN_HOT }); // 🦎 Йеменский на ускорении «злится»: оранжевый с золотыми и красными полосами
+  if (sk.eyes === 'yemen' && sn.boost) sk = Object.assign({}, sk, { cols: YEMEN_HOT });
+  if (sk.style === 'fx' && sn.boost) sk = Object.assign({}, sk, { water: sk.hot || sk.water, solidCol: sk.hotCol || sk.solidCol }); // 20.10: «живые» скины на ускорении меняют цвет // 🦎 Йеменский на ускорении «злится»: оранжевый с золотыми и красными полосами
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
   const isDon = meta && !fade && meta.role === DON;
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
@@ -1554,6 +1597,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   if (sk.water && !fade && !lod) drawWaterFx(sk.water, cnt, r, view, time);
 
   if (sk.side && !docCamo && !lod && !fade) drawSideStripe(cnt, r);
+  if (sk.fx && !lod && !fade) drawSkinFx(sk.fx, cnt, r, view, time, sn.boost);
   if (isDon && !lod) drawDonTrim(sn.id, cnt, sn.r, view, time);
   if (roleIdx && !sk.text && !lod && !roleLod && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
@@ -2687,7 +2731,8 @@ function load(k) { try { return localStorage.getItem(k); } catch (e) { return nu
 let skin = { id: 7, c1: '#ff3355', c2: '#33dd66', c3: '#3388ff' };
 try { const s = JSON.parse(load('mm_skin2')); if (s && s.id >= 0 && s.id < SKINS.length && SKINS[s.id].style !== 'checker') skin = s; } catch (e) {} // шахматный убран — у кого был, станет обычный
 const myName = () => ($('nick').value.trim() || 'Игрок').slice(0, 16);
-const pickable = () => window.Skins.PICKABLE; // владелец 11.10: секретных скинов больше нет
+const PREVIEW_SKINS = (() => { try { if (/[?&]preview=1/.test(location.search)) sessionStorage.setItem('mm_prev', '1'); return sessionStorage.getItem('mm_prev') === '1'; } catch (e) { return /[?&]preview=1/.test(location.search); } })();
+const pickable = () => PREVIEW_SKINS ? window.Skins.PICKABLE.concat(SKINS.map((d, i) => d.preview ? i : -1).filter(i => i >= 0)) : window.Skins.PICKABLE; // 20.10: скрытые «живые» скины — по ссылке ?preview=1 // владелец 11.10: секретных скинов больше нет
 $('nick').value = load('mm_nick') || '';
 
 // Змейка для витрины: pts — опорные точки пути от головы к хвосту

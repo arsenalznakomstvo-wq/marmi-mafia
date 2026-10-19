@@ -104,6 +104,13 @@
     { name: 'Ниндзя', cols: ['#141418', '#eeeeee'], eyes: 'ninja' }, // владелец 14.10: чёрный и белый через раз, красная повязка, одна дымовая шашка на жизнь
     // Владелец 11.10: секретный скин владельца — видит на 30% больше всех; включается только тайной ссылкой с кодом (?eye=…)
     { name: 'Йеменский хамелеон', cols: ['#3fa548', '#3fa548', '#3fa548', '#e8c43a', '#3fa548', '#3fa548', '#3fa548', '#2ab3a6'], eyes: 'yemen', side: true }, // владелец 19.10: высокий шлем на голове, зелёное тело с жёлтыми и бирюзовыми поперечными полосами, светлая полоса по боку
+    // 20.10 (владелец: «ещё живых, как хамелеон — выберу потом»): пока скрытые, в выборе скинов только по ссылке ?preview=1
+    { name: 'Каракатица', cols: ['#7a4a6e'], style: 'fx', fx: 'cuttle', preview: true, water: { core: '#6b3f5e', rim: '#e8b6d8', kind: 'cuttle' }, hot: { core: '#c8121e', rim: '#ff9a9a', kind: 'cuttlehot' } },
+    { name: 'Медуза', cols: ['#d58cff'], style: 'fx', fx: 'jelly', preview: true, water: { core: '#b65cff', rim: '#ffc8f5', kind: 'jelly' }, hot: { core: '#1fc8ff', rim: '#d2f8ff', kind: 'jellyhot' } },
+    { name: 'Лава', cols: ['#4a0e05'], style: 'fx', fx: 'lava', preview: true, solidCol: '#4a0e05', hotCol: '#ff9a1a' },
+    { name: 'Светлячок', cols: ['#20263a'], style: 'fx', fx: 'firefly', preview: true, water: { core: '#1c2236', rim: '#56628a', kind: 'firefly' }, hot: { core: '#2a2a14', rim: '#ffe14a', kind: 'fireflyhot' } },
+    { name: 'Хрустальная', cols: ['#e8f4ff'], style: 'fx', fx: 'crystal', preview: true, water: { core: '#dff0ff', rim: '#ffffff', kind: 'crystal' }, hot: { core: '#f2e8ff', rim: '#ffffff', kind: 'crystalhot' } },
+    { name: 'Ледяной дракон', cols: ['#9fdcff'], style: 'fx', fx: 'frost', preview: true, water: { core: '#8fd2ff', rim: '#ffffff', kind: 'frost' }, hot: { core: '#e8f8ff', rim: '#ffffff', kind: 'frosthot' } },
   ];
   const EYE_ID = SKINS.findIndex(d => d.name === 'Циклоп'); // скин с обзором на 30% больше (владелец 11.10: «Всевидящее око» убрано, возможность — Циклопу)
   const EYE_ZOOM = 1 / 1.3; // обзор на 30% больше

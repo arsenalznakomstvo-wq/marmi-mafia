@@ -590,7 +590,7 @@ function randomSkin() {
   // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
   let id;
   if (Math.random() < 0.95) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0]; // почти всегда спокойные
-  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'chameleon' || SKINS[id].eyes === 'yemen' || SKINS[id].eyes === 'ninja' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'chameleon' || SKINS[id].eyes === 'yemen' || SKINS[id].preview || SKINS[id].eyes === 'ninja' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
