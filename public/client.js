@@ -2732,7 +2732,7 @@ let skin = { id: 7, c1: '#ff3355', c2: '#33dd66', c3: '#3388ff' };
 try { const s = JSON.parse(load('mm_skin2')); if (s && s.id >= 0 && s.id < SKINS.length && SKINS[s.id].style !== 'checker') skin = s; } catch (e) {} // шахматный убран — у кого был, станет обычный
 const myName = () => ($('nick').value.trim() || 'Игрок').slice(0, 16);
 const PREVIEW_SKINS = (() => { try { if (/[?&]preview=1/.test(location.search)) sessionStorage.setItem('mm_prev', '1'); return sessionStorage.getItem('mm_prev') === '1'; } catch (e) { return /[?&]preview=1/.test(location.search); } })();
-const pickable = () => PREVIEW_SKINS ? window.Skins.PICKABLE.concat(SKINS.map((d, i) => d.preview ? i : -1).filter(i => i >= 0)) : window.Skins.PICKABLE; // 20.10: скрытые «живые» скины — по ссылке ?preview=1 // владелец 11.10: секретных скинов больше нет
+const pickable = () => PREVIEW_SKINS ? window.Skins.PICKABLE.concat(SKINS.map((d, i) => d.preview && !window.Skins.PICKABLE.includes(i) ? i : -1).filter(i => i >= 0)) : window.Skins.PICKABLE; // 20.10: скрытые «живые» скины — по ссылке ?preview=1 // владелец 11.10: секретных скинов больше нет
 $('nick').value = load('mm_nick') || '';
 
 // Змейка для витрины: pts — опорные точки пути от головы к хвосту
