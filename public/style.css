@@ -1097,3 +1097,6 @@ body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, bod
 @media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards .wtitle { display: none !important; } body.mvid #winCards { --cw: 200px !important; --ih: 190px !important; } }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 176px !important; --ih: 150px !important; } }
 @media (pointer: fine) and (min-width: 1000px) and (max-height: 700px) { body.mvid #winCards { --cw: 156px !important; --ih: 120px !important; } }
+@media (pointer: fine) and (min-width: 1000px) { body.mvid #winCards { --cw: 226px !important; --ih: 214px !important; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 820px) { body.mvid #winCards { --cw: 196px !important; --ih: 170px !important; } }
+@media (pointer: fine) and (min-width: 1000px) and (max-height: 700px) { body.mvid #winCards { --cw: 170px !important; --ih: 134px !important; } }
