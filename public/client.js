@@ -605,7 +605,7 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); camoIds = new Set(m.cm || []); invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []); pocketIds.clear(); for (const [id, ti] of (m.pk || [])) pocketIds.set(id, ITEM_TYPES[ti]);
+      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); { const was = camoIds.has(myId); camoIds = new Set(m.cm || []); if (alive && !was && camoIds.has(myId)) toast('🦎 Маскировка — вас не видно'); } invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []); pocketIds.clear(); for (const [id, ti] of (m.pk || [])) pocketIds.set(id, ITEM_TYPES[ti]);
       if (m.it) { mapItems.clear(); for (const [id, ti, x, y] of m.it) mapItems.set(id, { t: ITEM_TYPES[ti], x, y }); } badgeIds = new Map(m.bd || []); shockIds = new Map(m.sh || []); smokeIds = new Map(m.sm || []);
       { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive ? knifeIds.get(myId) || 0 : 0, ms = alive ? smokeIds.get(myId) || 0 : 0, md = alive ? badgeIds.get(myId) || 0 : 0, mh = alive ? shockIds.get(myId) || 0 : 0; if (n !== myRockets || mb !== myBomb || mk !== myKnife || ms !== mySmoke || md !== myBadge || mh !== myShock) { myRockets = n; myBomb = mb; myKnife = mk; mySmoke = ms; myBadge = md; myShock = mh; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'knife': knivesFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); if (!m.it) { const M = m.kind === 'badge' ? badgeIds : knifeIds, left = (M.get(m.o) || 1) - 1; if (left > 0) M.set(m.o, left); else M.delete(m.o); if (m.o === myId) { if (m.kind === 'badge') myBadge = left; else myKnife = left; renderFireBtn(); } } knivesFly.get(m.id).badge = m.kind === 'badge'; Sound.knifeThrow(nearVol(m.x, m.y)); break;
@@ -1739,7 +1739,7 @@ function frame(time) {
     lastHeads.clear(); lastDrawn.clear();
     const list = world.list.slice().sort((a, b) => a.mass - b.mass);
     for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn === me) continue; if (invisIds.has(sn.id)) { drawInvisible(sn, time); continue; } if (camoIds.has(sn.id)) { drawCamo(sn, time); continue; } drawSnake(sn, metas.get(sn.id), false, time, view); }
-    if (me) drawSnake(me, metas.get(me.id), true, time, view);
+    if (me && camoIds.has(myId)) drawCamoSelf(me, time); else if (me) drawSnake(me, metas.get(me.id), true, time, view); // 🦎 своя маскировка — полупрозрачная
   }
   if (BASES) drawFlags(time);
   if (bombsFly.size) drawFlyingBombs(time);
@@ -2229,6 +2229,15 @@ function drawMapItems(view, time) {
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(itemSprite(it.t), it.x - S / 2, it.y + bob - S / 2, S, S);
   }
+}
+/* 19.10 (владелец: «хамелеон не сливается» — свою змейку игра рисовала как обычно): в маскировке и сам игрок видит себя прозрачным, только глаза — чтобы понимать, где голова */
+function drawCamoSelf(sn, time) {
+  ctx.globalAlpha = 0.16; // своё тело — еле заметный зелёный «призрак»: видно, где змея, но понятно, что её не видно другим
+  ctx.fillStyle = '#7be08a';
+  for (let j = 0; j < sn.xs.length; j += 2) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], sn.r, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 0.55;
+  const meta = metas.get(sn.id); if (meta) drawHeadDecor(ctx, meta.sk, sn.xs[0], sn.ys[0], sn.a, inAngle, sn.r, null);
+  ctx.globalAlpha = 1;
 }
 function drawCamo(sn, time) { // 🦎 чужой Хамелеон в маскировке: только еле заметная рябь цвета пола
   ctx.globalAlpha = 0.16 + 0.05 * Math.sin(time * 0.006);
