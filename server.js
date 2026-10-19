@@ -256,7 +256,7 @@ const CAMO_TICKS = Math.round(1.5 * TICK_RATE);
 function moveSnake(s) {
   const stun = s.stunUntil > tick, turbo = s.turboUntil > tick; // предметы (владелец 14.10): ⚡ шокер, 🚀 ускоритель
   // 19.10: 🦎 Хамелеон — без ускорения 1,5 с подряд становится «водяным» под соты (только вид: его видят все, боты и миникарта тоже)
-  if (!TEAM && s.skin && s.skin.id === CHAM_ID) { s.camoT = (s.boost && s.mass >= MIN_BOOST_MASS) || turbo ? 0 : (s.camoT || 0) + 1; s.camo = s.camoT >= CAMO_TICKS; } else s.camo = false;
+  if (false && !TEAM && s.skin && s.skin.id === CHAM_ID) { /* 19.10 (владелец): маскировку Хамелеона убрали — только смена цвета на ускорении */ s.camoT = (s.boost && s.mass >= MIN_BOOST_MASS) || turbo ? 0 : (s.camoT || 0) + 1; s.camo = s.camoT >= CAMO_TICKS; } else s.camo = false;
   const tr = stun ? 0 : turnFor(s.r, s.bot);
   s.a += clamp(angDiff(s.a, s.ta), -tr, tr);
   if (s.a > Math.PI) s.a -= TAU; else if (s.a < -Math.PI) s.a += TAU;
@@ -900,7 +900,7 @@ function handleJSON(c, m) {
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
     if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 2; sendJSON(c, { t: 'tmsgMe', text: '🥷 2 дымовые шашки — 💨' + (isTouchUA(c) ? '' : ' или F') }); } // владелец 13.10: две шашки; надпись короче — мешала
-    if (!TEAM && s.skin.id === CHAM_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Хамелеон! Ползите без ускорения — через 1,5 с сольётесь с полом и станете почти невидимы. Ускорение или поимка змеи — маскировка слетает' });
+    if (!TEAM && s.skin.id === CHAM_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Хамелеон! Обычно вы зелёный, а на ускорении становитесь оранжевым' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); c.z = clamp(Number(m.z) || 1, 0.85, 1); fitView(c);
   } else if (m.t === 'fire') {
