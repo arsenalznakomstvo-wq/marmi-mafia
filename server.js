@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
-const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, TEETH_ID, TEETH_MAX, NINJA_ID } = require('./public/skins.js');
+const { SKINS, MAX_PATTERN, skinCols, EYE_ID, EYE_ZOOM, CHAM_ID, NINJA_ID } = require('./public/skins.js');
 const stats = require('./stats.js');
 const owner = require('./owner.js'); // 17.10: страница владельца «кто играл»
 const voice = require('./voice.js');
@@ -252,8 +252,11 @@ class Snake {
   dropColor(j) { return this.dropCols[j % this.dropCols.length]; }
 }
 
+const CAMO_TICKS = Math.round(1.5 * TICK_RATE);
 function moveSnake(s) {
   const stun = s.stunUntil > tick, turbo = s.turboUntil > tick; // предметы (владелец 14.10): ⚡ шокер, 🚀 ускоритель
+  // 19.10: 🦎 Хамелеон — без ускорения 1,5 с подряд сливается с полом (почти не виден, боты не охотятся, нет на миникарте)
+  if (!TEAM && s.skin && s.skin.id === CHAM_ID) { s.camoT = (s.boost && s.mass >= MIN_BOOST_MASS) || turbo ? 0 : (s.camoT || 0) + 1; s.camo = s.camoT >= CAMO_TICKS; } else s.camo = false;
   const tr = stun ? 0 : turnFor(s.r, s.bot);
   s.a += clamp(angDiff(s.a, s.ta), -tr, tr);
   if (s.a > Math.PI) s.a -= TAU; else if (s.a < -Math.PI) s.a += TAU;
@@ -480,7 +483,8 @@ function docSave(s) {
 // отбрасывает половину хвоста (он рассыпается едой), разворачивается и 0,7 с неуязвим, чтобы уползти
 const LIZ_GHOST = Math.round(0.7 * TICK_RATE);
 function lizardSave(s, killer) {
-  if (TEAM || !killer || s.lizUsed || s.skin.id !== TEETH_ID || !s.alive || s.tun) return false;
+  return false; // 19.10: Зубастика заменил Хамелеон — «хвоста ящерицы» больше нет
+  if (TEAM || !killer || s.lizUsed || !s.alive || s.tun) return false;
   s.lizUsed = true; s.ghostUntil = tick + LIZ_GHOST; s.hh = [];
   const xs = s.xs, ys = s.ys, n = xs.length, keep = Math.max(8, Math.ceil(n / 2)), drop = s.mass * 0.5;
   s.mass -= drop;
@@ -508,7 +512,7 @@ function killSnake(s, killer) {
     addFood(s.xs[i] + rand(-sp, sp), s.ys[i] + rand(-sp, sp), v, s.dropColor(j), true);
   }
   if (killer && killer.alive) {
-    killer.kills++;
+    killer.kills++; killer.camoT = 0; killer.camo = false; // поймал змею — маскировка Хамелеона слетает
     if (TEAM && killer.team != null && killer.team !== s.team) {
       teamKills[killer.team]++;
       if (killer.client && killer.client.rs) killer.client.rs.kills++;
@@ -586,7 +590,7 @@ function randomSkin() {
   // Владелец 06.10: боты почти всегда однотонные (глаза меньше устают); особые скины с надписью ботам не достаются
   let id;
   if (Math.random() < 0.95) id = SOLID_SKINS[Math.random() * SOLID_SKINS.length | 0]; // почти всегда спокойные
-  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'teeth' || SKINS[id].eyes === 'ninja' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
+  else do { id = 1 + (Math.random() * (SKINS.length - 1) | 0); } while (SKINS[id].text || SKINS[id].style === 'checker' || SKINS[id].eyes === 'chameleon' || SKINS[id].eyes === 'ninja' || BOT_NO_COLORS.test(SKINS[id].name)); // Зубастик — только у людей // шахматный, розовые, синие — убраны (владелец 11.10)
   return { id, c1: randColor(), c2: randColor(), c3: randColor() };
 }
 
@@ -742,7 +746,7 @@ function findPrey(b, hx, hy) {
   for (const o of snakes.values()) {
     if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
     if (smokes.length && inSmoke(o.xs[0], o.ys[0])) continue; // в дыму Ниндзя — не видно
-    if (o.invisUntil > tick) continue; // 👻 невидимку боты не видят
+    if (o.invisUntil > tick || o.camo) continue; // 👻 невидимку и 🦎 Хамелеона в маскировке боты не видят
     const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = Math.hypot(dx, dy);
     if (d > 550 + b.r * 4) continue;
     const ahead = -(Math.cos(o.a) * dx + Math.sin(o.a) * dy); // я впереди него (+) или сзади (−)
@@ -785,7 +789,7 @@ function botThink(b) {
   if (ai.cool > 0) ai.cool -= 1;
   if (ai.boostT > 0) ai.boostT -= 1;
 
-  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
+  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || ai.prey.camo || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
   // 19.10 (владелец): большие боты на 20% охотнее идут ловить змей в кольцо
   if (!ai.prey && ai.cool <= 0 && b.mass > MIN_BOOST_MASS + 5 && Math.random() < ai.aggr * 0.6 * (b.mass > GIANT_MASS ? 1.2 : 1)) {
     ai.prey = findPrey(b, hx, hy);
@@ -896,7 +900,7 @@ function handleJSON(c, m) {
     stats.onJoin(c);
     sendJSON(c, { t: 'spawn', id: s.id, ...(TEAM ? { team: s.team } : {}) });
     if (!TEAM && s.skin.id === NINJA_ID) { s.smoke = 2; sendJSON(c, { t: 'tmsgMe', text: '🥷 2 дымовые шашки — 💨' + (isTouchUA(c) ? '' : ' или F') }); } // владелец 13.10: две шашки; надпись короче — мешала
-    if (!TEAM && s.skin.id === TEETH_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Зубастик! Один раз за жизнь, врезавшись в змею, спасётесь — отбросите хвост, как ящерица' });
+    if (!TEAM && s.skin.id === CHAM_ID) sendJSON(c, { t: 'tmsgMe', text: '🦎 Вы Хамелеон! Ползите без ускорения — через 1,5 с сольётесь с полом и станете почти невидимы. Ускорение или поимка змеи — маскировка слетает' });
   } else if (m.t === 'view') {
     c.w = clamp(Number(m.w) || 1280, 200, 3000); c.h = clamp(Number(m.h) || 720, 200, 3000); c.z = clamp(Number(m.z) || 1, 0.85, 1); fitView(c);
   } else if (m.t === 'fire') {
@@ -1055,7 +1059,7 @@ function sendLeaderboard() {
     const q = v => Math.max(0, Math.min(255, Math.round((v / MAP_R + 1) * 127.5)));
     for (const s of arr) {
       if (smokes.length && inSmoke(s.xs[0], s.ys[0])) continue; // в дыму Ниндзя — на миникарте не видно
-      if (s.invisUntil > tick) continue; // 👻 невидимки на миникарте нет
+      if (s.invisUntil > tick || s.camo) continue; // 👻 невидимки и 🦎 Хамелеона в маскировке на миникарте нет
       const len = s.xs.length, step = Math.max(Math.round(150 / SEG_D), Math.ceil(len / 30));
       const line = [(s.bot ? 0 : 1) | (s.team == null ? 0 : (s.team + 1) << 1)];
       for (let i = 0; i < len; i += step) line.push(q(s.xs[i]), q(s.ys[i]));
@@ -1151,6 +1155,7 @@ function stepOrbs() {
       for (const s of snakes.values()) if (s.alive) { // действующие предметы: оглушён, невидим, магнит, ускоритель
         if (s.stunUntil > tick) (m.st || (m.st = [])).push(s.id);
         if (s.invisUntil > tick) (m.iv || (m.iv = [])).push(s.id);
+        if (s.camo) (m.cm || (m.cm = [])).push(s.id); // 🦎 Хамелеон в маскировке
         if (s.magnetUntil > tick) (m.mg || (m.mg = [])).push(s.id);
         if (s.turboUntil > tick) (m.tb || (m.tb = [])).push(s.id);
         if (s.item) (m.pk || (m.pk = [])).push([s.id, ITEM_TYPES.indexOf(s.item)]); // предмет на поясе (владелец 14.10)

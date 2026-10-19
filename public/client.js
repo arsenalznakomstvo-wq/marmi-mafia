@@ -154,6 +154,9 @@ const waterBall = w => tightSprite('w' + w.kind, g => {
   gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
 });
+/* 🦎 Хамелеон: 12 оттенков по кругу, узор медленно сдвигается во времени */
+const CHAM_COLS = ['#3fbf5f', '#33b27a', '#2aa198', '#3aa96d', '#7fbf3f', '#b8c23a', '#d6c23a', '#e0a33a', '#e07a2a', '#c99a32', '#9cbc3c', '#5cc152'];
+let chamPhase = 0;
 function skinSprite(sk, u) {
   if (sk.once && u >= sk.cols.length) return ball('#151515'); // конструктор: незакрашенное тело — чёрное
   switch (sk.style) {
@@ -161,6 +164,7 @@ function skinSprite(sk, u) {
     case 'space': return spaceBall(sk.cols[0], sk.cols[1], Math.floor(u) % 3);
     case 'skeleton': return ringBall(sk.cols[0], Math.floor(u) & 1);
     case 'water': return waterBall(sk.water);
+    case 'chameleon': return ball(CHAM_COLS[((Math.floor(u * 0.5 + chamPhase) % 12) + 12) % 12]);
     default: return ball(bandColor(sk.cols, u));
   }
 }
@@ -250,71 +254,23 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
       g.beginPath(); g.moveTo(-r * 0.32, -sgn * r * 0.2); g.lineTo(r * 0.3, -sgn * r * 0.02); g.stroke();
       g.restore();
     }
-  } else if (sk.eyes === 'teeth') { // Зубастик (владелец 13.10: «пасть интересней, реальной, живой»): челюсти щёлкают, дёсны, клыки, змеиный язык, глаза с вертикальным зрачком моргают
-    const T = performance.now(), ph = (hx * 0.013 + hy * 0.017) % 10; // у каждого Зубастика свой ритм
-    const chomp = Math.pow(0.5 + 0.5 * Math.sin(T / 210 + ph), 1.6);   // резко захлопывает, медленнее открывает
-    const open = 0.16 + 0.44 * chomp, L = r * 1.14, hgx = -r * 0.12;  // полуугол раскрытия, длина челюсти, шарнир
-    const base = sk.cols[0] || '#8b1e2d', dark = shade(base, -45), lip = shade(base, -25);
+  } else if (sk.eyes === 'chameleon') { // 🦎 Хамелеон (19.10): глаза-«башенки» по бокам головы, каждый смотрит в свою сторону
+    const T = performance.now(), ph = (hx * 0.013 + hy * 0.017) % 10;
     g.save(); g.translate(hx, hy); g.rotate(a);
-    const ux = Math.cos(-open), uy = Math.sin(-open), lx = Math.cos(open), ly = Math.sin(open);
-    // пасть: от шарнира по верхней челюсти, дугой к нижней
-    const mouth = () => { g.beginPath(); g.moveTo(hgx, 0); g.lineTo(hgx + ux * L, uy * L); g.quadraticCurveTo(hgx + L * 1.12, 0, hgx + lx * L, ly * L); g.closePath(); };
-    const mg = g.createRadialGradient(hgx + L * 0.2, 0, r * 0.05, hgx + L * 0.5, 0, L);
-    mg.addColorStop(0, '#0d0002'); mg.addColorStop(0.55, '#3a0610'); mg.addColorStop(1, '#7a1424');
-    mouth(); g.fillStyle = mg; g.fill();
-    // язык: раз в ~2,6 с высовывается раздвоенный, дрожит
-    const tp = ((T + ph * 260) % 2600) / 2600;
-    if (tp < 0.28) {
-      const out = Math.sin(tp / 0.28 * Math.PI), tx = hgx + r * 0.2 + out * r * 1.25, wob = Math.sin(T / 35) * r * 0.06;
-      g.strokeStyle = '#d42a55'; g.lineCap = 'round'; g.lineWidth = Math.max(1, r * 0.09);
-      g.beginPath(); g.moveTo(hgx + r * 0.15, 0); g.quadraticCurveTo((hgx + tx) / 2, wob, tx, wob * 0.5); g.stroke();
-      g.lineWidth = Math.max(0.8, r * 0.06);
-      for (const sg of [-1, 1]) { g.beginPath(); g.moveTo(tx, wob * 0.5); g.lineTo(tx + r * 0.2, wob * 0.5 + sg * r * 0.12); g.stroke(); }
-    }
-    // дёсны вдоль обеих челюстей
-    g.strokeStyle = '#c8475e'; g.lineWidth = Math.max(1, r * 0.1); g.lineCap = 'round';
-    for (const [dx, dy] of [[ux, uy], [lx, ly]]) { g.beginPath(); g.moveTo(hgx + dx * L * 0.18, dy * L * 0.18); g.lineTo(hgx + dx * L * 0.96, dy * L * 0.96); g.stroke(); }
-    // зубы: растут вдоль челюсти к пасти; впереди — длинные изогнутые клыки
-    const tooth = (bx, by, nx, ny, len, w, curve) => {
-      const tx = bx + nx * len, ty = by + ny * len;
-      const tg = g.createLinearGradient(bx, by, tx, ty); tg.addColorStop(0, '#e9dcc0'); tg.addColorStop(0.6, '#fffaf0'); tg.addColorStop(1, '#ffffff');
-      g.fillStyle = tg; g.beginPath();
-      g.moveTo(bx - ny * w, by + nx * w);
-      g.quadraticCurveTo(bx + nx * len * 0.6 - ny * w * 0.4 + curve, by + ny * len * 0.6 + nx * w * 0.4, tx + curve * 0.6, ty);
-      g.quadraticCurveTo(bx + nx * len * 0.5 + ny * w * 0.5, by + ny * len * 0.5 - nx * w * 0.5, bx + ny * w, by - nx * w);
-      g.closePath(); g.fill(); g.strokeStyle = 'rgba(60,20,10,0.35)'; g.lineWidth = Math.max(0.5, r * 0.025); g.stroke();
-    };
     for (const sg of [-1, 1]) {
-      const dx = sg < 0 ? ux : lx, dy = sg < 0 ? uy : ly, nx = -dy * -sg, ny = dx * -sg; // нормаль от челюсти внутрь пасти
-      for (let k = 0; k < 4; k++) {
-        const f = 0.3 + k * 0.17, bx = hgx + dx * L * f, by = dy * L * f, fang = k === 3;
-        tooth(bx, by, nx, ny, r * (fang ? 0.42 : 0.16 + k * 0.04), r * (fang ? 0.11 : 0.06), fang ? r * 0.08 : 0);
-      }
+      const ex = r * 0.22, ey = sg * r * 0.56, er = r * 0.44;
+      const grd = g.createRadialGradient(ex - er * 0.3, ey - er * 0.3, er * 0.1, ex, ey, er);
+      grd.addColorStop(0, '#c4f58a'); grd.addColorStop(0.65, '#4caf50'); grd.addColorStop(1, '#2b6a2f');
+      g.fillStyle = grd; g.beginPath(); g.arc(ex, ey, er, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(25, 70, 28, 0.55)'; g.lineWidth = Math.max(1, r * 0.04);
+      for (const kk of [0.78, 0.55]) { g.beginPath(); g.arc(ex, ey, er * kk, 0, TAU); g.stroke(); } // кольца кожи на «башенке»
+      const ang = Math.sin(T / 650 + ph + sg * 1.7) * 1.7 + sg * 0.4, pr = er * 0.4; // зрачки бегают независимо
+      const px = ex + Math.cos(ang) * er * 0.36, py = ey + Math.sin(ang) * er * 0.36;
+      g.fillStyle = '#ffe7a3'; g.beginPath(); g.arc(px, py, pr, 0, TAU); g.fill();
+      g.fillStyle = '#121212'; g.beginPath(); g.arc(px, py, pr * 0.55, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(px - pr * 0.22, py - pr * 0.25, pr * 0.18, 0, TAU); g.fill();
     }
-    // губы-края челюстей (цвет головы, темнее) — пасть «врезана» в голову
-    g.strokeStyle = lip; g.lineWidth = Math.max(1, r * 0.08);
-    for (const [dx, dy] of [[ux, uy], [lx, ly]]) { g.beginPath(); g.moveTo(hgx + dx * L * 0.1, dy * L * 0.1); g.lineTo(hgx + dx * L, dy * L); g.stroke(); }
-    // ноздри
-    g.fillStyle = dark;
-    for (const sg of [-1, 1]) { g.beginPath(); g.ellipse(hgx + L * 0.86, sg * (Math.sin(open) * L * 0.86 + r * 0.14), r * 0.06, r * 0.035, 0, 0, TAU); g.fill(); }
     g.restore();
-    // глаза рептилии: жёлтые, вертикальный зрачок, надбровная складка; моргают
-    const blink = ((T + ph * 377) % 3700) < 130;
-    for (const sgn of [-1, 1]) {
-      const ex = hx - ca * r * 0.18 + px * sgn * r * 0.52, ey = hy - sa * r * 0.18 + py * sgn * r * 0.52, er = r * 0.28;
-      g.save(); g.translate(ex, ey); g.rotate(a);
-      if (blink) { g.fillStyle = dark; g.beginPath(); g.ellipse(0, 0, er, er * 0.85, 0, 0, TAU); g.fill(); g.strokeStyle = '#1a0306'; g.lineWidth = Math.max(1, r * 0.05); g.beginPath(); g.moveTo(-er, 0); g.lineTo(er, 0); g.stroke(); g.restore(); continue; }
-      const ig = g.createRadialGradient(-er * 0.25, -er * 0.25, er * 0.1, 0, 0, er);
-      ig.addColorStop(0, '#fff3a0'); ig.addColorStop(0.6, '#f2b705'); ig.addColorStop(1, '#a86a00');
-      g.fillStyle = ig; g.beginPath(); g.ellipse(0, 0, er, er * 0.85, 0, 0, TAU); g.fill();
-      g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = Math.max(1, r * 0.05); g.stroke();
-      const lk = look - a, ox = Math.cos(lk) * er * 0.25, oy = Math.sin(lk) * er * 0.25;
-      g.fillStyle = '#0a0a0a'; g.beginPath(); g.ellipse(ox, oy, er * 0.18, er * 0.72, 0, 0, TAU); g.fill(); // вертикальный зрачок (поперёк хода)
-      g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(-er * 0.35, -er * 0.3, er * 0.14, 0, TAU); g.fill();
-      g.strokeStyle = dark; g.lineWidth = Math.max(1.2, r * 0.12); g.lineCap = 'round'; // надбровная складка — злой вид
-      g.beginPath(); g.moveTo(-er * 1.0, sgn * er * 0.95); g.quadraticCurveTo(0, sgn * er * 1.25, er * 1.05, sgn * er * 0.55); g.stroke();
-      g.restore();
-    }
   } else if (sk.eyes === 'lady') { // женское лицо (владелец 11.10): миндалевидные глаза с длинными ресницами, румянец, губки
     for (const sgn of [-1, 1]) {
       const ex = hx + ca * r * 0.3 + px * sgn * r * 0.46, ey = hy + sa * r * 0.3 + py * sgn * r * 0.46, er = r * 0.38;
@@ -581,7 +537,7 @@ let bombIds = new Map(), myBomb = 0; const bombsFly = new Map(); // bombIds: id 
 // Предметы на карте (владелец 14.10)
 const ITEM_TYPES = ['grenade', 'dagger', 'shock', 'magnet', 'smoke', 'invis', 'turbo'];
 const ITEM_INFO = { grenade: ['💣', 'Граната', '#ff8a1f'], dagger: ['🗡', 'Кинжал', '#dfe6ee'], shock: ['⚡', 'Шокер', '#5ac8ff'], magnet: ['🧲', 'Магнит', '#ff4f6d'], smoke: ['💨', 'Дымовая шашка', '#b8bec8'], invis: ['👻', 'Невидимость', '#c9b6ff'], turbo: ['🚀', 'Ускоритель', '#ffd24a'] };
-const mapItems = new Map(), zaps = [], pocketIds = new Map(); let myItem = null, myItemN = 0, myInv = {}, stunIds = new Set(), invisIds = new Set(), magnetIds = new Set(), turboIds = new Set();
+const mapItems = new Map(), zaps = [], pocketIds = new Map(); let myItem = null, myItemN = 0, myInv = {}, stunIds = new Set(), invisIds = new Set(), camoIds = new Set(), magnetIds = new Set(), turboIds = new Set();
 let knifeIds = new Map(), myKnife = 0, badgeIds = new Map(), myBadge = 0, shockIds = new Map(), myShock = 0, smokeIds = new Map(), mySmoke = 0; const smokeClouds = []; /* Ниндзя (владелец 13.10): у кого висит шашка; облака дыма */ const knivesFly = new Map(), knifeSparks = []; // кинжал Киллера (владелец 11.10) // бомба Бомбы (владелец 11.10): у кого едет рядом, брошенные // базука: ракеты в полёте, взрывы, у кого сколько выстрелов
 const baseFireUntil = [0, 0]; // база сияет после доставки знамени
 let havanaIds = new Set(); // кто довёз знамя — с сигарой «Гавана»
@@ -649,7 +605,7 @@ function onJSON(m) {
     case 'orbs': { const now = performance.now(); for (const e of m.o) { let o = orbs.get(e[0]); if (e.length < 2) { orbs.delete(e[0]); continue; }
       if (!o) { o = { x: e[1], y: e[2], px: e[1], py: e[2], t: now }; orbs.set(e[0], o); } else { o.px = o.x; o.py = o.y; o.x = e[1]; o.y = e[2]; o.t = now; } }
       if (m.f) teamFlags = m.f; hotIds = new Set(m.h || []); havanaIds = new Set(m.c || []); bazooka = new Map(m.z || []);
-      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []); pocketIds.clear(); for (const [id, ti] of (m.pk || [])) pocketIds.set(id, ITEM_TYPES[ti]);
+      bombIds = new Map(m.b || []); knifeIds = new Map((m.kn || []).map(e => Array.isArray(e) ? e : [e, 1])); stunIds = new Set(m.st || []); camoIds = new Set(m.cm || []); invisIds = new Set(m.iv || []); magnetIds = new Set(m.mg || []); turboIds = new Set(m.tb || []); pocketIds.clear(); for (const [id, ti] of (m.pk || [])) pocketIds.set(id, ITEM_TYPES[ti]);
       if (m.it) { mapItems.clear(); for (const [id, ti, x, y] of m.it) mapItems.set(id, { t: ITEM_TYPES[ti], x, y }); } badgeIds = new Map(m.bd || []); shockIds = new Map(m.sh || []); smokeIds = new Map(m.sm || []);
       { const n = alive ? bazooka.get(myId) || 0 : 0, mb = alive ? bombIds.get(myId) || 0 : 0, mk = alive ? knifeIds.get(myId) || 0 : 0, ms = alive ? smokeIds.get(myId) || 0 : 0, md = alive ? badgeIds.get(myId) || 0 : 0, mh = alive ? shockIds.get(myId) || 0 : 0; if (n !== myRockets || mb !== myBomb || mk !== myKnife || ms !== mySmoke || md !== myBadge || mh !== myShock) { myRockets = n; myBomb = mb; myKnife = mk; mySmoke = ms; myBadge = md; myShock = mh; renderFireBtn(); } } teamAlarms = m.a || []; break; }
     case 'knife': knivesFly.set(m.id, { x: m.x, y: m.y, vx: m.vx * TICK_RATE / 1000, vy: m.vy * TICK_RATE / 1000, t0: performance.now(), life: m.life }); if (!m.it) { const M = m.kind === 'badge' ? badgeIds : knifeIds, left = (M.get(m.o) || 1) - 1; if (left > 0) M.set(m.o, left); else M.delete(m.o); if (m.o === myId) { if (m.kind === 'badge') myBadge = left; else myKnife = left; renderFireBtn(); } } knivesFly.get(m.id).badge = m.kind === 'badge'; Sound.knifeThrow(nearVol(m.x, m.y)); break;
@@ -1674,6 +1630,7 @@ setInterval(() => {
 }, 20000);
 window.__mmDbg = () => ({ foods: foods.size, foodQ: foodQueue.length, snaps: snaps.length, eat: eatAnims.length, dying: dying.length, sprites: sprites.size, text: textCache.size, plates: plateCache.size, sparks: donSparks.length, smoke: smoke.length, booms: booms.length, swing: swing.size, flash: roleFlash.size, metas: metas.size, drawn: lastDrawn.size, cam: +cam.s.toFixed(2) }); // для проверки
 function frame(time) {
+  chamPhase = time / 450;
   requestAnimationFrame(frame);
   fpsCount++;
   if (alive) { const d = pf.last ? time - pf.last : 0; pf.n++; if (d > 50) pf.j50++; if (d > 100) pf.j100++; if (d > pf.worst && d < 5000) pf.worst = d; }
@@ -1781,7 +1738,7 @@ function frame(time) {
   if (world) {
     lastHeads.clear(); lastDrawn.clear();
     const list = world.list.slice().sort((a, b) => a.mass - b.mass);
-    for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn === me) continue; if (invisIds.has(sn.id)) { drawInvisible(sn, time); continue; } drawSnake(sn, metas.get(sn.id), false, time, view); }
+    for (const sn of list) { lastDrawn.set(sn.id, sn); if (sn === me) continue; if (invisIds.has(sn.id)) { drawInvisible(sn, time); continue; } if (camoIds.has(sn.id)) { drawCamo(sn, time); continue; } drawSnake(sn, metas.get(sn.id), false, time, view); }
     if (me) drawSnake(me, metas.get(me.id), true, time, view);
   }
   if (BASES) drawFlags(time);
@@ -2273,6 +2230,12 @@ function drawMapItems(view, time) {
     ctx.drawImage(itemSprite(it.t), it.x - S / 2, it.y + bob - S / 2, S, S);
   }
 }
+function drawCamo(sn, time) { // 🦎 чужой Хамелеон в маскировке: только еле заметная рябь цвета пола
+  ctx.globalAlpha = 0.16 + 0.05 * Math.sin(time * 0.006);
+  ctx.fillStyle = BG.top;
+  for (let j = 0; j < sn.xs.length; j += 3) { ctx.beginPath(); ctx.arc(sn.xs[j], sn.ys[j], sn.r * 0.95, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 1;
+}
 function drawInvisible(sn, time) { // 👻 чужая невидимка: только лёгкое мерцание вдоль тела
   ctx.globalAlpha = 0.13 + 0.06 * Math.sin(time * 0.01); // чуть заметнее (владелец 14.10)
   ctx.fillStyle = '#cfd8ff';
@@ -2292,7 +2255,8 @@ function drawItemEffects(time) {
   const ring = (ids, col, rad, alpha) => { for (const id of ids) { const h = lastHeads.get(id); if (!h) continue; ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; const hs = rad; ctx.drawImage(haloSprite(col), h.x - hs / 2, h.y - hs / 2, hs, hs); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; } };
   if (magnetIds.size) ring(magnetIds, '#ff4f6d', 300 + 30 * Math.sin(time * 0.01), 0.35); // 🧲 магнит — розовое сияние на радиус притяжения
   if (turboIds.size) ring(turboIds, '#ffb347', 120, 0.7);                                    // 🚀 ускоритель — огненное сияние у головы
-  if (invisIds.has(myId)) ring([myId], '#c9b6ff', 140, 0.5);                                 // 👻 своя невидимость — подсказка, что тебя не видно
+  if (invisIds.has(myId)) ring([myId], '#c9b6ff', 140, 0.5);
+  if (camoIds.has(myId)) ring([myId], '#7be08a', 150, 0.5); // 🦎 своя маскировка — зелёное сияние: «вас не видно»                                 // 👻 своя невидимость — подсказка, что тебя не видно
   for (const id of stunIds) { // ⚡ оглушённый — голубые искры у головы
     const h = lastHeads.get(id); if (!h) continue;
     ctx.strokeStyle = '#8fdcff'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
