@@ -1160,7 +1160,7 @@ function drawBodyText(cnt, r, text, time, view, startK, fillCol, strokeCol) {
 }
 
 // Сигара Дона: из уголка рта, тлеющий кончик и дымок вверх
-// Губы Проститутки (владелец 07.10): ровные нарисованные губы строго поперёк морды (значок 💋 стоял наискосок и разный на телефонах).
+// Губы Красотки (владелец 07.10): ровные нарисованные губы строго поперёк морды (значок 💋 стоял наискосок и разный на телефонах).
 // Картинка рисуется один раз на размер и дальше копируется. В картинке: x — поперёк морды, y — вперёд (верхняя губа ближе к морде).
 function lipsSprite(r) {
   const k = PX_PER_UNIT(), R = Math.max(6, Math.round(r / 2) * 2), W = R * 0.72, H = R * 0.42;
@@ -1292,7 +1292,7 @@ function showPromo(ri) {
 // ===== Облик роли поверх скина (владелец 06.10, вариант «б»): скин игрока остаётся, роль добавляет свои детали =====
 // Стиль таблички на спине по роли: фон, цвет текста, рамка
 const PLATE_STYLE = {
-  'Проститутка': { bg: '#ff5fc8', fg: '#ffffff', border: '#ffd0f0' },
+  'Красотка': { bg: '#ff5fc8', fg: '#ffffff', border: '#ffd0f0' },
   'Параноик':    { bg: '#5b2fc8', fg: '#ffffff', border: '#c9a8ff' },
   'Бомба':       { bg: '#2a2a2a', fg: '#ff8a1f', border: '#ff8a1f' },
   'Доктор':      { bg: '#ffffff', fg: '#e8323c', border: '#e8323c' },
@@ -1304,7 +1304,7 @@ const PLATE_STYLE = {
 };
 const ROLE_SKIN = {
   'Доктор': ['#f4f6f8'],
-  // Проститутка: розовое тело у ботов убрано (владелец 11.10: «убери розовых ботов») — узнаётся по губам и табличке
+  // Красотка: розовое тело у ботов убрано (владелец 11.10: «убери розовых ботов») — узнаётся по губам и табличке
   'Мафия': ['#1e1e22'],
   'Киллер': ['#b4bcc6', '#b4bcc6', '#b4bcc6', '#141414'],
   'Шериф': ['#f2f2f2'], // белый (владелец 11.10: шахматную клетку убрали)
@@ -1384,7 +1384,7 @@ function drawRoleOver(ri, cnt, r, time, view, boost) {
       ctx.fillStyle = '#ff5fa8'; ctx.fillRect(-L, -W, L * 2, W * 2); ctx.fillRect(-W, -L, W * 2, L * 2);
       ctx.restore();
     }
-  } else if (ROLE_SKIN[name]) { /* цвет тела уже выделяет роль — без деталей */ } else if (name === 'Проститутка') {
+  } else if (ROLE_SKIN[name]) { /* цвет тела уже выделяет роль — без деталей */ } else if (name === 'Красотка') {
     for (const [x, y] of bodyMarks(cnt, r * 3.2, start)) { if (!inView(x, y)) continue; const p = 1 + 0.12 * Math.sin(time * 0.008 + x * 0.05); ctx.fillStyle = 'rgba(255, 95, 200, 0.85)'; heart(x, y, r * 0.38 * p); ctx.fill(); }
   } else if (name === 'Параноик') {
     let i = 0;
@@ -1480,7 +1480,7 @@ const dying = [];              // тающие тела погибших зме�
 const DIE_MS = 700;
 function drawSnake(sn, meta, isMe, time, view, fade) {
   let sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
-  // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Проститутка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
+  // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Красотка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
   // Владелец 07.10: у людей при смене роли змея остаётся как есть (меняется только табличка); роль красит только ботов
   const RS = meta && meta.bot && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
@@ -1571,7 +1571,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     drawHeadDecor(ctx, sk, hx, hy, a, isMe ? inAngle : a, r, neck);
     if (roleIdx) drawRoleHat(roleIdx, hx, hy, a, r, time);
     if (meta && !fade && !lod && !TEAM_MODE && meta.role === SHERIFF) { if (neck) drawSheriffBadge(neck, r); drawCoolShades(hx, hy, a, r, sn.id); } // владелец 12.10: без шляпы — жетон и тёмные очки (у каждого свой стиль)
-    /* 19.10 (владелец): губы у Проститутки убраны — роль узнаётся по сердечкам на теле */
+    /* 19.10 (владелец): губы у Красотки убраны — роль узнаётся по сердечкам на теле */
     if (false) drawLips(hx, hy, a, r); // владелец 07.10: розовые губы спереди
     if (ghostT && ghostT > performance.now()) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; const hs = r * 6; ctx.drawImage(haloSprite('#3ddc5a'), hx - hs / 2, hy - hs / 2, hs, hs); ctx.restore(); }
     if (meta && !fade && !lod && (meta.role === DON || (TEAM_MODE && havanaIds.has(sn.id)))) drawCigar(hx, hy, a, r, time); // владелец 07.10: у Дона сигара; в командах — у того, кто довёз знамя

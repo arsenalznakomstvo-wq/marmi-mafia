@@ -4,7 +4,7 @@
 (function (root) {
   const ROLES = [
     { name: 'Мирный',      icon: '🙂', color: '#8a93a8', min: 0 },
-    { name: 'Проститутка', icon: '💋', color: '#ff5fc8', min: 150 },
+    { name: 'Красотка', icon: '💖', color: '#ff5fc8', min: 150 },
     { name: 'Параноик',    icon: '👀', color: '#9b4dff', min: 300 },
     { name: 'Бомба',       icon: '💣', color: '#ff8a1f', min: 500 },
     { name: 'Доктор',      icon: '🩺', color: '#3ddc5a', min: 800 },
