@@ -157,6 +157,7 @@ const waterBall = w => tightSprite('w' + w.kind, g => {
 /* 🦎 Хамелеон: 12 оттенков по кругу, узор медленно сдвигается во времени */
 /* 19.10 (владелец: «как Аметист — живая змея»): Хамелеон — тело из прозрачных колец, как у водяных скинов; ускоряется — «злится», становится оранжевым */
 const CHAM_W = { core: '#2fae4a', rim: '#d9f56a', kind: 'cham' }, CHAM_HOT = { core: '#e0661f', rim: '#ffd27a', kind: 'chamhot' };
+const YEMEN_HOT = ['#e0661f', '#e0661f', '#e0661f', '#ffd27a', '#e0661f', '#e0661f', '#e0661f', '#c43b1a'];
 const CHAM_COLS = ['#3fbf5f', '#33b27a', '#2aa198', '#3aa96d', '#7fbf3f', '#b8c23a', '#d6c23a', '#e0a33a', '#e07a2a', '#c99a32', '#9cbc3c', '#5cc152'];
 let chamPhase = 0;
 function skinSprite(sk, u) {
@@ -1466,6 +1467,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   // перешла на следующее звание — облик пропадает. Только вид: её видят все
   const docCamo = meta && !fade && !TEAM_MODE && (ROLES[meta.role || 0] || {}).name === 'Доктор';
   if (sk.style === 'chameleon') sk = Object.assign({}, sk, { style: 'water', water: sn.boost ? CHAM_HOT : CHAM_W }); // 🦎 спокойный — зелёный, на ускорении — оранжевый
+  if (sk.eyes === 'yemen' && sn.boost) sk = Object.assign({}, sk, { cols: YEMEN_HOT }); // 🦎 Йеменский на ускорении «злится»: оранжевый с золотыми и красными полосами
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
   const isDon = meta && !fade && meta.role === DON;
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
