@@ -886,7 +886,7 @@ function handleJSON(c, m) {
     if (process.env.TEST_ORB_NEAR) { const o = orbs[0]; o.alive = true; o.x = s.xs[0] + Math.cos(s.a) * Number(process.env.TEST_ORB_NEAR); o.y = s.ys[0] + Math.sin(s.a) * Number(process.env.TEST_ORB_NEAR); } // только для проверок: шар на таком расстоянии перед новой змеёй
     if (process.env.TEST_SPAWN_AT && process.env.TEST_SPAWN_AT.split(',')[2]) { const an = +process.env.TEST_SPAWN_AT.split(',')[2]; s.a = s.ta = an; for (let i = 0; i < s.xs.length; i++) { s.xs[i] = pos.x - Math.cos(an) * i * SEG_D; s.ys[i] = pos.y - Math.sin(an) * i * SEG_D; } s.bbox(); } // только для проверок: куда смотрит
     s.client = c; c.snake = s; c.inA = s.a;
-    if (!TEAM) owner.start(s, c, m.app); // 17.10: страница владельца «кто играл»
+    if (!TEAM) owner.start(s, c, m.app, m.tg); // 17.10: страница владельца «кто играл»
     if (TEAM && process.env.TEST_FLAG) { const f = flags[1 - s.team]; f.x = s.xs[0] + Math.cos(s.a) * 5; f.y = s.ys[0] + Math.sin(s.a) * 5; BASES[s.team] = [s.xs[0] + Math.cos(s.a) * 200, s.ys[0] + Math.sin(s.a) * 200];
       if (process.env.TEST_TARGET) { const pa = s.a + Math.PI / 2, bx = s.xs[0] + Math.cos(s.a) * 600 + Math.cos(pa) * 150, by = s.ys[0] + Math.sin(s.a) * 600 + Math.sin(pa) * 150; const b = new Snake(bx, by, 800, true, 'Мишень', randomSkin()); b.a = b.ta = pa; for (let i = 0; i < b.xs.length; i++) { b.xs[i] = bx - Math.cos(pa) * i * SEG_D; b.ys[i] = by - Math.sin(pa) * i * SEG_D; } b.team = 1 - s.team; setTeamSkin(b); snakes.set(b.id, b); } } // только для проверок: чужое знамя у головы, своя база рядом
     if (process.env.TEST_HOST) { const hx = s.xs[0] + Math.cos(s.a) * 8, hy = s.ys[0] + Math.sin(s.a) * 8, h = new Snake(hx, hy, 1200, true, 'Хозяин', randomSkin()); h.a = h.ta = s.a; h.ai = null; const n = h.xs.length; for (let i = 0; i < n; i++) { h.xs[i] = hx + Math.cos(s.a) * (n - 1 - i) * SEG_D; h.ys[i] = hy + Math.sin(s.a) * (n - 1 - i) * SEG_D; } h.bbox(); h.botThinkOff = true; snakes.set(h.id, h); } // только для проверок Зубастика: хвост большой змеи прямо перед носом
@@ -1632,7 +1632,7 @@ const server = http.createServer((req, res) => {
   const UA_ = req.headers['user-agent'] || '', otherAndroid = /Android/i.test(UA_) && !(/Chrome\/\d/.test(UA_) && !/YaBrowser|SamsungBrowser|MiuiBrowser|OPR\/|Opera|Edg|HeyTap|UCBrowser|HuaweiBrowser|VivoBrowser|OppoBrowser|Firefox/i.test(UA_)); // владелец 13.10: Android, но не Chrome — тоже сразу «Открыть в Chrome»
   if ((url === '/' || url === '/index.html') && (otherAndroid || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)/i.test(UA_) || /^android-app:\/\/(org\.telegram|org\.thunderdog|com\.instagram|com\.facebook|com\.whatsapp)/.test(req.headers.referer || ''))) { // referer — «встроенный Chrome» Telegram (Custom Tabs)
     const qs = (req.url.split('?')[1] || '');
-    if (!/(^|&)(here|app)=1/.test(qs)) { res.writeHead(302, { Location: '/gate.html' + (qs ? '?' + qs : ''), 'Cache-Control': 'no-store' }); res.end(); return; }
+    if (!/(^|&)(here|app|tg)=1/.test(qs)) { /* tg=1 — мини-приложение Telegram */ res.writeHead(302, { Location: '/gate.html' + (qs ? '?' + qs : ''), 'Cache-Control': 'no-store' }); res.end(); return; }
   }
   const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }

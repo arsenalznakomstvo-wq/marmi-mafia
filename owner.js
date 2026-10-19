@@ -20,7 +20,7 @@ async function load() {
 const devOf = ua => /iPhone|iPad|iPod/i.test(ua) ? 'iPhone' : /Android/i.test(ua) ? 'Android' : 'Компьютер';
 
 // игра началась / закончилась (смерть или выход)
-function start(s, c, app) { s.sess = { n: s.name, t: Date.now(), d: devOf(c.ua || ''), a: app ? 1 : 0 }; }
+function start(s, c, app, tg) { s.sess = { n: s.name, t: Date.now(), d: devOf(c.ua || ''), a: tg ? 2 : app ? 1 : 0 }; } // a: 1 — установленная игра, 2 — через Telegram
 function finish(s) {
   const q = s.sess; if (!q) return; s.sess = null;
   q.s = Math.round((Date.now() - q.t) / 1000); q.m = Math.round(Math.max(s.maxMass || 0, s.mass || 0)); q.k = s.kills || 0;
@@ -36,7 +36,7 @@ const hm = t => new Date(t + TZ).toISOString().slice(11, 16);
 const dm = t => { const d = new Date(t + TZ); return String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0'); };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const dur = sec => sec < 60 ? sec + ' с' : sec < 3600 ? Math.round(sec / 60) + ' мин' : Math.floor(sec / 3600) + ' ч ' + Math.round(sec % 3600 / 60) + ' мин';
-const devIcon = (d, a) => (d === 'iPhone' ? '🍏 iPhone' : d === 'Android' ? '🤖 Android' : '💻 Компьютер') + (a ? ' · приложение' : '');
+const devIcon = (d, a) => (d === 'iPhone' ? '🍏 iPhone' : d === 'Android' ? '🤖 Android' : '💻 Компьютер') + (a === 2 ? ' · Telegram' : a ? ' · приложение' : '');
 const PERIODS = { today: 'Сегодня', yesterday: 'Вчера', week: '7 дней', month: '30 дней' };
 
 function page(period, key, live) {

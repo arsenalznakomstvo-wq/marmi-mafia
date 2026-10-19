@@ -14,7 +14,8 @@ window.VoiceChat = (() => {
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const ua = navigator.userAgent;
-  const inApp = !!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua);
+  const tgApp = (() => { try { return sessionStorage.getItem('mm_tg') === '1'; } catch (e) { return false; } })(); // 19.10: мини-приложение Telegram — пробуем микрофон
+  const inApp = !tgApp && (!!window.TelegramWebviewProxy || /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || /; wv\)/.test(ua));
   const speaking = new Set();
   let key = '', inGame = false, ac = null, rec = null, nextOk = 0, autoT = 0, tickT = 0;
   let mutedAll = false; // 15.10: отдельной кнопки нет — чужую рацию выключает общая кнопка звука (режим «тишина»)
