@@ -139,7 +139,7 @@ function prepSkin(sk) {
   const cols = window.Skins.skinCols(sk);
   const flag = cols.filter((c, i) => i === 0 || c !== cols[i - 1]); // полосы флага без повторов
   // unitK — ширина одной полосы в радиусах: у своей змейки, как в оригинале, одно нажатие = одно тонкое колечко
-  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain, bag: !!def.bag };
+  return { id: sk.id, cols, style: def.style || 'ball', eyes: def.eyes || 'normal', side: !!def.side, badge: !!def.badge, flag, unitK: sk.id === 0 ? 0.45 : 1.4, once: !!sk.once, text: def.text || '', textColor: def.textColor || '', textStroke: def.textStroke || '', water: def.water || null, plain: !!def.plain, bag: !!def.bag };
 }
 // Цвет в точке узора u (дробное число полос от головы). Как в оригинале — чистые полосы,
 // без смешивания цветов (смешивание давало грязные серо-зелёные переходы).
@@ -149,12 +149,14 @@ function bandColor(cols, u) {
 }
 // Водный шарик: прозрачная середина, плотнее к краю (кромка-поверхность), блик сверху. Внахлёст даёт «толщу воды».
 const waterBall = w => tightSprite('w' + w.kind, g => {
-  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
+  const a = w.kind === 'ice' ? 0.14 : w.kind === 'soap' ? 0.03 : w.kind === 'ocean' ? 0.16 : w.kind === 'eye' || w.kind === 'cham' || w.kind === 'chamhot' ? 0.11 : 0.07; // шарики идут внахлёст ~5 слоёв — прозрачность складывается
   const gr = g.createRadialGradient(32 - 5, 32 - 6, 1, 32, 32, SR);
   gr.addColorStop(0, rgba(w.core, a)); gr.addColorStop(0.72, rgba(w.core, a * 1.4)); gr.addColorStop(0.92, rgba(w.rim, Math.min(1, a * 3.2))); gr.addColorStop(1, rgba(w.rim, 0.06));
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, SR, 0, TAU); g.fill();
 });
 /* 🦎 Хамелеон: 12 оттенков по кругу, узор медленно сдвигается во времени */
+/* 19.10 (владелец: «как Аметист — живая змея»): Хамелеон — тело из прозрачных колец, как у водяных скинов; ускоряется — «злится», становится оранжевым */
+const CHAM_W = { core: '#2fae4a', rim: '#d9f56a', kind: 'cham' }, CHAM_HOT = { core: '#e0661f', rim: '#ffd27a', kind: 'chamhot' };
 const CHAM_COLS = ['#3fbf5f', '#33b27a', '#2aa198', '#3aa96d', '#7fbf3f', '#b8c23a', '#d6c23a', '#e0a33a', '#e07a2a', '#c99a32', '#9cbc3c', '#5cc152'];
 let chamPhase = 0;
 function skinSprite(sk, u) {
@@ -164,7 +166,7 @@ function skinSprite(sk, u) {
     case 'space': return spaceBall(sk.cols[0], sk.cols[1], Math.floor(u) % 3);
     case 'skeleton': return ringBall(sk.cols[0], Math.floor(u) & 1);
     case 'water': return waterBall(sk.water);
-    case 'chameleon': return ball(CHAM_COLS[((Math.floor(u * 0.5 + chamPhase) % 12) + 12) % 12]);
+    case 'chameleon': return waterBall(CHAM_W);
     default: return ball(bandColor(sk.cols, u));
   }
 }
@@ -254,9 +256,17 @@ function drawHeadDecor(g, sk, hx, hy, a, look, r, neck) {
       g.beginPath(); g.moveTo(-r * 0.32, -sgn * r * 0.2); g.lineTo(r * 0.3, -sgn * r * 0.02); g.stroke();
       g.restore();
     }
-  } else if (sk.eyes === 'chameleon') { // 🦎 Хамелеон (19.10): глаза-«башенки» по бокам головы, каждый смотрит в свою сторону
+  } else if (sk.eyes === 'chameleon' || sk.eyes === 'yemen') { // 🦎 Хамелеон (19.10): глаза-«башенки» по бокам головы, каждый смотрит в свою сторону
     const T = performance.now(), ph = (hx * 0.013 + hy * 0.017) % 10;
     g.save(); g.translate(hx, hy); g.rotate(a);
+    if (sk.eyes === 'yemen') { // высокий шлем-«каска» над затылком: гребень назад, с чешуйчатыми полосами (Йеменский хамелеон)
+      const hg = g.createLinearGradient(-r * 1.6, 0, r * 0.4, 0); hg.addColorStop(0, '#2c7a35'); hg.addColorStop(0.6, '#4fb85a'); hg.addColorStop(1, '#8fd16b');
+      g.fillStyle = hg; g.strokeStyle = '#1f5a27'; g.lineWidth = Math.max(1, r * 0.06);
+      g.beginPath(); g.moveTo(r * 0.35, -r * 0.18); g.quadraticCurveTo(-r * 0.2, -r * 0.35, -r * 1.55, -r * 0.08); g.lineTo(-r * 1.55, r * 0.08); g.quadraticCurveTo(-r * 0.2, r * 0.35, r * 0.35, r * 0.18); g.closePath(); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(232, 196, 58, 0.85)'; g.lineWidth = Math.max(1, r * 0.07); // жёлтые полоски на шлеме
+      for (const f of [0.25, 0.55, 0.85]) { const x = r * 0.35 - f * r * 1.9; g.beginPath(); g.moveTo(x, -r * 0.3 * (1 - f * 0.7)); g.lineTo(x, r * 0.3 * (1 - f * 0.7)); g.stroke(); }
+      g.strokeStyle = '#d6f27a'; g.lineWidth = Math.max(1, r * 0.05); g.beginPath(); g.moveTo(r * 0.3, 0); g.lineTo(-r * 1.5, 0); g.stroke(); // гребень по середине шлема
+    }
     for (const sg of [-1, 1]) {
       const ex = r * 0.22, ey = sg * r * 0.56, er = r * 0.44;
       const grd = g.createRadialGradient(ex - er * 0.3, ey - er * 0.3, er * 0.1, ex, ey, er);
@@ -1191,6 +1201,18 @@ function drawDonTrim(id, cnt, r, view, time) {
   if (donSparks.length > 80) donSparks.splice(0, donSparks.length - 80);
 }
 // Водные скины: бегущие волны-блики, пузырьки внутри; лёд — трещинки; мыльный пузырь — радужный перелив
+/* 19.10: светлая полоса вдоль бока (Йеменский хамелеон) — линия, сдвинутая от середины тела вбок */
+function drawSideStripe(cnt, r) {
+  if (cnt < 4) return;
+  ctx.strokeStyle = 'rgba(240, 248, 205, 0.7)'; ctx.lineWidth = r * 0.18; ctx.lineCap = 'round'; ctx.beginPath();
+  let started = false;
+  for (let k = 1; k < cnt - 1; k += 2) {
+    const dx = SX[k - 1] - SX[k + 1], dy = SY[k - 1] - SY[k + 1], L = Math.hypot(dx, dy) || 1;
+    const x = SX[k] - dy / L * r * 0.5, y = SY[k] + dx / L * r * 0.5;
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke(); ctx.lineCap = 'butt';
+}
 function drawWaterFx(w, cnt, r, view, time) {
   const m = r * 2, vis = (x, y) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
   const sp = Math.max(1, Math.hypot(SX[1] - SX[0], SY[1] - SY[0])), every = Math.max(1, Math.round(r * 0.55 / sp));
@@ -1443,6 +1465,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   // 19.10 (владелец): звание Доктор — змея становится прозрачной «водяной» под соты (как маскировка Хамелеона), у людей и ботов;
   // перешла на следующее звание — облик пропадает. Только вид: её видят все
   const docCamo = meta && !fade && !TEAM_MODE && (ROLES[meta.role || 0] || {}).name === 'Доктор';
+  if (sk.style === 'chameleon') sk = Object.assign({}, sk, { style: 'water', water: sn.boost ? CHAM_HOT : CHAM_W }); // 🦎 спокойный — зелёный, на ускорении — оранжевый
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
   const isDon = meta && !fade && meta.role === DON;
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
@@ -1528,6 +1551,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   const lod = !isMe && !fade && sn.r * cam.s < (isTouch ? 9 : 6);
   if (sk.water && !fade && !lod) drawWaterFx(sk.water, cnt, r, view, time);
 
+  if (sk.side && !docCamo && !lod && !fade) drawSideStripe(cnt, r);
   if (isDon && !lod) drawDonTrim(sn.id, cnt, sn.r, view, time);
   if (roleIdx && !sk.text && !lod && !roleLod && (autoLow < 2 || isMe)) drawRoleOver(roleIdx, cnt, r, time, view, sn.boost);
   if (sk.style === 'checker' && !fade) drawChecker(cnt, r, view); // скин «Шахматный»
