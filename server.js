@@ -255,7 +255,7 @@ class Snake {
 const CAMO_TICKS = Math.round(1.5 * TICK_RATE);
 function moveSnake(s) {
   const stun = s.stunUntil > tick, turbo = s.turboUntil > tick; // предметы (владелец 14.10): ⚡ шокер, 🚀 ускоритель
-  // 19.10: 🦎 Хамелеон — без ускорения 1,5 с подряд сливается с полом (почти не виден, боты не охотятся, нет на миникарте)
+  // 19.10: 🦎 Хамелеон — без ускорения 1,5 с подряд становится «водяным» под соты (только вид: его видят все, боты и миникарта тоже)
   if (!TEAM && s.skin && s.skin.id === CHAM_ID) { s.camoT = (s.boost && s.mass >= MIN_BOOST_MASS) || turbo ? 0 : (s.camoT || 0) + 1; s.camo = s.camoT >= CAMO_TICKS; } else s.camo = false;
   const tr = stun ? 0 : turnFor(s.r, s.bot);
   s.a += clamp(angDiff(s.a, s.ta), -tr, tr);
@@ -746,7 +746,7 @@ function findPrey(b, hx, hy) {
   for (const o of snakes.values()) {
     if (o === b || !o.alive || (TEAM && o.team === b.team)) continue;
     if (smokes.length && inSmoke(o.xs[0], o.ys[0])) continue; // в дыму Ниндзя — не видно
-    if (o.invisUntil > tick || o.camo) continue; // 👻 невидимку и 🦎 Хамелеона в маскировке боты не видят
+    if (o.invisUntil > tick) continue; // 👻 невидимку боты не видят
     const dx = o.xs[0] - hx, dy = o.ys[0] - hy, d = Math.hypot(dx, dy);
     if (d > 550 + b.r * 4) continue;
     const ahead = -(Math.cos(o.a) * dx + Math.sin(o.a) * dy); // я впереди него (+) или сзади (−)
@@ -789,7 +789,7 @@ function botThink(b) {
   if (ai.cool > 0) ai.cool -= 1;
   if (ai.boostT > 0) ai.boostT -= 1;
 
-  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || ai.prey.camo || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
+  if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
   // 19.10 (владелец): большие боты на 20% охотнее идут ловить змей в кольцо
   if (!ai.prey && ai.cool <= 0 && b.mass > MIN_BOOST_MASS + 5 && Math.random() < ai.aggr * 0.6 * (b.mass > GIANT_MASS ? 1.2 : 1)) {
     ai.prey = findPrey(b, hx, hy);
@@ -1059,7 +1059,7 @@ function sendLeaderboard() {
     const q = v => Math.max(0, Math.min(255, Math.round((v / MAP_R + 1) * 127.5)));
     for (const s of arr) {
       if (smokes.length && inSmoke(s.xs[0], s.ys[0])) continue; // в дыму Ниндзя — на миникарте не видно
-      if (s.invisUntil > tick || s.camo) continue; // 👻 невидимки и 🦎 Хамелеона в маскировке на миникарте нет
+      if (s.invisUntil > tick) continue; // 👻 невидимки на миникарте нет (🦎 Хамелеон виден — 19.10: права у всех одинаковые)
       const len = s.xs.length, step = Math.max(Math.round(150 / SEG_D), Math.ceil(len / 30));
       const line = [(s.bot ? 0 : 1) | (s.team == null ? 0 : (s.team + 1) << 1)];
       for (let i = 0; i < len; i += step) line.push(q(s.xs[i]), q(s.ys[i]));

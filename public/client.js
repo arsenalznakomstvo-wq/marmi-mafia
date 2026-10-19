@@ -1434,15 +1434,15 @@ const SX = [], SY = [], SI = [];
 const lastDrawn = new Map();   // id -> змейка, как она нарисована в прошлом кадре (для таяния при смерти)
 const dying = [];              // тающие тела погибших змей
 const DIE_MS = 700;
-let MARMI_SK = null;
 function drawSnake(sn, meta, isMe, time, view, fade) {
   let sk = meta ? meta.sk : prepSkin({ id: 1, c1: '#888888', c2: '#888888', c3: '#888888' });
   // Владелец 06.10: у некоторых ролей тело одного цвета (проще играть): Доктор белый, Красотка розовая, Мафия чёрная, Киллер сталь в чёрную полоску
   // Владелец 07.10: у людей при смене роли змея остаётся как есть (меняется только табличка); роль красит только ботов
   const RS = meta && meta.bot && !fade && !meta.sk.text && ROLE_SKIN[(ROLES[meta.role || 0] || {}).name]; // особые скины (Альмано, Марми) роль не перекрашивает
   if (RS) sk = Object.assign({}, sk, { cols: RS, style: 'ball', unitK: 1.4 });
-  // 19.10 (владелец: «очень много докторов ползает — вместо докторов пусть будет Марми»): половина ботов-Докторов выглядит как скин Марми
-  if (meta && meta.bot && !fade && (ROLES[meta.role || 0] || {}).name === 'Доктор' && sn.id % 2 === 0) sk = MARMI_SK || (MARMI_SK = prepSkin({ id: SKINS.findIndex(d => d.name === 'Марми') }));
+  // 19.10 (владелец): звание Доктор — змея становится прозрачной «водяной» под соты (как маскировка Хамелеона), у людей и ботов;
+  // перешла на следующее звание — облик пропадает. Только вид: её видят все
+  const docCamo = meta && !fade && !TEAM_MODE && (ROLES[meta.role || 0] || {}).name === 'Доктор';
   // Владелец 07.10: Дон — особый облик «Чёрное золото» (у людей и ботов), вместо своего скина, пока он Дон
   const isDon = meta && !fade && meta.role === DON;
   if (isDon) sk = Object.assign({}, sk, { cols: ['#1a171e', '#26212c'], style: 'ball', unitK: 1.4, text: '', eyes: 'gold', badge: false });
@@ -1475,7 +1475,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
   const shadeStep = Math.max(1, Math.round(sn.r * 0.9 / sp));
   if (fade) ctx.globalAlpha = 1 - fade;
 
-  if (hiQ && !isTouch && !fade) { // тень под телом: змейка будто лежит над полом (на телефоне не рисуем — экономим)
+  if (hiQ && !isTouch && !fade && !docCamo) { // тень под телом: змейка будто лежит над полом (на телефоне не рисуем — экономим)
     const sh = shadowSprite(), ss = size * 1.35, so = r * 0.25;
     for (let k = cnt - 1; k >= 0; k -= shadeStep) {
       const x = SX[k], y = SY[k];
@@ -1506,7 +1506,18 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
   const sizeT = r * 2 * TB / (SR * 2), halfT = sizeT / 2;
-  for (let k = cnt - 1; k >= 0; k--) {
+  if (docCamo) { // 💧 Доктор: кромка → соты пола внутри → блик (как «водяной» Хамелеон)
+    if (!bgPattern) makeBg();
+    const st = Math.max(1, Math.round(r * 0.5 / sp)), shm = 0.5 + 0.5 * Math.sin(time * 0.004);
+    ctx.globalAlpha = 0.22 + 0.06 * shm; ctx.fillStyle = '#bfe8ff';
+    for (let k = cnt - 1; k >= 0; k -= st) { const x = SX[k], y = SY[k]; if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue; ctx.beginPath(); ctx.arc(x, y, r * 1.06, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 1; ctx.fillStyle = bgPattern;
+    for (let k = cnt - 1; k >= 0; k -= st) { const x = SX[k], y = SY[k]; if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue; ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 0.07 + 0.03 * shm; ctx.fillStyle = '#ffffff';
+    for (let k = cnt - 1; k >= 0; k -= st * 3) { const x = SX[k], y = SY[k]; if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue; ctx.beginPath(); ctx.arc(x, y, r * 0.35, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+  for (let k = cnt - 1; k >= 0 && !docCamo; k--) {
     const x = SX[k], y = SY[k];
     if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
     const im = skinSprite(sk, SI[k] / unit);
@@ -1541,7 +1552,7 @@ function drawSnake(sn, meta, isMe, time, view, fade) {
     if (meta && !fade && !lod && !TEAM_MODE && meta.role === KILLER && neck) drawKillerBelt(neck, r, meta.bot || knifeIds.has(sn.id)); // ремень с кинжалом в ножнах
     if (TEAM_MODE && !fade && hotIds.has(sn.id)) { const fs = Math.max(18, r * 2.2) * (1 + 0.12 * Math.sin(time * 0.02)); ctx.font = `${fs}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔥', hx, hy - r - fs * 0.45); }
     if (meta && !fade && !lod && meta.role === DON) drawBodyText(cnt, sn.r, meta.bot ? 'ДОН МАФИИ' : meta.name.toUpperCase() + ' ★ ДОН', time, view); // надпись по всему телу Дона
-    else if (!fade && !lod && sk.text) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
+    else if (!fade && !lod && sk.text && !docCamo) drawBodyText(cnt, sn.r, sk.text, time, view, 0.25, sk.textColor, sk.textStroke); // особый скин с надписью (Альмано, Марми)
     if (TEAM_MODE && meta && !fade && meta.team >= 0) { // командный режим: у всех табличка команды; у людей ниже — ник
       const bk = Math.min(cnt - 1, Math.round(sn.r * 5.0 / sp)); // владелец 14.10: табличка чуть ниже по телу (было 4,2)
       const talkingP = !meta.bot && window.VoiceChat && VoiceChat.isSpeaking(meta.name);
