@@ -266,7 +266,7 @@ function moveSnake(s) {
   xs[0] += Math.cos(s.a) * spd; ys[0] += Math.sin(s.a) * spd;
   if (s.boosting && !turbo) {
     // Ускорение стоит длины: змейка худеет и роняет еду с хвоста, как в slither.io
-    const cost = (0.15 + s.mass * 0.0008 * 0.75) * 0.7 * 0.8; /* 19.10 (владелец): большие черви на ускорении теряют на 25% меньше — урезана часть, зависящая от длины */ // владелец 07.10: при ускорении теряет на 30% меньше; 14.10: ещё на 20% меньше
+    const cost = (0.15 + s.mass * 0.0008 * 0.6) * 0.7 * 0.8; /* 20.10 (владелец): большим ещё на 20% меньше (было ×0,75) */ /* 19.10 (владелец): большие черви на ускорении теряют на 25% меньше — урезана часть, зависящая от длины */ // владелец 07.10: при ускорении теряет на 30% меньше; 14.10: ещё на 20% меньше
     s.mass -= cost; s.boostAcc += cost;
     if (s.boostAcc >= 1.2) {
       const t = xs.length - 1;
@@ -791,7 +791,7 @@ function botThink(b) {
 
   if (ai.prey && (!ai.prey.alive || ai.preyT <= 0 || b.mass < MIN_BOOST_MASS + 3 || ai.prey.invisUntil > tick || inSmoke(ai.prey.xs[0], ai.prey.ys[0]))) { /* 15.10: невидимка и дым сбивают погоню */ ai.prey = null; ai.cool = 20; }
   // 19.10 (владелец): большие боты на 20% охотнее идут ловить змей в кольцо
-  if (!ai.prey && ai.cool <= 0 && b.mass > MIN_BOOST_MASS + 5 && Math.random() < ai.aggr * 0.6 * (b.mass > GIANT_MASS ? 1.2 : 1)) {
+  if (!ai.prey && ai.cool <= 0 && b.mass > MIN_BOOST_MASS + 5 && Math.random() < ai.aggr * 0.6 * (b.mass > GIANT_MASS ? 1.34 : 1)) { /* 20.10: ещё +12% к желанию большого бота охотиться (кольцо) */
     ai.prey = findPrey(b, hx, hy);
     if (ai.prey) { ai.preyT = Math.round(rand(90, 210)); ai.side = Math.random() < 0.5 ? -1 : 1; }
     else ai.cool = 10;
@@ -807,7 +807,7 @@ function botThink(b) {
   } else if (ai.prey && !(pile && pile.val > 30 && ai.greed > ai.aggr)) {
     const o = ai.prey; ignore = o; ai.preyT -= 1;
     const ox = o.xs[0], oy = o.ys[0], dx = ox - hx, dy = oy - hy, dist = Math.hypot(dx, dy);
-    if (b.mass > o.mass * 3.3 && dist < (200 + r * 6) * 1.2) { // 19.10: кольцо — чаще (было: вчетверо больше жертвы и ближе на 20%)
+    if (b.mass > o.mass * 2.95 && dist < (200 + r * 6) * 1.34) { /* 20.10: кольцо ещё на 12% охотнее */ // 19.10: кольцо — чаще (было: вчетверо больше жертвы и ближе на 20%)
       // Большой бот обвивает мелкую змейку кольцом
       desired = Math.atan2(dy, dx) + ai.side * (Math.PI / 2 - 0.35);
     } else {
