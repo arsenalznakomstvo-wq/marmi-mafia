@@ -25,7 +25,7 @@ window.Sound = (() => {
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     applyMode();
-    startMusic();
+    // startMusic(); — 20.10 (владелец: «постоянно играет непонятная мелодия и в игре, и в меню, колонка хрипит»): фоновой музыки больше нет
   }
   function applyMode() {
     if (!ac) return;

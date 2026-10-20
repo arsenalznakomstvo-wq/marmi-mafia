@@ -3035,8 +3035,7 @@ var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызыв
 // Владелец 12.10 («звук опаздывает»): звук теперь внутри самого видео (menu.mp4 со звуком) — всегда точно в такт картинке.
 // Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
-  /* 20.10 (владелец: «на главном экране непонятная мелодия, колонка хрипит — убери»): видео в меню всегда без звука */
-  const want = false && on && userTapped && vidLoops < VID_SOUND_LOOPS && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
+  const want = on && userTapped && vidLoops < VID_SOUND_LOOPS && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
   if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused && !vidUserPaused) menuVid.play().catch(() => {}); } // на паузе по просьбе — не запускаем
   clearTimeout(stepT); return;
   const tick = () => {
