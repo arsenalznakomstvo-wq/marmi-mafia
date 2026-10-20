@@ -1121,3 +1121,6 @@ body.in-menu #exitBtn, body.intro #exitBtn { display: none; }
   #exitBtn { top: calc(max(6px, env(safe-area-inset-top)) + 44px); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
 }
 body.tgfs #exitBtn { margin-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }
+/* 20.10 (владелец): кружки оружия — дугой вокруг кнопки (место считает игра: точка — центр кнопки) */
+#wpnRow { display: block; width: 0; height: 0; }
+#wpnRow b { position: absolute; }

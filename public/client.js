@@ -2689,7 +2689,12 @@ function renderFireBtn() {
   if (L.length < 2) { row.innerHTML = ''; return; }
   const i = L.indexOf(selW), rest = [];
   for (let j = 1; j < L.length && j <= 4; j++) rest.push(L[(i + j) % L.length]);
-  row.innerHTML = rest.map(w => '<b data-w="' + w + '"' + (w.startsWith('i:') ? ' class="it" style="--ic:' + ITEM_INFO[w.slice(2)][2] + '"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>').join('');
+  /* 20.10 (владелец: «оружие идёт к центру экрана и закрывает его — сделай вокруг кнопки, чуть выше»): кружки — дугой вокруг кнопки:
+     над ней, выше-левее, слева, ниже-левее (раньше — рядом влево, к середине экрана) */
+  const br = b.getBoundingClientRect(), R = br.width / 2 + 29, ANG = [90, 135, 180, 225];
+  row.style.left = (br.left + br.width / 2) + 'px'; row.style.top = (br.top + br.height / 2) + 'px'; row.style.right = row.style.bottom = 'auto';
+  row.innerHTML = rest.map((w, k) => { const a = ANG[k] * Math.PI / 180, dx = Math.cos(a) * R, dy = -Math.sin(a) * R;
+    return '<b data-w="' + w + '" style="left:' + (dx - 19).toFixed(1) + 'px;top:' + (dy - 19).toFixed(1) + 'px' + (w.startsWith('i:') ? ';--ic:' + ITEM_INFO[w.slice(2)][2] : '') + '"' + (w.startsWith('i:') ? ' class="it"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>'; }).join('');
 }
 {
   const b = $('fireBtn'), row = $('wpnRow');
@@ -2724,6 +2729,7 @@ function renderFireBtn() {
   window.addEventListener('wheel', e => { const t = performance.now(); if (!alive || t - wheelT < 150) return; wheelT = t; cycleWpn(e.deltaY > 0 ? 1 : -1); }, { passive: true });
 }
 
+window.addEventListener('resize', () => setTimeout(renderFireBtn, 100)); // поворот экрана — кружки оружия заново вокруг кнопки
 /* 18.10: кнопка «📊 Топ-10» на телефоне — раскрыть / свернуть рейтинг */
 {
   const b = $('statBtn');
