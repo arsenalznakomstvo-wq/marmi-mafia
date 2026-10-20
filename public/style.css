@@ -1111,3 +1111,9 @@ body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, bod
   #soundBtn { top: max(6px, env(safe-area-inset-top)); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
   body #scorebox { top: max(6px, env(safe-area-inset-top)) !important; left: calc(max(6px, env(safe-area-inset-left)) + 166px) !important; bottom: auto !important; line-height: 36px !important; }
 }
+/* 20.10 (владелец): «карту вообще убери на телефоне» — звук в угол, «Ваше место» сразу за ним */
+@media (pointer: coarse) {
+  body #minimap { display: none !important; }
+  #soundBtn { left: max(6px, env(safe-area-inset-left)); }
+  body #scorebox { left: calc(max(6px, env(safe-area-inset-left)) + 44px) !important; }
+}

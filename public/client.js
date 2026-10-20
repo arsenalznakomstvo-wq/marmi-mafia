@@ -1929,7 +1929,9 @@ function showRecord(kind) {
   Sound.promo(true);
 }
 
+const MM_OFF = matchMedia('(pointer: coarse)').matches; // как в style.css: там карта спрятана
 function drawMinimap(me) {
+  if (MM_OFF) return; // 20.10 (владелец): на телефоне карты нет — и не рисуем её зря
   const w = mm.width, c = w / 2, R = w / 2 - 3, k = w / 130;
   mctx.clearRect(0, 0, w, w);
   mctx.fillStyle = 'rgba(40, 46, 56, 0.55)'; mctx.beginPath(); mctx.arc(c, c, R, 0, TAU); mctx.fill();
