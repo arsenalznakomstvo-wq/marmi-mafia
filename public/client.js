@@ -2691,7 +2691,7 @@ function renderFireBtn() {
   for (let j = 1; j < L.length && j <= 4; j++) rest.push(L[(i + j) % L.length]);
   /* 20.10 (владелец: «оружие идёт к центру экрана и закрывает его — сделай вокруг кнопки, чуть выше»): кружки — дугой вокруг кнопки:
      над ней, выше-левее, слева, ниже-левее (раньше — рядом влево, к середине экрана) */
-  const br = b.getBoundingClientRect(), R = br.width / 2 + 29, ANG = [90, 135, 180, 225];
+  const br = b.getBoundingClientRect(), R = br.width / 2 + 29, ANG = matchMedia('(pointer: coarse)').matches ? [120, 165, 210, 255] : [90, 135, 180, 225]; /* 20.10: на телефоне кнопку подняли — дуга влево-вниз, не задевает рейтинг; на компьютере снизу рация */
   row.style.left = (br.left + br.width / 2) + 'px'; row.style.top = (br.top + br.height / 2) + 'px'; row.style.right = row.style.bottom = 'auto';
   row.innerHTML = rest.map((w, k) => { const a = ANG[k] * Math.PI / 180, dx = Math.cos(a) * R, dy = -Math.sin(a) * R;
     return '<b data-w="' + w + '" style="left:' + (dx - 19).toFixed(1) + 'px;top:' + (dy - 19).toFixed(1) + 'px' + (w.startsWith('i:') ? ';--ic:' + ITEM_INFO[w.slice(2)][2] : '') + '"' + (w.startsWith('i:') ? ' class="it"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>'; }).join('');
@@ -3035,7 +3035,8 @@ var stepT = 0, stepN = 0, userTapped = false; // var: menuVideo(true) вызыв
 // Владелец 12.10 («звук опаздывает»): звук теперь внутри самого видео (menu.mp4 со звуком) — всегда точно в такт картинке.
 // Видео идёт без звука, пока не было касания (так требуют браузеры); после касания включаем звук самого видео.
 function menuSteps(on) {
-  const want = on && userTapped && vidLoops < VID_SOUND_LOOPS && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
+  /* 20.10 (владелец: «на главном экране непонятная мелодия, колонка хрипит — убери»): видео в меню всегда без звука */
+  const want = false && on && userTapped && vidLoops < VID_SOUND_LOOPS && document.body.classList.contains('in-menu') && Sound.isOn(); // до первого касания — без звука, иначе браузер не запустит видео; со второго круга — тоже
   if (MENU_VIDEO) { menuVid.muted = !want; menuVid.volume = 0.7; if (want && menuVid.paused && !vidUserPaused) menuVid.play().catch(() => {}); } // на паузе по просьбе — не запускаем
   clearTimeout(stepT); return;
   const tick = () => {
@@ -3277,14 +3278,17 @@ async function uploadPhoto(file) {
   }
 }
 
-/* 20.10 (владелец: «добавь кнопку выхода из игры»): 🚪 — первое нажатие: «нажмите ещё раз» (чтобы не выйти случайно пальцем), второе — выход в меню */
+/* 20.10 (владелец: «выход не во время игры, а на главном экране — нажал, и игра закрылась»): 🚪 в меню.
+   Закрыть себя может только мини-приложение Telegram и установленная игра; в обычном браузере вкладку закрыть нельзя — там кнопки нет */
 {
-  const xb = $('exitBtn'); let askT = 0;
-  xb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
-  xb.addEventListener('click', e => {
-    e.stopPropagation(); if (!alive) return;
-    if (!xb.classList.contains('ask')) { xb.classList.add('ask'); toast('🚪 Нажмите ещё раз, чтобы выйти'); clearTimeout(askT); askT = setTimeout(() => xb.classList.remove('ask'), 2500); return; }
-    clearTimeout(askT); xb.classList.remove('ask'); sendJSON({ t: 'quit' });
+  const xb = $('exitBtn');
+  if (TG || isApp) document.body.classList.add('can-exit');
+  xb.addEventListener('click', () => {
+    Sound.click();
+    const W = window.Telegram && Telegram.WebApp;
+    if (TG && W && W.close) { try { W.close(); return; } catch (e) {} }
+    try { window.close(); } catch (e) {}
+    setTimeout(() => { const t = $('iosTip'); t.innerHTML = 'Чтобы закрыть игру — смахните её вверх в списке открытых приложений'; t.classList.remove('hide'); setTimeout(() => t.classList.add('hide'), 5000); }, 500); // не закрылась сама
   });
 }
 const sb = $('soundBtn');

@@ -1111,16 +1111,30 @@ body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, bod
   #soundBtn { top: max(6px, env(safe-area-inset-top)); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
   body #scorebox { top: max(6px, env(safe-area-inset-top)) !important; left: calc(max(6px, env(safe-area-inset-left)) + 166px) !important; bottom: auto !important; line-height: 36px !important; }
 }
-/* 20.10 (владелец): кнопка выхода из игры 🚪 — под кнопкой звука; первое нажатие спрашивает «ещё раз», второе — выход в меню */
-#exitBtn { position: fixed; z-index: 40; top: calc(max(8px, env(safe-area-inset-top)) + 50px); left: max(8px, env(safe-area-inset-left));
-  width: 42px; height: 42px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.25); font-size: 19px; cursor: pointer; padding: 0; line-height: 42px;
-  touch-action: none; -webkit-tap-highlight-color: transparent; }
-#exitBtn.ask { background: rgba(200, 40, 40, 0.75); box-shadow: 0 0 0 2px #ffb3b8; }
-body.in-menu #exitBtn, body.intro #exitBtn { display: none; }
+/* 20.10 (владелец): кнопка выхода 🚪 — только в главном меню (Telegram и установленная игра), под кнопкой звука; нажал — игра закрылась */
+#exitBtn { display: none; position: fixed; z-index: 40; top: calc(max(8px, env(safe-area-inset-top)) + 50px); left: max(8px, env(safe-area-inset-left));
+  width: 42px; height: 42px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.35); font-size: 19px; cursor: pointer; padding: 0; line-height: 42px;
+  -webkit-tap-highlight-color: transparent; }
+body.in-menu.can-exit:not(.intro) #exitBtn { display: block; }
 @media (pointer: coarse) {
-  #exitBtn { top: calc(max(6px, env(safe-area-inset-top)) + 44px); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
+  body.in-menu #soundBtn { left: max(6px, env(safe-area-inset-left)); } /* в меню карты нет — звук в самом углу */
+  #exitBtn { top: calc(max(6px, env(safe-area-inset-top)) + 44px); left: max(6px, env(safe-area-inset-left)); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
 }
 body.tgfs #exitBtn { margin-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }
 /* 20.10 (владелец): кружки оружия — дугой вокруг кнопки (место считает игра: точка — центр кнопки) */
 #wpnRow { display: block; width: 0; height: 0; }
 #wpnRow b { position: absolute; }
+/* 20.10 (владелец, телефон): «Ваше место» — по центру на самом верху; надписи («две дымовые шашки» и т. п.) — тоже наверх, под ним,
+   чтобы не маячили перед глазами; рейтинг — вплотную к правому краю */
+@media (pointer: coarse) {
+  body:not(.team-mode) #scorebox { left: 50% !important; transform: translateX(-50%); top: max(2px, env(safe-area-inset-top)) !important; line-height: 1.2 !important; white-space: nowrap; }
+  #toast { top: calc(max(2px, env(safe-area-inset-top)) + 22px); font-size: 14px; }
+  #bigToast { top: calc(max(2px, env(safe-area-inset-top)) + 44px) !important; }
+  #lb { right: env(safe-area-inset-right, 0px); }
+}
+body.tgfs #toast, body.tgfs #bigToast { margin-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }
+/* 20.10 (владелец: «кружок оружия справа чуть выше — мешает кнопке ускорения»): на 40 px выше; кружки вокруг неё едут следом сами */
+@media (pointer: coarse) { #fireBtn { bottom: max(calc(max(10px, env(safe-area-inset-bottom)) + 170px), 47vh); } }
+@media (pointer: coarse) and (max-height: 380px) { #fireBtn { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 158px); } }
+/* 20.10 (владелец: «Ваше место — прозрачнее, чтобы не мешало глазам») */
+@media (pointer: coarse) { #scorebox { opacity: 0.5; } }
