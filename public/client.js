@@ -646,7 +646,7 @@ function onJSON(m) {
     case 'don': toast('👑 ' + m.name + ' — новый Дон Мафии!'); break;
     case 'spawn': myRockets = 0; myBomb = 0; myKnife = 0; mySmoke = 0; myBadge = 0; myShock = 0; myItem = null; myInv = {}; selW = null; renderFireBtn(); if (TEAM_MODE) { myTeam = m.team; if (window.VoiceChat) VoiceChat.setRoom('TEAM' + m.team); }
       myId = m.id; alive = true; predStop(); hideMenu(); Sound.spawn(); dropNsfw(); wpPanelClose(); break;
-    case 'dead': alive = false; myId = 0; predStop(); if (verStale) setTimeout(() => location.reload(), 1200); /* новая версия — тихо обновимся в меню */ Sound.death(); setTimeout(() => showMenu(m), 1300); break;
+    case 'dead': alive = false; myId = 0; predStop(); if (verStale) setTimeout(() => location.reload(), 1200); /* новая версия — тихо обновимся в меню */ if (m.quit) { showMenu(m); break; } /* 20.10: сам вышел — меню сразу, без звука смерти */ Sound.death(); setTimeout(() => showMenu(m), 1300); break;
     case 'kill': toast('Вы убили: ' + m.name); Sound.kill(); break;
     case 'lb': {
       const prevEv = evNow ? evNow[0] : null;
@@ -1929,9 +1929,7 @@ function showRecord(kind) {
   Sound.promo(true);
 }
 
-const MM_OFF = matchMedia('(pointer: coarse)').matches; // как в style.css: там карта спрятана
 function drawMinimap(me) {
-  if (MM_OFF) return; // 20.10 (владелец): на телефоне карты нет — и не рисуем её зря
   const w = mm.width, c = w / 2, R = w / 2 - 3, k = w / 130;
   mctx.clearRect(0, 0, w, w);
   mctx.fillStyle = 'rgba(40, 46, 56, 0.55)'; mctx.beginPath(); mctx.arc(c, c, R, 0, TAU); mctx.fill();
@@ -3100,7 +3098,7 @@ function showMenu(m) {
   mouseBoost = keyBoost = btnBoost = false; bbOff();
   const r = $('result');
   if (m) {
-    const who = m.killer ? `Вас съел: <b>${esc(m.killer)}</b>` : 'Вы врезались в край карты';
+    const who = m.quit ? 'Вы вышли из игры' : m.killer ? `Вас съел: <b>${esc(m.killer)}</b>` : 'Вы врезались в край карты';
     r.innerHTML = `<div class="rlen">Ваша итоговая длина: <b>${m.score}</b><div class="sub">${who} · съедено змей: ${m.kills}</div></div>` // .rlen на телефоне скрыта (владелец 11.10)
       + (m.photo ? `<div class="wpOffer">🏆 Вы на ${m.photo.place}-м месте рекордов всех времён!</div>` : '');
     // Кнопка фото — внизу справа (владелец 11.10); видна, пока действует пропуск (30 мин)
@@ -3273,6 +3271,16 @@ async function uploadPhoto(file) {
   }
 }
 
+/* 20.10 (владелец: «добавь кнопку выхода из игры»): 🚪 — первое нажатие: «нажмите ещё раз» (чтобы не выйти случайно пальцем), второе — выход в меню */
+{
+  const xb = $('exitBtn'); let askT = 0;
+  xb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+  xb.addEventListener('click', e => {
+    e.stopPropagation(); if (!alive) return;
+    if (!xb.classList.contains('ask')) { xb.classList.add('ask'); toast('🚪 Нажмите ещё раз, чтобы выйти'); clearTimeout(askT); askT = setTimeout(() => xb.classList.remove('ask'), 2500); return; }
+    clearTimeout(askT); xb.classList.remove('ask'); sendJSON({ t: 'quit' });
+  });
+}
 const sb = $('soundBtn');
 sb.textContent = Sound.icon();
 sb.addEventListener('pointerdown', e => e.stopPropagation());

@@ -532,7 +532,7 @@ function killSnake(s, killer) {
     // В топ-5 рекордов всех времён — пропуск, чтобы поставить своё фото на карточку победителя (владелец 11.10)
     const place = TEAM ? 0 : records.placeAll(s.name);
     const photo = place ? { t: winners.invite(s.name), place, has: winners.has(s.name) } : null;
-    sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null, ...(photo ? { photo } : {}) });
+    sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null, ...(s.quitting ? { quit: 1 } : {}), ...(photo ? { photo } : {}) });
   }
 }
 
@@ -918,6 +918,8 @@ function handleJSON(c, m) {
       else if (w === 'smoke') { if (s.smoke) throwSmoke(s); }
       else { if (s.item) useItem(s); else if (s.rockets) fireRocket(s); else if (s.bomb) throwBomb(s); else if (s.knife) throwKnife(s); else if (s.badge) throwKnife(s, true); else if (s.shock) { s.shock--; doShock(s); } else if (s.smoke) throwSmoke(s); }
     }
+  } else if (m.t === 'quit') { /* 20.10 (владелец): кнопка выхода 🚪 — змея уходит из игры (как смерть: рассыпается едой), игрок — в меню */
+    const s = c.snake; if (s && s.alive) { s.quitting = true; killSnake(s, null); }
   } else if (m.t === 'ping') {
     // 15.10 (аудит критика): «насколько я вижу чужих в прошлом» игрок сообщает сам — подделанная игра могла всегда говорить 0,4 с
     // и убивать тараном в бок. Теперь сервер сам меряет задержку связи (pr) и не верит больше, чем пинг/2 + запас плавности

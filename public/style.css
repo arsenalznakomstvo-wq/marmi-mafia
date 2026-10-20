@@ -1111,9 +1111,13 @@ body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, bod
   #soundBtn { top: max(6px, env(safe-area-inset-top)); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
   body #scorebox { top: max(6px, env(safe-area-inset-top)) !important; left: calc(max(6px, env(safe-area-inset-left)) + 166px) !important; bottom: auto !important; line-height: 36px !important; }
 }
-/* 20.10 (владелец): «карту вообще убери на телефоне» — звук в угол, «Ваше место» сразу за ним */
+/* 20.10 (владелец): кнопка выхода из игры 🚪 — под кнопкой звука; первое нажатие спрашивает «ещё раз», второе — выход в меню */
+#exitBtn { position: fixed; z-index: 40; top: calc(max(8px, env(safe-area-inset-top)) + 50px); left: max(8px, env(safe-area-inset-left));
+  width: 42px; height: 42px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.25); font-size: 19px; cursor: pointer; padding: 0; line-height: 42px;
+  touch-action: none; -webkit-tap-highlight-color: transparent; }
+#exitBtn.ask { background: rgba(200, 40, 40, 0.75); box-shadow: 0 0 0 2px #ffb3b8; }
+body.in-menu #exitBtn, body.intro #exitBtn { display: none; }
 @media (pointer: coarse) {
-  body #minimap { display: none !important; }
-  #soundBtn { left: max(6px, env(safe-area-inset-left)); }
-  body #scorebox { left: calc(max(6px, env(safe-area-inset-left)) + 44px) !important; }
+  #exitBtn { top: calc(max(6px, env(safe-area-inset-top)) + 44px); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
 }
+body.tgfs #exitBtn { margin-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }
