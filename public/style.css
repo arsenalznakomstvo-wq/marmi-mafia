@@ -1141,3 +1141,23 @@ body.tgfs #toast, body.tgfs #bigToast { margin-top: calc(var(--tg-safe-area-inse
 /* 20.10 (владелец: «можно кружок оружия ещё чуть выше?»): ещё +25 px — до рейтинга остаётся небольшой зазор */
 @media (pointer: coarse) { #fireBtn { bottom: max(calc(max(10px, env(safe-area-inset-bottom)) + 195px), 53vh); } }
 @media (pointer: coarse) and (max-height: 380px) { #fireBtn { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 183px); } }
+/* 20.10 (владелец: «вместо карточек — как было раньше, прозрачный топ-10 игроков на главном экране») */
+#topList { position: fixed; z-index: 31; right: calc(max(14px, env(safe-area-inset-right)) + 30px); top: 50%; transform: translateY(-50%); width: 240px;
+  background: rgba(8, 10, 16, 0.38); border: 1px solid rgba(255, 213, 46, 0.22); border-radius: 12px; padding: 8px 12px 9px; color: #e8ecf1;
+  font: 14px Arial, sans-serif; text-shadow: 0 1px 2px #000; pointer-events: none; transition: opacity 0.9s ease; }
+#topList .th { text-align: center; color: #ffd52e; font-weight: bold; font-size: 15px; margin-bottom: 5px; }
+#topList .tr { display: flex; gap: 8px; align-items: baseline; line-height: 1.55; }
+#topList .tr i { font-style: normal; width: 20px; color: #8a93a8; text-align: right; }
+#topList .tr span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#topList .tr b { color: #ffd52e; font-weight: bold; }
+#topList .t1 span { color: #ffd52e; font-weight: bold; } #topList .t2 span { color: #e6e9ef; font-weight: bold; } #topList .t3 span { color: #f0a868; font-weight: bold; }
+body:not(.in-menu) #topList, body.team-mode #topList { display: none !important; }
+body.intro #topList { opacity: 0 !important; }
+@media (pointer: coarse), (max-height: 560px) {
+  #topList { width: 170px; right: calc(max(8px, env(safe-area-inset-right)) + 10px); padding: 5px 9px 6px; font-size: 11px; }
+  #topList .th { font-size: 12px; margin-bottom: 2px; }
+  #topList .tr { line-height: 1.4; gap: 6px; } #topList .tr i { width: 16px; }
+}
+/* 20.10 (владелец: «в рейтинге убери решётки, имена чуть больше — виднее») */
+#lb .row .nm { font-size: 1.12em; }
+@media (pointer: coarse) { #lb .row { font-size: 12px; } #lb .row .nm { font-size: 1.14em; } }

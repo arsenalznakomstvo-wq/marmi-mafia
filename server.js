@@ -530,7 +530,7 @@ function killSnake(s, killer) {
   if (c) {
     c.snake = null; c.diedAt = Date.now();
     // В топ-5 рекордов всех времён — пропуск, чтобы поставить своё фото на карточку победителя (владелец 11.10)
-    const place = TEAM ? 0 : records.placeAll(s.name);
+    const place = 0; // 20.10 (владелец): карточек с фото в меню больше нет (там прозрачный топ-10) — фото не предлагаем
     const photo = place ? { t: winners.invite(s.name), place, has: winners.has(s.name) } : null;
     sendJSON(c, { t: 'dead', score: Math.floor(s.mass), kills: s.kills, killer: killer ? killer.name : null, ...(s.quitting ? { quit: 1 } : {}), ...(photo ? { photo } : {}) });
   }

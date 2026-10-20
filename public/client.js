@@ -1893,7 +1893,9 @@ function renderRecords() {
     const dots = recData.all.map((_, i) => `<button data-i="${i}" aria-label="Место ${i + 1}"></button>`).join('');
     const wHtml = cards ? `<div class="wtitle">🏆 Топ-5 всех времён</div><div class="deck">${cards}</div><div class="wdots">${dots}</div>` : '';
     if (wHtml !== winHtml) { $('winCards').innerHTML = wHtml; winHtml = wHtml; deckShow(Math.min(deckCur, recData.all.length - 1), true); } // раз в 5 с приходит то же самое — не перерисовываем, чтобы фото не мигали
-    $('winCards').classList.toggle('hide', !cards);
+    $('winCards').classList.add('hide'); /* 20.10 (владелец): вместо карточек — как раньше, прозрачный список топ-10 */
+    const tl = $('topList'), tH = recData.all.length ? '<div class="th">🏆 Топ-10 всех времён</div>' + recData.all.slice(0, 10).map(([n, sc], i) => '<div class="tr' + (i < 3 ? ' t' + (i + 1) : '') + '"><i>' + (i + 1) + '</i><span>' + esc(n) + '</span><b>' + sc + '</b></div>').join('') : '';
+    if (tl.innerHTML !== tH) tl.innerHTML = tH; tl.classList.toggle('hide', !tH);
     html = `<div class="rh">🏆 Рекорды дня</div><div class="rcols">${col('Сегодня', recData.day)}</div>`;
   }
   if (html !== recHtml) { el.innerHTML = html; recHtml = html; }
@@ -1991,9 +1993,9 @@ function renderLb() {
   // Владелец 13.10: ник — золотистым, роль — рядом своим цветом (раньше всё одной строкой одного цвета)
   const list = lb.top.map(([name, score, id, tm, nick, role], i) => {
     const split = !TEAM_MODE && typeof nick === 'string' && name.startsWith(nick), R = ROLES[role || 0] || ROLES[0];
-    return { p: '#' + (i + 1), n: split ? nick : name, rl: '', /* 20.10 (владелец): в рейтинге только ник — без звания (Киллер, Комиссар…) */ rc: R.color, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] };
+    return { p: String(i + 1), /* 20.10 (владелец): без решёток */ n: split ? nick : name, rl: '', /* 20.10 (владелец): в рейтинге только ник — без звания (Киллер, Комиссар…) */ rc: R.color, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] };
   });
-  if (alive && lb.rank > 10) list.push({ p: '#' + lb.rank, n: myName(), s: String(lb.score), me: true, sep: true, c: '' });
+  if (alive && lb.rank > 10) list.push({ p: String(lb.rank), n: myName(), s: String(lb.score), me: true, sep: true, c: '' });
   lbRows.forEach((R, i) => {
     const d = list[i];
     lbSet(R.r, 'cls', d ? 'row' + (d.me ? ' me' : '') + (d.sep ? ' sep' : '') : 'row hide');

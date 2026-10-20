@@ -5,7 +5,7 @@
 const URL_ = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
 const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const enabled = () => !!(URL_ && TOKEN);
-const TOP = 5;
+const TOP = 10; // 20.10 (владелец): в меню — прозрачный топ-10 всех времён (было 5)
 // Командная арена (TEAM_MODE=1) ведёт свои рекорды отдельно (владелец 07.10)
 const KEY = process.env.TEAM_MODE === '1' ? 'mm:trec' : 'mm:rec';
 
