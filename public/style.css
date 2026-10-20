@@ -1138,3 +1138,6 @@ body.tgfs #toast, body.tgfs #bigToast { margin-top: calc(var(--tg-safe-area-inse
 @media (pointer: coarse) and (max-height: 380px) { #fireBtn { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 158px); } }
 /* 20.10 (владелец: «Ваше место — прозрачнее, чтобы не мешало глазам») */
 @media (pointer: coarse) { #scorebox { opacity: 0.5; } }
+/* 20.10 (владелец: «можно кружок оружия ещё чуть выше?»): ещё +25 px — до рейтинга остаётся небольшой зазор */
+@media (pointer: coarse) { #fireBtn { bottom: max(calc(max(10px, env(safe-area-inset-bottom)) + 195px), 53vh); } }
+@media (pointer: coarse) and (max-height: 380px) { #fireBtn { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 183px); } }

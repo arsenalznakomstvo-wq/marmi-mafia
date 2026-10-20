@@ -2691,7 +2691,7 @@ function renderFireBtn() {
   for (let j = 1; j < L.length && j <= 4; j++) rest.push(L[(i + j) % L.length]);
   /* 20.10 (владелец: «оружие идёт к центру экрана и закрывает его — сделай вокруг кнопки, чуть выше»): кружки — дугой вокруг кнопки:
      над ней, выше-левее, слева, ниже-левее (раньше — рядом влево, к середине экрана) */
-  const br = b.getBoundingClientRect(), R = br.width / 2 + 29, ANG = matchMedia('(pointer: coarse)').matches ? [120, 165, 210, 255] : [90, 135, 180, 225]; /* 20.10: на телефоне кнопку подняли — дуга влево-вниз, не задевает рейтинг; на компьютере снизу рация */
+  const br = b.getBoundingClientRect(), R = br.width / 2 + 29, ANG = matchMedia('(pointer: coarse)').matches ? [150, 195, 240, 285] : [90, 135, 180, 225]; /* 20.10: на телефоне кнопку подняли — дуга влево-вниз, не задевает рейтинг; на компьютере снизу рация */
   row.style.left = (br.left + br.width / 2) + 'px'; row.style.top = (br.top + br.height / 2) + 'px'; row.style.right = row.style.bottom = 'auto';
   row.innerHTML = rest.map((w, k) => { const a = ANG[k] * Math.PI / 180, dx = Math.cos(a) * R, dy = -Math.sin(a) * R;
     return '<b data-w="' + w + '" style="left:' + (dx - 19).toFixed(1) + 'px;top:' + (dy - 19).toFixed(1) + 'px' + (w.startsWith('i:') ? ';--ic:' + ITEM_INFO[w.slice(2)][2] : '') + '"' + (w.startsWith('i:') ? ' class="it"' : '') + '>' + wpnIcon(w) + '<i>' + wpnCount(w) + '</i></b>'; }).join('');
