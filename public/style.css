@@ -1104,3 +1104,10 @@ body.tgfs #lb, body.tgfs #soundBtn, body.tgfs #scorebox, body.tgfs #minimap, bod
 @media (pointer: coarse) {
   #lb { transform: scale(0.85); transform-origin: top right; right: calc(max(10px, env(safe-area-inset-right)) + 28px); }
 }
+/* 20.10 (владелец, телефон): «Ваша длина» убрать совсем; карта — в самый левый верхний угол; справа от карты — звук, за ним «Ваше место» вверху */
+@media (pointer: coarse) {
+  #scorebox > div:first-child { display: none !important; }
+  body #minimap { top: max(6px, env(safe-area-inset-top)) !important; left: max(6px, env(safe-area-inset-left)) !important; right: auto !important; bottom: auto !important; }
+  #soundBtn { top: max(6px, env(safe-area-inset-top)); left: calc(max(6px, env(safe-area-inset-left)) + 124px); width: 36px; height: 36px; line-height: 36px; font-size: 17px; }
+  body #scorebox { top: max(6px, env(safe-area-inset-top)) !important; left: calc(max(6px, env(safe-area-inset-left)) + 166px) !important; bottom: auto !important; line-height: 36px !important; }
+}
