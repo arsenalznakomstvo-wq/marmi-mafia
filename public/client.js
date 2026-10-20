@@ -908,6 +908,7 @@ function predStart(srv) {
 // srv — своя змейка из самого свежего снимка сервера; возвращает змейку для рисования
 const predStats = { frames: 0, snaps: 0, maxErr: 0, sumErr: 0 };
 window.__mmPred = () => predStats; // для проверки расхождения с сервером
+window.__mmPredXY = () => pred.on ? [pred.x, pred.y] : null; // для проверки рывков головы
 /* 15.10 (владелец: «своя змейка на телефоне подпрыгивает, шевелится»; разбор инженера):
    1) полоски узора и кончик хвоста считались по номерам точек из посылки сервера — между посылками они стояли, а кружки ехали,
       с посылкой полоски прыгали вперёд (на скинах с узкими полосами — больше чем на полосу). Теперь номер точки = путь от головы
@@ -927,13 +928,24 @@ function predStep(srv, now0) {
   pred.x += Math.cos(pred.a) * spd; pred.y += Math.sin(pred.a) * spd;
   /* 16.10 (проверка двух критиков): вернули прежнюю, проверенную временем поправку головы — «где голова на сервере сейчас»:
      свежий снимок + путь по прямой за время, пока он шёл к нам. Вчерашняя сверка по следу при плохой связи зацикливала сбросы */
-  const lead = ((now - lastArrive) + pingMs) / tickMs;
-  const sx = srv.xs[0] + Math.cos(srv.a) * moveSpeed(r, srv.boost) * lead;
-  const sy = srv.ys[0] + Math.sin(srv.a) * moveSpeed(r, srv.boost) * lead;
+  /* 20.10 (владелец: «кручусь на телефоне, жму ускорение — змея подпрыгивает»): раньше голову сервера «догоняли» по прямой.
+     При паузах связи до 0,6 с на кругах прямая уводила далеко наружу круга → сброс, голова прыгала на 200 ед.
+     Теперь путь считается по шагам, как на сервере: куда в тот момент вёл палец и было ли нажато ускорение (запоминаем на 1,5 с) */
+  const H = pred.hist || (pred.hist = []);
+  H.push(now, inAngle, boosting ? 1 : 0); while (H.length > 3 && H[0] < now - 1500) H.splice(0, 3);
+  const lead = Math.min(30, ((now - lastArrive) + pingMs) / tickMs), t0 = lastArrive - pingMs; // шаг сервера i — по нашему вводу в момент t0 + i·тик
+  let sx = srv.xs[0], sy = srv.ys[0], sa = srv.a, hp = 0;
+  for (let i = 0; i < lead; i++) {
+    const ti = t0 + i * tickMs; while (hp + 3 < H.length && H[hp + 3] <= ti) hp += 3;
+    const old = H[hp] > ti, tgt = old ? sa : H[hp + 1], b = old ? srv.boost : !!H[hp + 2]; // ввод старше памяти — как прислал сервер
+    const st = Math.min(1, lead - i);
+    const trS = myStun ? 0 : turnRate(r) * st; sa += clamp(angDiff(sa, tgt), -trS, trS);
+    const v = moveSpeed(r, b) * st * (myStun ? 0.35 : 1); sx += Math.cos(sa) * v; sy += Math.sin(sa) * v;
+  }
   const ex = sx - pred.x, ey = sy - pred.y, err = Math.hypot(ex, ey);
   predStats.frames++; predStats.sumErr += err; if (err > predStats.maxErr) predStats.maxErr = err;
-  if (err > 120) { predStats.snaps++; predStart(srv); pred.x = sx; pred.y = sy; }
-  else { const k = Math.min(1, 0.06 * dt); pred.x += ex * k; pred.y += ey * k; }
+  if (err > 300) { predStats.snaps++; predStart(srv); pred.x = sx; pred.y = sy; } // 20.10: совсем разошлись — встаём на место
+  else { const k = Math.min(1, (err > 120 ? 0.2 : 0.06) * dt); pred.x += ex * k; pred.y += ey * k; } // заметно разошлись — быстро, но плавно подтягиваем (раньше — сразу прыжок)
   // След головы (со временем) → тело нужной длины
   const tr0 = pred.trail[0];
   if (!tr0 || Math.hypot(pred.x - tr0[0], pred.y - tr0[1]) > 1.5) pred.trail.unshift([pred.x, pred.y, now]);
@@ -3313,20 +3325,46 @@ window.addEventListener('appinstalled', reportInstall);
   const tip = (html, ms) => { const t = $('iosTip'); t.innerHTML = html; t.classList.remove('hide'); clearTimeout(tip.t); tip.t = setTimeout(() => t.classList.add('hide'), ms || 8000); };
   let deferred = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
+  /* 20.10 (владелец: «игра установилась — а оповещения нет, браузер так и открыт»): после установки раз в 8 с проверяем, появилась ли иконка
+     (до 6 мин; запоминаем — проверка продолжится и после перезагрузки страницы). Появилась — короткое сообщение «зайдите с иконки» */
+  const instDone = () => { try { localStorage.removeItem('mm_instWait'); } catch (e) {} tip('✅ <b>Игра установлена!</b> Закройте браузер и откройте <b>«Марми Мафия»</b> с иконки на экране телефона', 15000); };
+  const instWatch = () => {
+    let since = 0; try { since = +localStorage.getItem('mm_instWait') || 0; } catch (e) {}
+    if (!since || Date.now() - since > 6 * 60e3) return;
+    if (!navigator.getInstalledRelatedApps) { setTimeout(instDone, Math.max(0, since + 150e3 - Date.now())); return; } // не умеет проверять — через 2,5 мин
+    const iv = setInterval(async () => {
+      if (Date.now() - since > 6 * 60e3) { clearInterval(iv); return; }
+      try { if ((await navigator.getInstalledRelatedApps()).length) { clearInterval(iv); instDone(); } } catch (e) {}
+    }, 8000);
+  };
+  instWatch();
+  window.addEventListener('appinstalled', () => { try { localStorage.setItem('mm_instWait', String(Date.now())); } catch (e) {} instWatch(); });
   window.addEventListener('appinstalled', () => { btn.classList.add('hide'); tip('⏳ Игра устанавливается — иконка <b>«Марми Мафия»</b> появится через 1–3 минуты.<br>Пока играйте здесь, потом откройте игру с иконки, а браузер закройте', 20000); /* владелец 13.10: «пишет „готово“, а иконки ещё нет» */ });
   if (!inApp) btn.classList.remove('hide');
+  if (!inApp && /[?&]inst=1/.test(location.search)) { btn.classList.add('pulse'); tip('👇 Нажмите <b>«📲 Установить на телефон»</b>', 10000); } // 20.10: пришли из Telegram ставить игру
   // 19.10 (владелец: «а установить на телефон в Telegram будет?»): в мини-приложении Telegram кнопка ставит значок игры на главный экран
   // (Telegram 8.0+): нажал на значок — игра открывается в Telegram. Значок уже есть — кнопку прячем
   if (typeof TG !== 'undefined' && TG) {
     const W = () => window.Telegram && window.Telegram.WebApp;
+    /* 20.10 (владелец: «в мини-приложении нажимаю „Установить“ — кнопка не нажимается»): Telegram ставит значок не при любом запуске
+       (из кнопки меню бота часто «не поддерживается») и тогда молча ничего не делает. Теперь кнопка всегда что-то делает:
+       Telegram умеет — его окно «Добавить на экран»; не умеет или окно не появилось — игра открывается в Chrome, там установка обычная */
+    let hs = '', added = false;
+    const viaBrowser = () => { const w = W(), u = location.origin + '/?inst=1'; try { w.openLink(u, { try_browser: 'chrome' }); } catch (e) { location.href = u; } };
     const setup = () => {
-      const w = W(); if (!w || !w.addToHomeScreen || !(w.isVersionAtLeast && w.isVersionAtLeast('8.0'))) return;
+      const w = W(); if (!w) return;
       btn.classList.remove('hide');
-      try { w.checkHomeScreenStatus(st => { if (st === 'added') btn.classList.add('hide'); }); } catch (e) {}
-      try { w.onEvent('homeScreenAdded', () => { btn.classList.add('hide'); tip('✅ Значок «Марми Мафия» добавлен на экран телефона — открывайте игру с него', 6000); }); } catch (e) {}
+      try { if (w.checkHomeScreenStatus) w.checkHomeScreenStatus(st => { hs = st; if (st === 'added') btn.classList.add('hide'); }); } catch (e) {}
+      try { w.onEvent('homeScreenAdded', () => { added = true; btn.classList.add('hide'); tip('✅ Значок «Марми Мафия» добавлен на экран телефона — открывайте игру с него', 6000); }); } catch (e) {}
     };
     setTimeout(setup, 1500); // библиотека Telegram загружается чуть позже страницы
-    btn.addEventListener('click', e => { const w = W(); if (!w || !w.addToHomeScreen) return; e.stopImmediatePropagation(); e.preventDefault(); try { w.addToHomeScreen(); } catch (er) {} }, true);
+    btn.addEventListener('click', e => {
+      e.stopImmediatePropagation(); e.preventDefault(); Sound.click();
+      const w = W();
+      if (!w || !w.addToHomeScreen || hs === 'unsupported' || !(w.isVersionAtLeast && w.isVersionAtLeast('8.0'))) { tip('🌐 Открываем игру в браузере — там нажмите <b>«📲 Установить на телефон»</b>', 10000); viaBrowser(); return; }
+      try { w.addToHomeScreen(); } catch (er) {}
+      setTimeout(() => { if (added) return; tip('Окно установки не появилось? <b id="tgInstB" style="text-decoration:underline">Установить через браузер</b>', 12000); const b = $('tgInstB'); if (b) b.onclick = viaBrowser; }, 2500);
+    }, true);
   }
   // Окно «шаг за шагом с картинками» (владелец 13.10) — общее для iPhone и Android
   const HL = x => `<span class="ig-hl">${x}</span>`; // подсвеченная кнопка
