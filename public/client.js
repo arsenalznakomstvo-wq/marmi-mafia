@@ -1991,7 +1991,7 @@ function renderLb() {
   // Владелец 13.10: ник — золотистым, роль — рядом своим цветом (раньше всё одной строкой одного цвета)
   const list = lb.top.map(([name, score, id, tm, nick, role], i) => {
     const split = !TEAM_MODE && typeof nick === 'string' && name.startsWith(nick), R = ROLES[role || 0] || ROLES[0];
-    return { p: '#' + (i + 1), n: split ? nick : name, rl: split ? name.slice(nick.length).trim() : '', rc: R.color, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] };
+    return { p: '#' + (i + 1), n: split ? nick : name, rl: '', /* 20.10 (владелец): в рейтинге только ник — без звания (Киллер, Комиссар…) */ rc: R.color, s: String(score), me: id === myId && alive, c: TEAM_MODE && tm >= 0 ? (tm ? '#ff8a1f' : '#ffffff') : LB_COLORS[i] };
   });
   if (alive && lb.rank > 10) list.push({ p: '#' + lb.rank, n: myName(), s: String(lb.score), me: true, sep: true, c: '' });
   lbRows.forEach((R, i) => {
