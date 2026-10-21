@@ -254,6 +254,7 @@ class Snake {
 
 const CAMO_TICKS = Math.round(1.5 * TICK_RATE);
 function moveSnake(s) {
+  if (s.growTo) { s.mass = Math.min(s.growTo, s.mass + Math.max(1, s.growTo / GROW_TICKS)); if (s.mass >= s.growTo) s.growTo = 0; } // гигант дорастает (21.10)
   const stun = s.stunUntil > tick, turbo = s.turboUntil > tick; // предметы (владелец 14.10): ⚡ шокер, 🚀 ускоритель
   // 19.10: 🦎 Хамелеон — без ускорения 1,5 с подряд становится «водяным» под соты (только вид: его видят все, боты и миникарта тоже)
   if (false && !TEAM && s.skin && s.skin.id === CHAM_ID) { /* 19.10 (владелец): маскировку Хамелеона убрали — только смена цвета на ускорении */ s.camoT = (s.boost && s.mass >= MIN_BOOST_MASS) || turbo ? 0 : (s.camoT || 0) + 1; s.camo = s.camoT >= CAMO_TICKS; } else s.camo = false;
@@ -551,7 +552,7 @@ function eat(s) {
 }
 
 // Место для появления: подальше от чужих тел и голов игроков
-function findSpawn(awayFromPlayers, cx, cy, rad) { // cx, cy, rad — искать рядом с точкой (командный режим: у своей базы)
+function findSpawn(awayFromPlayers, cx, cy, rad, awayDist = 700) { // cx, cy, rad — искать рядом с точкой (командный режим: у своей базы)
   let best = null, bestD = -Infinity; // -Infinity: место найдётся всегда, даже если все 30 проб попали в чужие тела
   for (let t = 0; t < 30; t++) {
     const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (cx != null ? rad : MAP_R - 700);
@@ -566,7 +567,7 @@ function findSpawn(awayFromPlayers, cx, cy, rad) { // cx, cy, rad — искат
     if (awayFromPlayers) {
       for (const s of snakes.values()) {
         if (s.bot) continue;
-        if (Math.hypot(s.xs[0] - x, s.ys[0] - y) < 700) md = Math.min(md, 0);
+        if (Math.hypot(s.xs[0] - x, s.ys[0] - y) < awayDist) md = Math.min(md, 0);
       }
     }
     if (md >= 400) return { x, y };
@@ -609,12 +610,18 @@ function makePersonality(s) {
   };
 }
 
+const BOT_START_MASS = 40, GROW_TICKS = 30 * TICK_RATE; // гигант набирает массу за ~30 с
 function spawnBot() {
   const roll = Math.random();
   // Как в оригинале, на карте всегда есть гиганты: примерно каждый седьмой бот появляется сразу большим
   const mass = roll < 0.45 ? rand(12, 60) : roll < 0.75 ? rand(60, 300) : roll < 0.86 ? rand(300, 1000) : rand(1500, 4000);
-  const pos = findSpawn(true);
-  const s = new Snake(pos.x, pos.y, mass, true, BOT_NAME, randomSkin());
+  // 21.10 (владелец: «из большого круга берётся огромная змея и сразу выходит в игру, пересекая всех червей»): гигант
+  // рождался сразу целым — прямой палкой 2 300–4 600 ед. от головы назад к краю карты (радиус 5 000), поперёк других змей;
+  // место проверялось только у головы. Теперь рождается короткой змейкой подальше от людей и за ~30 с «наедает» свою массу
+  // (growTo) — тело вытягивается за головой само, по пути, как у любой змеи, которая ест
+  const pos = findSpawn(true, undefined, undefined, undefined, mass >= 300 ? 1500 : 700);
+  const s = new Snake(pos.x, pos.y, Math.min(mass, BOT_START_MASS), true, BOT_NAME, randomSkin());
+  if (mass > s.mass) s.growTo = mass;
   s.role = rankFor(s.mass, 0);
   s.name = botNick();
   if (TEAM) { s.team = teamWithFewer(false); s.name = TEAM_BOT_NAMES[s.team]; s.role = 0; setTeamSkin(s); }
@@ -1799,4 +1806,4 @@ server.listen(PORT, () => {
   loop();
 });
 
-module.exports = { radiusFor, segsFor, viewScale, _test: { useItem: (s, t) => { s.inv = { [t]: 1 }; s.item = t; useItem(s, t); }, items, stepItems, useItemSel: useItem, snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки
+module.exports = { radiusFor, segsFor, viewScale, _test: { spawnBot, MAP_R, useItem: (s, t) => { s.inv = { [t]: 1 }; s.item = t; useItem(s, t); }, items, stepItems, useItemSel: useItem, snakes, Snake, buildGrid, collisions, SEG_D, bombs, throwBomb, stepBombs, foods, stepPortals, PORTALS, moveSnake, knives, throwKnife, stepKnives, getTick: () => tick } }; // _test — для проверок подрезки
